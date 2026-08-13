@@ -164,13 +164,57 @@ No endpoint added, removed, or changed in this milestone.
 Unchanged from RC1 — `docs/release/RELEASE_CHECKLIST.md` §4-5 cover
 `/ws` indirectly via startup/shutdown. Additionally for this release:
 
-- [ ] NOT VERIFIED — frontend-to-`/ws` live event verification requires
-      a real backend + browser session; not performed this run.
-      Partial equivalent: `/ws` was confirmed to reject an unauthenticated
-      connection attempt with HTTP 403 (Python `websockets` client,
-      no token) against a natively-run backend.
-- [ ] NOT VERIFIED — reconnection-on-restart behavior requires a
-      browser session; not performed this run.
+**Follow-up live acceptance pass** (against the actual running Docker
+production stack — `docker-compose.yml` + `docker-compose.prod.yml`,
+Alembic at `0002_auth_schema`, all containers healthy — superseding the
+native-only, no-Docker WS entries this section originally had):
+
+- [x] PASS — unauthenticated `ws://localhost:8000/ws` connection
+      rejected. Handshake fails with HTTP `403` (see
+      `docs/architecture/WEBSOCKET_FRAMEWORK.md` §2 for why this is `403`
+      and not a `1008` WS close frame — a documentation correction made
+      alongside this run, not a behavior change).
+- [x] PASS — authenticated connection succeeds: `{"type": "connected",
+      "connection_id": "..."}` received, via a token obtained through the
+      real `POST /api/v1/auth/login`.
+- [x] PASS — permission-scoped subscription handshake: subscribed to
+      `RECOMMENDATION_GENERATED` (requires `portfolio:read`), received
+      `{"type": "subscribed", ...}`.
+- [x] PASS — heartbeat: `{"action": "ping"}` -> `{"type": "pong"}`.
+- [x] PASS — event delivery via the existing publisher/REST trigger: a
+      real `POST /api/v1/portfolio/recommendations` call (`201`)
+      produced a `{"type": "event", "event": {"event_type":
+      "RECOMMENDATION_GENERATED", ...}}` message on the same
+      already-subscribed connection.
+- [x] PASS — the deployed frontend's own built JS bundle
+      (`marketmind-frontend`'s `dist/assets/*.js`) has `ws://localhost:8000/ws`
+      baked in as `VITE_WS_BASE_URL` — confirms the frontend WebSocket
+      client is configured to target the exact endpoint/protocol
+      exercised live above. This is a build-artifact/config check, not a
+      running-browser observation.
+- [ ] NOT VERIFIED — browser-driven frontend walkthrough (loading
+      `http://localhost:8080`, logging in through the UI, and visually
+      observing the frontend's `useRealtimeSync` actually receive the
+      `RECOMMENDATION_GENERATED` event). **Reason: the `claude-in-chrome`
+      browser extension was unavailable in this environment
+      (`tabs_context_mcp` failed both attempts with "Browser extension is
+      not connected") — this is a tooling/environment limitation, not an
+      application failure.** `useRealtimeSync`/`useWebSocket`/
+      `useRealtimeSubscriptions` were read and traced statically (same
+      message shapes as the backend acceptance pass above, same
+      `EVENT_TYPE_PERMISSIONS` mapping), which is a reasonable basis for
+      confidence but is explicitly **not** treated as equivalent to a
+      PASS — no browser ever actually ran this code this run.
+- [ ] NOT VERIFIED — browser-observed cache invalidation / toast /
+      Notification Center entry for the delivered event (`invalidateForEvent`,
+      `toastFor`, `useRealtimeNotificationStore`). Same reason as above:
+      browser extension unavailable; traced statically only
+      (`invalidateForEvent` -> `queryClient.invalidateQueries({queryKey:
+      ["portfolio","recommendations"]})`, then a preference-gated
+      Notification Center entry and toast), not converted to a PASS.
+- [ ] NOT VERIFIED — reconnection-on-restart behavior requires a browser
+      session (or an equivalent scripted reconnect exercise); not
+      performed this run either.
 
 ## 5. Accessibility
 
@@ -207,9 +251,17 @@ accessibility-relevant code changed in this run either).
 - [x] PASS — `pip-audit` — 1 known finding (`chromadb` `PYSEC-2026-311`),
       reproduced; no fixed version exists yet. Mitigation
       (`docker-compose.prod.yml` not publishing ChromaDB's port) was
-      read and confirmed present in the compose file, but its actual
-      *runtime* effect (a running container with the port genuinely
-      unreachable) could not be verified — no Docker.
+      read and confirmed present in the compose file at the time of
+      this run; its actual *runtime* effect could not be verified then
+      — no Docker. **Update (later follow-up session, live Docker
+      stack)**: independently verified — `docker ps` shows
+      `marketmind-chromadb`/`marketmind-postgres`/`marketmind-redis`
+      each with no host port mapping (`redis:6379`-style internal-only
+      port, no `0.0.0.0:...->...` entry), while `marketmind-backend`
+      and `marketmind-frontend` correctly retain their published
+      `8000`/`8080`. The port-publication mitigation is confirmed
+      genuinely in effect at runtime, not just present in the compose
+      file's source text.
 - [x] PASS — backend security-headers middleware
       (`app/api/v1/middleware/security_headers.py`) sends
       `X-Content-Type-Options`/`X-Frame-Options`/`Referrer-Policy`/
@@ -320,10 +372,23 @@ fixed and re-verified (see verification log). What remains **unverified**
 Docker/browser/live-deployment/remote-CI dependent:
 
 - Full Docker Compose production stack has never been built or started
-  against this exact commit (no Docker in this environment).
-- No browser-driven verification (WS live events, reconnection,
-  keyboard-only accessibility spot-check, boot-timing marks, the
-  unset-env-var console error) was performed.
+  against this exact commit (no Docker in this environment). **Update:**
+  a later follow-up session did build and run the full stack in Docker
+  (see §4's "Follow-up live acceptance pass") and used it for the
+  backend/protocol-level WebSocket checks below — that portion of this
+  bullet is superseded; other Docker-dependent items in this document
+  (full RC1 checklist, accessibility, boot-timing) were not part of that
+  follow-up and remain as originally stated.
+- No browser-driven verification was performed. WS live events are now
+  verified at the backend/protocol level (§4's follow-up pass — real
+  Docker stack, real login, real subscribe/heartbeat/event-delivery, all
+  PASS); a genuine browser-rendered observation of the frontend
+  receiving that event and updating its UI (cache invalidation, toast,
+  Notification Center) is **still not verified** — the `claude-in-chrome`
+  browser extension was unavailable in that follow-up session, not an
+  application failure. Reconnection, keyboard-only accessibility
+  spot-check, boot-timing marks, and the unset-env-var console error
+  remain unverified for the same reason (no browser session).
 - GitHub Actions workflows have not been confirmed to actually execute
   successfully on a real push/PR (no remote configured).
 - `docs/release/RELEASE_CHECKLIST.md` (the RC1 backend checklist this
@@ -336,7 +401,7 @@ Docker/browser/live-deployment/remote-CI dependent:
 | Backend verification | PARTIAL PASS | Tests/build/package verified natively; full RC1 checklist (needs live Postgres) not run |
 | Frontend verification | PASS | typecheck/lint/test/build all verified after fixing 17 type errors + 1 runtime crash bug |
 | API verification | PASS | Live OpenAPI schema matches `API_CONTRACT_V1.md` exactly |
-| WebSocket verification | PARTIAL PASS | Auth rejection verified; live event delivery needs a browser + Docker |
+| WebSocket verification | PARTIAL PASS | Backend/protocol fully verified live in Docker (auth reject 403, authenticated connect, permission-scoped subscribe, heartbeat, real event delivery); browser-observed frontend receipt + cache invalidation NOT VERIFIED — browser extension unavailable, not an app defect |
 | Accessibility | NOT VERIFIED | No browser session this run |
 | Performance | PARTIAL PASS | Recharts chunking verified; backend benchmarks and boot-timing not verified |
 | Security | PASS | npm audit / pip-audit / secrets / headers / CORS verified; JWT-secret validation gap found and fixed |

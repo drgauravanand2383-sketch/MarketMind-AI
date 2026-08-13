@@ -56,11 +56,21 @@ like Sprint 58's `InMemoryResultStore`s. Both are attached to
    `AuthenticationMiddleware` already calls for HTTP requests (Starlette's
    `BaseHTTPMiddleware` never runs for a `websocket` ASGI scope, so this
    is done by hand, once, at connect time). No token, an invalid token, or
-   an unconfigured framework closes the socket immediately (`1008`
-   Policy Violation for auth failure, `1011` Internal Error if
-   `connection_manager`/`policy_evaluator` aren't configured) — the
-   socket is never left open unauthenticated.
-3. `ConnectionManager.connect()` accepts the socket, generates a
+   an unconfigured framework calls `websocket.close(code=1008 | 1011, ...)`
+   (`router.py`'s `CLOSE_POLICY_VIOLATION`/`CLOSE_INTERNAL_ERROR`) —
+   **before** `websocket.accept()` is ever called (accept happens only in
+   step 3, inside `ConnectionManager.connect()`). Per the ASGI WebSocket
+   spec, a `close` sent before `accept` is delivered to the client as an
+   **HTTP `403 Forbidden`** response to the handshake request, not as a
+   WebSocket close frame — the `1008`/`1011` codes passed to `.close()`
+   are the intended semantic reason in the source, but are not what
+   reaches the client over the wire in this pre-accept case. Confirmed
+   live against a real Docker deployment: connecting without a token
+   fails the handshake with HTTP `403`, exactly as the client-side
+   rejection (`websockets.exceptions.InvalidStatus`, `status_code=403`)
+   showed. Either way, the socket is never left open unauthenticated.
+3. `ConnectionManager.connect()` accepts the socket (`websocket.accept()`
+   — the only call to it anywhere in `app/api/ws/`), generates a
    `connection_id`, and registers `WebSocketConnection(connection_id,
    websocket, principal, connected_at, last_heartbeat_at)`.
 4. The server sends `{"type": "connected", "connection_id": "..."}`.
@@ -69,7 +79,17 @@ like Sprint 58's `InMemoryResultStore`s. Both are attached to
 6. On client disconnect (or any unrecoverable transport error),
    `ConnectionManager.disconnect()` removes the connection and every
    subscription it held — always run from a `finally` block, so cleanup
-   happens on every exit path.
+   happens on every exit path. **Post-accept closure**: `disconnect()` is
+   pure in-memory bookkeeping — it never itself sends a WebSocket close
+   frame. Nothing anywhere in `app/api/ws/` calls `websocket.close(...)`
+   after `accept()` has run (the package's only two `.close()` calls are
+   both the pre-accept, step-2 handshake rejections above); an accepted
+   connection ends only via a genuine client-initiated close/disconnect
+   or a transport-level error, in which case the *client's* close code
+   applies — this server never chooses one post-accept. A future sprint
+   that adds a server-initiated post-accept close (e.g. idle-connection
+   cleanup, see §7) would need to pick and document its own code at that
+   point; none exists in this codebase today.
 7. If a `send` to a connection ever fails (the client is gone but the
    server hasn't noticed yet), `ConnectionManager` catches the exception,
    logs it, and disconnects that connection immediately rather than
