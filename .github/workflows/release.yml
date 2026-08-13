@@ -1,0 +1,95 @@
+name: Release
+
+# Triggered by pushing a SemVer tag (see docs/release/UPGRADE_POLICY.md
+# for the versioning scheme this project follows) — e.g. `git tag
+# v1.0.0 && git push origin v1.0.0`. Builds and uploads every release
+# artifact as a workflow artifact named after the tag; does not push to
+# any container registry (none is assumed/configured by this project) —
+# a later, deployment-specific step can `docker load` these images and
+# push wherever that deployment's registry actually is.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  frontend:
+    name: Frontend build + verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - working-directory: frontend
+        run: npm ci
+      - working-directory: frontend
+        run: npm run typecheck
+      - working-directory: frontend
+        run: npm run lint
+      - working-directory: frontend
+        run: npm run test
+      - working-directory: frontend
+        run: npm run build
+        env:
+          # Set these as repository variables (Settings → Secrets and
+          # variables → Actions → Variables) before cutting a real
+          # release — see docs/release/PRODUCTION_CONFIGURATION_GUIDE.md's
+          # Frontend section. Falls back to a clearly-fake placeholder so
+          # this workflow still runs (and still validates the build
+          # succeeds) in a repo that hasn't configured them yet.
+          VITE_API_BASE_URL: ${{ vars.PRODUCTION_API_BASE_URL || 'https://api.example.invalid/api/v1' }}
+          VITE_WS_BASE_URL: ${{ vars.PRODUCTION_WS_BASE_URL || 'wss://api.example.invalid/ws' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist-${{ github.ref_name }}
+          path: frontend/dist
+          retention-days: 90
+
+  backend:
+    name: Backend build + verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+      - working-directory: backend
+        run: uv sync --group dev
+      - working-directory: backend
+        run: uv run pytest tests
+      - working-directory: backend
+        run: uv build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-dist-${{ github.ref_name }}
+          path: backend/dist
+          retention-days: 90
+
+  docker-images:
+    name: Docker images
+    runs-on: ubuntu-latest
+    needs: [frontend, backend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -t marketmind-backend:${{ github.ref_name }} ./backend
+      - name: Build frontend image
+        run: |
+          docker build \
+            --build-arg VITE_API_BASE_URL=${{ vars.PRODUCTION_API_BASE_URL || 'https://api.example.invalid/api/v1' }} \
+            --build-arg VITE_WS_BASE_URL=${{ vars.PRODUCTION_WS_BASE_URL || 'wss://api.example.invalid/ws' }} \
+            -t marketmind-frontend:${{ github.ref_name }} ./frontend
+      - name: Save images
+        run: |
+          docker save marketmind-backend:${{ github.ref_name }} | gzip > marketmind-backend-${{ github.ref_name }}.tar.gz
+          docker save marketmind-frontend:${{ github.ref_name }} | gzip > marketmind-frontend-${{ github.ref_name }}.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-images-${{ github.ref_name }}
+          path: |
+            marketmind-backend-${{ github.ref_name }}.tar.gz
+            marketmind-frontend-${{ github.ref_name }}.tar.gz
+          retention-days: 90

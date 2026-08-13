@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/* Tailwind v4 CSS-first theme config — dark mode driven by the `.dark`
+ * class on <html>, toggled by src/store/theme-store.ts. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-brand-50: oklch(0.97 0.02 250);
+  --color-brand-100: oklch(0.93 0.04 250);
+  /* Lighter than -500 specifically for dark-mode text/link usage —
+     `dark:text-brand-500` measured 4.05:1 against slate-950, failing the
+     4.5:1 AA threshold for normal text (Milestone 9 audit finding). */
+  --color-brand-400: oklch(0.71 0.17 260);
+  --color-brand-500: oklch(0.55 0.18 260);
+  --color-brand-600: oklch(0.48 0.19 260);
+  --color-brand-700: oklch(0.4 0.18 260);
+}
+
+:root {
+  color-scheme: light;
+}
+
+:root.dark {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+}
+
+/* Milestone 8 — Workspace preferences (Appearance density, Accessibility).
+ * Classes toggled on <html> by `app/preferences-provider.tsx`, reading
+ * `store/preferences-store.ts`. Density and "larger text" both scale the
+ * root font size — since nearly every Tailwind spacing/sizing utility in
+ * this app is rem-based, that one rule proportionally scales padding,
+ * gaps, and text together everywhere, without touching every component
+ * individually. */
+html.compact {
+  font-size: 93.75%;
+}
+
+html.large-text {
+  font-size: 118%;
+}
+
+/* Frontend-only contrast boost — a CSS filter over the whole page, not a
+ * WCAG-audited theme; still light/dark-aware since it filters whatever
+ * colors are already rendered. */
+html.high-contrast body {
+  filter: contrast(1.35);
+}
+
+html.focus-highlight *:focus-visible {
+  outline: 3px solid var(--color-brand-600) !important;
+  outline-offset: 2px !important;
+}

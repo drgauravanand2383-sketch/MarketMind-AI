@@ -1,0 +1,94 @@
+# MarketMind AI — local production-testing stack.
+#
+# `docker-compose.yml` alone is infra-only (Postgres/Redis/ChromaDB) —
+# the documented dev workflow (README.md) runs the backend natively via
+# `uv sync` + `uvicorn --reload` against it for a fast inner loop. This
+# file is a separate, additive layer (not a replacement) that also
+# builds and runs the backend and frontend as containers, so the whole
+# stack can be exercised the way it will actually be deployed. It never
+# changes what the plain `docker compose up -d` command already does.
+#
+# Usage:
+#   cp .env.example .env   # fill in real values first
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
+#
+# Then:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     exec backend alembic upgrade head
+#
+# (Migrations are a deliberate, separate step — see
+# docs/release/DEPLOYMENT_GUIDE.md §4 — never run automatically on
+# container start.)
+
+services:
+  # Milestone 10 security review: chromadb 1.5.9 (this project's pinned
+  # minimum, `chromadb>=0.5.0`) has an unpatched pre-authentication
+  # code-injection advisory (PYSEC-2026-311) on its own HTTP API — no
+  # fixed version exists yet to upgrade to. `docker-compose.yml`'s own
+  # `chromadb`/`postgres`/`redis` services publish their ports to the
+  # host for local-dev convenience (connecting a GUI DB client, etc.);
+  # in this "production testing" stack, only the `backend` container
+  # ever needs to reach them, over the internal `marketmind-network` —
+  # published host ports are never required for that. Overriding
+  # `ports: []` here removes the host publication without touching
+  # anything else about these 3 services (Compose replaces, not merges,
+  # list-valued keys across override files).
+  postgres:
+    ports: []
+  redis:
+    ports: []
+  chromadb:
+    ports: []
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: marketmind-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Override the host-oriented defaults from .env with the Docker
+      # network's own internal service names — `.env`'s own
+      # DATABASE_URL/REDIS_URL/CHROMA_HOST point at `localhost`, correct
+      # for a natively-run backend talking to the infra containers'
+      # published ports, but `localhost` inside this container means
+      # itself, not the `postgres`/`redis`/`chromadb` services.
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_HOST: redis
+      CHROMA_HOST: chromadb
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    networks:
+      - marketmind-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Browser-reachable URLs, not the internal Docker service name —
+        # the frontend container only *serves* these static files: the
+        # browser that loads them runs on the host, outside this Docker
+        # network, and can't resolve `backend` as a hostname. Baked in
+        # at build time (see frontend/Dockerfile's own comment) — override
+        # via a real .env value if the backend's published port differs.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
+        VITE_WS_BASE_URL: ${VITE_WS_BASE_URL:-ws://localhost:8000/ws}
+    container_name: marketmind-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
+    depends_on:
+      - backend
+    networks:
+      - marketmind-network
