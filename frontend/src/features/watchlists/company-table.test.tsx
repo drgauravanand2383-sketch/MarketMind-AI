@@ -16,7 +16,7 @@ function baseProps(): CompanyTableProps {
 /** Stubs `window.matchMedia` (jsdom has none) so `useMediaQuery` resolves
  * deterministically instead of falling back to its "desktop" default. */
 function stubMatchMedia(matches: boolean): void {
-  window.matchMedia = ((query: string) => ({
+  window.matchMedia = (query: string) => ({
     matches,
     media: query,
     onchange: null,
@@ -25,10 +25,14 @@ function stubMatchMedia(matches: boolean): void {
     addListener: () => undefined,
     removeListener: () => undefined,
     dispatchEvent: () => false,
-  })) as unknown as typeof window.matchMedia;
+  });
 }
 
 describe("CompanyTable", () => {
+  // jsdom has no native `window.matchMedia` (it's `undefined` here, hence
+  // no `.bind()` — see `stubMatchMedia` above), so there is no real
+  // unbound-`this` risk from capturing the bare reference.
+  // eslint-disable-next-line @typescript-eslint/unbound-method
   const originalMatchMedia = window.matchMedia;
 
   afterEach(() => {
@@ -67,7 +71,7 @@ describe("CompanyTable", () => {
       expect(screen.getAllByText("AAPL")).toHaveLength(1);
     });
 
-    it("still exposes the same remove action from the card layout", async () => {
+    it("still exposes the same remove action from the card layout", () => {
       const onRemove = vi.fn();
       render(<CompanyTable {...baseProps()} onRemove={onRemove} />);
 

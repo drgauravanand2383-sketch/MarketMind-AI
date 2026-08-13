@@ -109,7 +109,7 @@ already gets elsewhere in this contract.
 (`app.api.v1.exception_handlers.handlers.register_exception_handlers`),
 and documented once, in prose, here and in
 `docs/architecture/API_ARCHITECTURE.md` §4, rather than duplicated across
-44 paths' `responses=` declarations. This is a deliberate choice, not a
+49 paths' `responses=` declarations. This is a deliberate choice, not a
 gap: `tests/api/v1/test_contract.py` verifies the *actual behavior*
 (a real 404/409/422 response has the documented shape) rather than a
 static per-operation OpenAPI declaration, which would drift from

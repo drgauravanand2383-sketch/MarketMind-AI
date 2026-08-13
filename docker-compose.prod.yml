@@ -29,16 +29,18 @@ services:
   # host for local-dev convenience (connecting a GUI DB client, etc.);
   # in this "production testing" stack, only the `backend` container
   # ever needs to reach them, over the internal `marketmind-network` —
-  # published host ports are never required for that. Overriding
-  # `ports: []` here removes the host publication without touching
-  # anything else about these 3 services (Compose replaces, not merges,
-  # list-valued keys across override files).
+  # published host ports are never required for that. `ports` is a
+  # Compose "unique resource" key: a plain `ports: []` override does NOT
+  # clear entries inherited from the base file (they still merge in),
+  # so it would silently leave these 3 services published to the host.
+  # The `!reset` YAML tag is Compose's documented mechanism for clearing
+  # an inherited sequence instead of merging into it.
   postgres:
-    ports: []
+    ports: !reset []
   redis:
-    ports: []
+    ports: !reset []
   chromadb:
-    ports: []
+    ports: !reset []
 
   backend:
     build:

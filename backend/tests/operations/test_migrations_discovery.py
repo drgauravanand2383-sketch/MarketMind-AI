@@ -15,7 +15,7 @@ from app.operations.migrations.discovery import (
 
 def test_collect_metadata_returns_one_entry_per_repository_package() -> None:
     metadata = collect_metadata()
-    assert len(metadata) == 10
+    assert len(metadata) == 11
     assert all(isinstance(m, MetaData) for m in metadata)
 
 
@@ -30,6 +30,9 @@ def test_collect_table_names_includes_known_tables() -> None:
     assert "risk_assessments" in names
     assert "backtest_requests" in names
     assert "explainability_results" in names
+    assert "auth_users" in names
+    assert "auth_roles" in names
+    assert "auth_revoked_tokens" in names
 
 
 def test_collect_table_names_is_sorted() -> None:

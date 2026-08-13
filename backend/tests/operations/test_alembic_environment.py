@@ -85,7 +85,7 @@ def test_downgrade_base_drops_every_created_table(alembic_config: Config, sqlite
         assert table_name not in remaining
 
 
-def test_current_revision_is_the_baseline_after_upgrade(alembic_config: Config, sqlite_db_path: str) -> None:
+def test_current_revision_is_the_head_after_upgrade(alembic_config: Config, sqlite_db_path: str) -> None:
     command.upgrade(alembic_config, "head")
 
     connection = sqlite3.connect(sqlite_db_path)
@@ -93,4 +93,4 @@ def test_current_revision_is_the_baseline_after_upgrade(alembic_config: Config, 
         (version,) = connection.execute("SELECT version_num FROM alembic_version").fetchone()
     finally:
         connection.close()
-    assert version == "0001_baseline_schema"
+    assert version == "0002_auth_schema"

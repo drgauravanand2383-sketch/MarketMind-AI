@@ -20,6 +20,7 @@ from collections import Counter
 
 from sqlalchemy import MetaData
 
+from app.auth.repositories.postgres.models import Base as AuthBase
 from app.repositories.alerts.postgres.models import Base as AlertsBase
 from app.repositories.backtesting.postgres.models import Base as BacktestingBase
 from app.repositories.explainability.postgres.models import Base as ExplainabilityBase
@@ -35,6 +36,7 @@ __all__ = ["collect_metadata", "collect_table_names", "duplicate_table_names"]
 
 _BASES: tuple[type, ...] = (
     AlertsBase,
+    AuthBase,
     BacktestingBase,
     ExplainabilityBase,
     KnowledgeBase,

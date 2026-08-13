@@ -26,6 +26,7 @@ from urllib.parse import urlparse
 from app.config.models import (
     AnthropicSettings,
     APISettings,
+    AuthSettings,
     LLMSettings,
     LoggingSettings,
     PostgreSQLSettings,
@@ -40,7 +41,7 @@ __all__ = ["ConfigurationValidationService", "DEFAULT_KNOWN_ENVIRONMENTS", "DEFA
 DEFAULT_KNOWN_ENVIRONMENTS: frozenset[str] = frozenset({"development", "staging", "production", "test"})
 DEFAULT_KNOWN_LLM_PROVIDERS: frozenset[str] = frozenset({"anthropic"})
 
-_INSECURE_DEFAULT_SECRETS: frozenset[str] = frozenset({"change-me", "changeme", ""})
+_INSECURE_DEFAULT_SECRETS: frozenset[str] = frozenset({"change-me", "changeme", "change-me-in-production", ""})
 
 
 def _default_now() -> datetime:
@@ -74,6 +75,7 @@ class ConfigurationValidationService:
         llm: LLMSettings,
         api: APISettings,
         rss: RSSSettings,
+        auth: AuthSettings,
     ) -> ValidationReport:
         """`anthropic=None` means the caller could not construct
         `AnthropicSettings` at all — `api_key` has no default, so a
@@ -90,6 +92,7 @@ class ConfigurationValidationService:
             self._check_port_range("api.port", api.port),
             self._check_no_duplicates("rss.feed_urls", rss.feed_urls),
             self._check_not_default_secret("postgres.password", postgres.password.get_secret_value()),
+            self._check_not_default_secret("auth.secret_key", auth.secret_key.get_secret_value()),
             self._check_valid_urls("rss.feed_urls", rss.feed_urls),
             self._check_known_provider("llm.provider", llm.provider, self._known_llm_providers),
         ]

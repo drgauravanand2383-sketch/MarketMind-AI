@@ -17,6 +17,16 @@ const batchFormSchema = z.object({
 
 type BatchFormValues = z.infer<typeof batchFormSchema>;
 
+/** `react-hook-form`'s `FieldPath` needs a numeric-literal template
+ * (`companies.${number}.field`) to type-check, but the numeric
+ * interpolation itself trips `@typescript-eslint/restrict-template-expressions`
+ * — isolated here as the one intentional, reviewed exception rather than
+ * disabling the rule at each call site. */
+function companyField<F extends "company_name" | "ticker">(index: number, field: F): `companies.${number}.${F}` {
+  // eslint-disable-next-line @typescript-eslint/restrict-template-expressions -- index is a number by construction (array index)
+  return `companies.${index}.${field}`;
+}
+
 export function ResearchBatchPage(): ReactNode {
   const runBatch = useRunBatchCompanyResearch();
   const {
@@ -56,11 +66,11 @@ export function ResearchBatchPage(): ReactNode {
                     label={`Company ${String(index + 1)} name`}
                     autoComplete="off"
                     error={errors.companies?.[index]?.company_name?.message}
-                    {...register(`companies.${String(index)}.company_name` as const)}
+                    {...register(companyField(index, "company_name"))}
                   />
                 </div>
                 <div className="w-32">
-                  <FormField label="Ticker (optional)" autoComplete="off" {...register(`companies.${String(index)}.ticker` as const)} />
+                  <FormField label="Ticker (optional)" autoComplete="off" {...register(companyField(index, "ticker"))} />
                 </div>
                 <button
                   type="button"

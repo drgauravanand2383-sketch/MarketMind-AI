@@ -27,7 +27,7 @@ export function PortfolioVsBenchmarkChart({ result }: { result: BacktestResult }
         <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-800" />
         <XAxis dataKey="name" tick={{ fontSize: 12 }} />
         <YAxis tick={{ fontSize: 12 }} />
-        <Tooltip formatter={(value: number) => `${value.toFixed(2)}%`} />
+        <Tooltip formatter={(value) => `${Number(value).toFixed(2)}%`} />
         <Bar
           dataKey="value"
           radius={[4, 4, 0, 0]}
@@ -37,7 +37,7 @@ export function PortfolioVsBenchmarkChart({ result }: { result: BacktestResult }
             return <Rectangle x={props.x} y={props.y} width={props.width} height={props.height} radius={4} fill={fill} />;
           }}
         >
-          {showDataLabels && <LabelList dataKey="value" position="top" fontSize={11} formatter={(v: number) => `${v.toFixed(1)}%`} />}
+          {showDataLabels && <LabelList dataKey="value" position="top" fontSize={11} formatter={(v) => `${Number(v).toFixed(1)}%`} />}
         </Bar>
       </BarChart>
     </ResponsiveContainer>

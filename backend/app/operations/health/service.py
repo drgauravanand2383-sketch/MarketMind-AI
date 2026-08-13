@@ -15,6 +15,7 @@ reachability itself, only calls and aggregates.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Callable, Protocol
 
@@ -45,24 +46,30 @@ class HealthCheckService:
     async def check_repositories(
         self, repositories: dict[str, _HealthCheckable | None]
     ) -> tuple[RepositoryHealth, ...]:
-        """Check every repository's own `health_check()`. A `None` entry
-        (dependency injection failed to construct it) is reported
-        `UNHEALTHY` without attempting a call; an exception raised by
-        `health_check()` itself is also reported `UNHEALTHY`, never
-        propagated."""
-        results: list[RepositoryHealth] = []
-        for name, repository in repositories.items():
+        """Check every repository's own `health_check()`, concurrently. A
+        `None` entry (dependency injection failed to construct it) is
+        reported `UNHEALTHY` without attempting a call; an exception raised
+        by `health_check()` itself is also reported `UNHEALTHY`, never
+        propagated. Checks run via `asyncio.gather` rather than sequentially
+        so that one slow/unreachable dependency's connection latency isn't
+        multiplied by every other repository checked after it — with N
+        repositories, total latency is bounded by the single slowest check,
+        not their sum."""
+
+        async def _check_one(name: str, repository: _HealthCheckable | None) -> RepositoryHealth:
             if repository is None:
-                results.append(RepositoryHealth(name=name, state=HealthState.UNHEALTHY, message="not configured"))
-                continue
+                return RepositoryHealth(name=name, state=HealthState.UNHEALTHY, message="not configured")
             try:
                 reachable = await repository.health_check()
             except Exception as exc:  # noqa: BLE001 - a health check must never raise
-                results.append(RepositoryHealth(name=name, state=HealthState.UNHEALTHY, message=str(exc)))
-                continue
+                return RepositoryHealth(name=name, state=HealthState.UNHEALTHY, message=str(exc))
             state = HealthState.HEALTHY if reachable else HealthState.UNHEALTHY
             message = "reachable" if reachable else "unreachable"
-            results.append(RepositoryHealth(name=name, state=state, message=message))
+            return RepositoryHealth(name=name, state=state, message=message)
+
+        results = await asyncio.gather(
+            *(_check_one(name, repository) for name, repository in repositories.items())
+        )
         return tuple(sorted(results, key=lambda result: result.name))
 
     def check_services(self, services: dict[str, object | None]) -> tuple[ServiceHealth, ...]:

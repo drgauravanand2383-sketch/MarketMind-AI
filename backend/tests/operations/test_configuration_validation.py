@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from app.config.models import (
     AnthropicSettings,
     APISettings,
+    AuthSettings,
     LLMSettings,
     LoggingSettings,
     PostgreSQLSettings,
@@ -33,6 +34,7 @@ def _validate(service: ConfigurationValidationService, **overrides: object):
         "llm": LLMSettings(),
         "api": APISettings(),
         "rss": RSSSettings(),
+        "auth": AuthSettings(secret_key="a-real-jwt-secret"),
     }
     defaults.update(overrides)
     return service.validate(**defaults)
@@ -139,6 +141,25 @@ def test_default_anthropic_key_placeholder_flagged_as_insecure() -> None:
     report = _validate(_service(), anthropic=AnthropicSettings(api_key="change-me"))
 
     assert _check(report, "missing_secret:anthropic.api_key").passed is False
+
+
+def test_default_jwt_secret_key_flagged_as_insecure() -> None:
+    """Regression test: `AuthSettings.secret_key` defaults to the
+    publicly-documented placeholder `"change-me-in-production"`
+    (`.env.example`) — deploying with it unchanged lets anyone forge a
+    valid JWT for any user. Previously this default was never checked at
+    all (unlike `postgres.password`/`anthropic.api_key`)."""
+    report = _validate(_service(), auth=AuthSettings())  # default secret_key="change-me-in-production"
+
+    check = _check(report, "missing_secret:auth.secret_key")
+    assert check.passed is False
+    assert check.severity == ValidationSeverity.WARNING
+
+
+def test_real_jwt_secret_key_not_flagged() -> None:
+    report = _validate(_service(), auth=AuthSettings(secret_key="a-real-jwt-secret"))
+
+    assert _check(report, "missing_secret:auth.secret_key").passed is True
 
 
 # --- invalid URLs -----------------------------------------------------------

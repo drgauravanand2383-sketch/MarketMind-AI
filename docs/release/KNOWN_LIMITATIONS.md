@@ -80,8 +80,8 @@ degrade to `503`.
 
 401/403/404/409/500/503 are handled once, centrally, and documented once
 in prose (`docs/release/API_CONTRACT_V1.md` §4) rather than declared via
-a `responses={}` block on each of 50 operations — a deliberate choice to
-avoid 50 duplicated, driftable declarations of the same centralized
+a `responses={}` block on each of 55 operations — a deliberate choice to
+avoid 55 duplicated, driftable declarations of the same centralized
 logic. Swagger UI will not show example 4xx/5xx bodies per endpoint as a
 result.
 

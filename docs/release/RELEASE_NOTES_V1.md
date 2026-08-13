@@ -9,8 +9,8 @@ operate the whole system in production.
 ## What's in v1.0.0
 
 **Backend** — unchanged since RC1 (Sprints 1-60): the full multi-agent
-market intelligence engine, a frozen `/api/v1` REST surface (44 paths,
-50 operations), and a real-time `/ws` WebSocket. See
+market intelligence engine, a frozen `/api/v1` REST surface (49 paths,
+55 operations), and a real-time `/ws` WebSocket. See
 `docs/release/RELEASE_NOTES_RC1.md` for the full backend history.
 
 **Frontend** (new for v1.0.0) — a complete React/TanStack single-page

@@ -74,6 +74,35 @@ jobs:
     needs: [frontend, backend]
     steps:
       - uses: actions/checkout@v4
+      - name: Verify production compose port hardening
+        # Regression check for the docker-compose.prod.yml port-publication
+        # bug: `ports: []` in an override does NOT clear ports inherited
+        # from docker-compose.yml (`ports` is a Compose "unique resource"
+        # key, not merged), so postgres/redis/chromadb were still
+        # host-published in the merged config despite looking overridden.
+        # Fixed via `ports: !reset []`. This exercises the real merge
+        # through the actual Compose CLI, not just the override file's
+        # source text, so it would have caught the original defect.
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config --format json > /tmp/compose-config.json
+          for svc in postgres redis chromadb; do
+            count=$(jq ".services.$svc.ports // [] | length" /tmp/compose-config.json)
+            if [ "$count" -ne 0 ]; then
+              echo "FAIL: $svc still publishes $count host port(s) in the merged production config"
+              exit 1
+            fi
+          done
+          backend_port=$(jq -r '.services.backend.ports[0] | "\(.published):\(.target)"' /tmp/compose-config.json)
+          frontend_port=$(jq -r '.services.frontend.ports[0] | "\(.published):\(.target)"' /tmp/compose-config.json)
+          if [ "$backend_port" != "8000:8000" ]; then
+            echo "FAIL: backend port mapping is $backend_port, expected 8000:8000"
+            exit 1
+          fi
+          if [ "$frontend_port" != "8080:8080" ]; then
+            echo "FAIL: frontend port mapping is $frontend_port, expected 8080:8080"
+            exit 1
+          fi
+          echo "PASS: production port hardening verified (postgres/redis/chromadb unpublished; backend 8000:8000; frontend 8080:8080)"
       - name: Build backend image
         run: docker build -t marketmind-backend:${{ github.ref_name }} ./backend
       - name: Build frontend image
@@ -82,6 +111,40 @@ jobs:
             --build-arg VITE_API_BASE_URL=${{ vars.PRODUCTION_API_BASE_URL || 'https://api.example.invalid/api/v1' }} \
             --build-arg VITE_WS_BASE_URL=${{ vars.PRODUCTION_WS_BASE_URL || 'wss://api.example.invalid/ws' }} \
             -t marketmind-frontend:${{ github.ref_name }} ./frontend
+      - name: Verify frontend container healthcheck
+        # Regression check for the frontend HEALTHCHECK bug: nginx's
+        # `listen 8080;` (nginx.conf) binds IPv4 only, but the shipped
+        # HEALTHCHECK probed `http://localhost:8080/`, and this image's
+        # busybox wget resolves "localhost" to the IPv6 loopback (::1)
+        # first — nothing listens there, so wget failed with "Connection
+        # refused" even though nginx was serving correctly on 127.0.0.1.
+        # Fixed by probing 127.0.0.1 explicitly. A source-text check of
+        # the Dockerfile wouldn't catch this class of bug — it only shows
+        # up when Docker actually runs the container's own HEALTHCHECK
+        # CMD, which is what this step does.
+        run: |
+          docker run -d --name frontend-healthcheck-verify -p 18080:8080 marketmind-frontend:${{ github.ref_name }}
+          status="starting"
+          for i in $(seq 1 20); do
+            status=$(docker inspect --format '{{.State.Health.Status}}' frontend-healthcheck-verify)
+            echo "attempt $i: $status"
+            if [ "$status" = "healthy" ]; then
+              break
+            fi
+            if [ "$status" = "unhealthy" ]; then
+              break
+            fi
+            sleep 3
+          done
+          if [ "$status" != "healthy" ]; then
+            echo "FAIL: frontend container did not become healthy (status: $status)"
+            docker logs frontend-healthcheck-verify
+            docker inspect --format '{{json .State.Health}}' frontend-healthcheck-verify
+            docker rm -f frontend-healthcheck-verify
+            exit 1
+          fi
+          echo "PASS: frontend container reported healthy"
+          docker rm -f frontend-healthcheck-verify
       - name: Save images
         run: |
           docker save marketmind-backend:${{ github.ref_name }} | gzip > marketmind-backend-${{ github.ref_name }}.tar.gz

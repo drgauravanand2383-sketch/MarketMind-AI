@@ -8,7 +8,7 @@ import type { CompanyMetrics, FilterEvaluation, ScreenFilter, ScreenResult, Scre
  * top-level filter must pass," which is sufficient for this frontend's
  * own test coverage. */
 function evaluateFilter(filter: ScreenFilter, metrics: CompanyMetrics): FilterEvaluation {
-  const actual = (metrics as Record<string, unknown>)[filter.field];
+  const actual = (metrics as unknown as Record<string, unknown>)[filter.field];
   const base = { filter_id: filter.id, field: filter.field, operator: filter.operator };
 
   if (!filter.enabled) {

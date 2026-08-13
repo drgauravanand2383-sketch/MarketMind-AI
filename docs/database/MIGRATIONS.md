@@ -16,18 +16,32 @@ backend/
     script.py.mako           Template for new revisions
     versions/
       0001_baseline_schema.py   Baseline: every table, as of Sprint 54
+      0002_auth_schema.py       Auth tables (Sprint 56's framework), added
+                                 after `0001` shipped without them — see
+                                 that revision's own docstring
 ```
 
 ## Why `target_metadata` is a *list*, not one `MetaData`
 
-This codebase has **ten independent `DeclarativeBase` subclasses** — one
+This codebase has **eleven independent `DeclarativeBase` subclasses** — one
 per repository package (`app.repositories.alerts.postgres.models.Base`,
-`app.repositories.risk.postgres.models.Base`, and so on) — not a single
-shared `Base`. `app/operations/migrations/discovery.py::collect_metadata()`
-is the single place that list is defined; both `alembic/env.py` and
+`app.repositories.risk.postgres.models.Base`, `app.auth.repositories
+.postgres.models.Base`, and so on) — not a single shared `Base`.
+`app/operations/migrations/discovery.py::collect_metadata()` is the single
+place that list is defined; both `alembic/env.py` and
 `app.operations.validation.startup.StartupValidationService`'s "model
 metadata discovery" check import from it, so the two can never silently
 diverge.
+
+Historical note: the Auth framework's `Base` (Sprint 56) was built and
+tested against an in-memory SQLite database only, and was never actually
+added to this list — so despite being fully implemented and tested, its
+tables never existed in any real Postgres deployment until `0002_auth_schema`
+(a post-freeze release-blocking fix) both registered it here and added the
+catch-up migration. `collect_metadata()`'s single-list design is what made
+the gap easy to close correctly once found: registering the missing `Base`
+is the entire fix, with no risk of `env.py`/`StartupValidationService`
+disagreeing about the schema.
 
 ## Connection configuration
 

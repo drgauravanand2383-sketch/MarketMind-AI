@@ -34,8 +34,8 @@ function buildSnapshot(row: DraftRow, paths: string[]): MarketDataSnapshot {
     if (!def) continue;
     const parsed = parseInput(row.values[path] ?? "", def.type);
     if (parsed === undefined) continue;
-    byNamespace[def.namespace] ??= {};
-    byNamespace[def.namespace][def.field] = parsed;
+    const bucket = (byNamespace[def.namespace] ??= {});
+    bucket[def.field] = parsed;
   }
   for (const [namespace, fields] of Object.entries(byNamespace)) {
     if (namespace === "quote") {
@@ -43,11 +43,11 @@ function buildSnapshot(row: DraftRow, paths: string[]): MarketDataSnapshot {
       // actually references it — a placeholder keeps the snapshot valid
       // without misrepresenting a value the user never entered as
       // something meaningful.
-      (snapshot as Record<string, unknown>).quote = { ticker: snapshot.ticker, price: 0.01, timestamp: new Date().toISOString(), ...fields };
+      (snapshot as unknown as Record<string, unknown>).quote = { ticker: snapshot.ticker, price: 0.01, timestamp: new Date().toISOString(), ...fields };
     } else if (namespace === "profile") {
-      (snapshot as Record<string, unknown>).profile = { ticker: snapshot.ticker, company_name: row.company_name || snapshot.ticker, ...fields };
+      (snapshot as unknown as Record<string, unknown>).profile = { ticker: snapshot.ticker, company_name: row.company_name || snapshot.ticker, ...fields };
     } else {
-      (snapshot as Record<string, unknown>)[namespace] = fields;
+      (snapshot as unknown as Record<string, unknown>)[namespace] = fields;
     }
   }
   return snapshot;

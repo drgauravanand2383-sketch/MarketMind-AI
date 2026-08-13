@@ -24,9 +24,9 @@ export function AttributionBarChart({ items, label, color }: { items: Contributi
         <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-800" />
         <XAxis type="number" tick={{ fontSize: 12 }} />
         <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={90} />
-        <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+        <Tooltip formatter={(value) => `${Number(value).toFixed(1)}%`} />
         <Bar dataKey="value" fill={color} radius={[0, 4, 4, 0]}>
-          {showDataLabels && <LabelList dataKey="value" position="right" fontSize={11} formatter={(v: number) => `${v.toFixed(1)}%`} />}
+          {showDataLabels && <LabelList dataKey="value" position="right" fontSize={11} formatter={(v) => `${Number(v).toFixed(1)}%`} />}
         </Bar>
       </BarChart>
     </ResponsiveContainer>

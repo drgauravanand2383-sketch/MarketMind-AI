@@ -18,6 +18,16 @@ function describeEntry(entry: DecisionHistoryEntry): { label: string; to?: { to:
       return { label: `Signals evaluated — ${String(entry.triggeredCount)} triggered` };
     case "alerts_evaluated":
       return { label: `Alerts evaluated — ${String(entry.generatedCount)} generated, ${String(entry.suppressedCount)} suppressed` };
+    case "backtest_run":
+      return {
+        label: `Backtest run — ${entry.name}`,
+        to: { to: "/historical-analysis/backtests/$runId", params: { runId: entry.runId } },
+      };
+    case "explainability_generated":
+      return {
+        label: "Explanation generated",
+        to: { to: "/historical-analysis/explainability/$requestId", params: { requestId: entry.requestId } },
+      };
   }
 }
 

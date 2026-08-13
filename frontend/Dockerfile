@@ -50,7 +50,13 @@ USER nginx
 
 EXPOSE 8080
 
+# Use 127.0.0.1, not localhost: nginx's `listen 8080;` (nginx.conf)
+# binds IPv4 only, but this Alpine image's busybox wget resolves
+# `localhost` to the IPv6 loopback (::1) first — nothing listens
+# there, so wget fails with "Connection refused" even though nginx is
+# up and serving fine on 127.0.0.1 (and via the published host port,
+# which is routed by Docker's NAT rather than in-container DNS).
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget -q -O /dev/null http://localhost:8080/ || exit 1
+    CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

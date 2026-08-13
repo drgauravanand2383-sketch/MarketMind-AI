@@ -21,7 +21,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from typing import Callable
 
-from app.config.models import AnthropicSettings, APISettings, LLMSettings, LoggingSettings, PostgreSQLSettings, RSSSettings
+from app.config.models import AnthropicSettings, APISettings, AuthSettings, LLMSettings, LoggingSettings, PostgreSQLSettings, RSSSettings
 from app.operations.migrations.discovery import collect_table_names, duplicate_table_names
 from app.operations.validation._report import build_report
 from app.operations.validation.configuration import ConfigurationValidationService
@@ -154,6 +154,7 @@ class StartupValidationService:
         llm: LLMSettings,
         api: APISettings,
         rss: RSSSettings,
+        auth: AuthSettings,
     ) -> ValidationReport:
         return self._configuration_service.validate(
             environment=environment,
@@ -163,6 +164,7 @@ class StartupValidationService:
             llm=llm,
             api=api,
             rss=rss,
+            auth=auth,
         )
 
     def validate_full(
@@ -177,6 +179,7 @@ class StartupValidationService:
         llm: LLMSettings,
         api: APISettings,
         rss: RSSSettings,
+        auth: AuthSettings,
     ) -> ValidationReport:
         """Run every startup check and return one combined report."""
         component_report = self.validate_components(components, required=required)
@@ -189,6 +192,7 @@ class StartupValidationService:
             llm=llm,
             api=api,
             rss=rss,
+            auth=auth,
         )
         all_checks = list(component_report.checks) + list(metadata_report.checks) + list(configuration_report.checks)
         return build_report(all_checks, self._now_fn())

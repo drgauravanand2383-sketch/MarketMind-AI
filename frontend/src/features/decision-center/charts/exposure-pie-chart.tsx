@@ -42,7 +42,7 @@ export function ExposurePieChart({
             );
           }}
         />
-        <Tooltip formatter={(value: number) => `${(value * 100).toFixed(0)}%`} />
+        <Tooltip formatter={(value) => `${(Number(value) * 100).toFixed(0)}%`} />
         <Legend />
       </PieChart>
     </ResponsiveContainer>

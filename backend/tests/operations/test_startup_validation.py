@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from app.config.models import (
     AnthropicSettings,
     APISettings,
+    AuthSettings,
     LLMSettings,
     LoggingSettings,
     PostgreSQLSettings,
@@ -151,6 +152,7 @@ def test_validate_full_composes_component_metadata_and_configuration_checks() ->
         llm=LLMSettings(),
         api=APISettings(),
         rss=RSSSettings(),
+        auth=AuthSettings(secret_key="a-real-jwt-secret"),
     )
 
     names = {c.name for c in report.checks}
@@ -173,6 +175,7 @@ def test_validate_full_fails_when_any_composed_report_has_an_error() -> None:
         llm=LLMSettings(),
         api=APISettings(),
         rss=RSSSettings(),
+        auth=AuthSettings(secret_key="a-real-jwt-secret"),
     )
 
     assert report.passed is False
@@ -190,6 +193,7 @@ def test_validate_full_is_deterministic() -> None:
         llm=LLMSettings(),
         api=APISettings(),
         rss=RSSSettings(),
+        auth=AuthSettings(secret_key="a-real-jwt-secret"),
     )
 
     first = service.validate_full(components, **kwargs)

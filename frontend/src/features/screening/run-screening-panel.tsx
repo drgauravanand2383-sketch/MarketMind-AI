@@ -54,7 +54,7 @@ export function RunScreeningPanel({ profile }: { profile: ScreeningProfile }): R
       for (const field of relevantFields) {
         const parsed = parseFieldInput(row.values[field] ?? "", screenableFieldType(field));
         if (parsed !== undefined) {
-          (metrics as Record<string, unknown>)[field] = parsed;
+          (metrics as unknown as Record<string, unknown>)[field] = parsed;
         }
       }
       return metrics;

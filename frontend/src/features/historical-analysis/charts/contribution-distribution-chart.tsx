@@ -39,7 +39,7 @@ export function ContributionDistributionChart({ items }: { items: ContributionBr
             );
           }}
         />
-        <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+        <Tooltip formatter={(value) => `${Number(value).toFixed(1)}%`} />
         <Legend />
       </PieChart>
     </ResponsiveContainer>

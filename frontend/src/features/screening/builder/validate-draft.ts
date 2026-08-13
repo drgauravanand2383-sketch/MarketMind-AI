@@ -32,7 +32,7 @@ export function validateDraft(filters: ScreenFilter[], groups: LogicalGroup[]): 
   }
 
   for (const group of groups) {
-    if (group.parent_group !== null && wouldCreateCycle(groups, group.id, group.parent_group)) {
+    if (group.parent_group != null && wouldCreateCycle(groups, group.id, group.parent_group)) {
       errors.push(`Group "${group.id}"'s parent would create a cycle.`);
     }
   }

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { BacktestResult } from "@/types/backtesting";
 
-function MetricCard({ label, value, tone }: { label: string; value: string; tone?: "positive" | "negative" }): ReactNode {
+function MetricCard({ label, value, tone }: { label: string; value: string; tone?: "positive" | "negative" | undefined }): ReactNode {
   const toneClass = tone === "positive" ? "text-green-700 dark:text-green-400" : tone === "negative" ? "text-red-700 dark:text-red-400" : "text-slate-900 dark:text-slate-100";
   return (
     <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800">

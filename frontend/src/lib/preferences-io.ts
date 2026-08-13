@@ -5,15 +5,18 @@ import { usePreferencesStore } from "@/store/preferences-store";
 import { useDashboardLayoutStore } from "@/store/dashboard-layout-store";
 import { useSavedViewsStore } from "@/store/saved-views-store";
 import { ACCENT_COLORS, NUMBER_FORMAT_LOCALES, TABLE_PAGE_SIZE_OPTIONS } from "@/types/preferences";
+import type { AccentColor, NumberFormatLocale, TablePageSize } from "@/types/preferences";
 
 export const PREFERENCES_EXPORT_VERSION = 1;
 
 const themeModeSchema = z.enum(["light", "dark", "system"]);
-const accentColorSchema = z.enum(ACCENT_COLORS as [string, ...string[]]);
+const accentColorSchema = z.enum(ACCENT_COLORS as [AccentColor, ...AccentColor[]]);
 const densitySchema = z.enum(["comfortable", "compact"]);
 const timezoneDisplaySchema = z.enum(["local", "utc"]);
-const numberFormatLocaleSchema = z.enum(NUMBER_FORMAT_LOCALES as [string, ...string[]]);
-const tablePageSizeSchema = z.union(TABLE_PAGE_SIZE_OPTIONS.map((size) => z.literal(size)) as [z.ZodLiteral<number>, ...z.ZodLiteral<number>[]]);
+const numberFormatLocaleSchema = z.enum(NUMBER_FORMAT_LOCALES as [NumberFormatLocale, ...NumberFormatLocale[]]);
+const tablePageSizeSchema = z.union(
+  TABLE_PAGE_SIZE_OPTIONS.map((size) => z.literal(size)) as [z.ZodLiteral<TablePageSize>, ...z.ZodLiteral<TablePageSize>[]],
+);
 const notificationDomainSchema = z.enum(["alerts", "backtests", "recommendations", "strategy", "explainability", "health"]);
 const cardSizeSchema = z.enum(["sm", "md", "lg"]);
 const dashboardCardIdSchema = z.enum([

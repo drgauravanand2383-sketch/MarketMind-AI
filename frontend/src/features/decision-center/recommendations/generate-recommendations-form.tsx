@@ -31,6 +31,19 @@ function toCandidateEvidence(values: GenerateFormValues["candidates"][number]): 
   };
 }
 
+/** `react-hook-form`'s `FieldPath` needs a numeric-literal template
+ * (`candidates.${number}.field`) to type-check, but the numeric
+ * interpolation itself trips `@typescript-eslint/restrict-template-expressions`
+ * — isolated here as the one intentional, reviewed exception rather than
+ * disabling the rule at each call site. */
+function candidateField<F extends "ticker" | "company_name" | "sector" | "country" | "industry">(
+  index: number,
+  field: F,
+): `candidates.${number}.${F}` {
+  // eslint-disable-next-line @typescript-eslint/restrict-template-expressions -- index is a number by construction (array index)
+  return `candidates.${index}.${field}`;
+}
+
 /**
  * `POST /portfolio/recommendations` requires the caller to supply
  * `evidence: CandidateEvidence[]` directly — the engine never fetches
@@ -68,20 +81,20 @@ export function GenerateRecommendationsForm({ portfolioId }: { portfolioId: stri
                 label="Ticker"
                 autoComplete="off"
                 error={errors.candidates?.[index]?.ticker?.message}
-                {...register(`candidates.${String(index)}.ticker` as const)}
+                {...register(candidateField(index, "ticker"))}
               />
             </div>
             <div className="w-40">
-              <FormField label="Company name" autoComplete="off" {...register(`candidates.${String(index)}.company_name` as const)} />
+              <FormField label="Company name" autoComplete="off" {...register(candidateField(index, "company_name"))} />
             </div>
             <div className="w-32">
-              <FormField label="Sector" autoComplete="off" {...register(`candidates.${String(index)}.sector` as const)} />
+              <FormField label="Sector" autoComplete="off" {...register(candidateField(index, "sector"))} />
             </div>
             <div className="w-24">
-              <FormField label="Country" autoComplete="off" {...register(`candidates.${String(index)}.country` as const)} />
+              <FormField label="Country" autoComplete="off" {...register(candidateField(index, "country"))} />
             </div>
             <div className="w-32">
-              <FormField label="Industry" autoComplete="off" {...register(`candidates.${String(index)}.industry` as const)} />
+              <FormField label="Industry" autoComplete="off" {...register(candidateField(index, "industry"))} />
             </div>
             <button
               type="button"

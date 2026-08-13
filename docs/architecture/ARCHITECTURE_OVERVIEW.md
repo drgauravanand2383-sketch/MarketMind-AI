@@ -40,7 +40,7 @@ company research, portfolio intelligence, knowledge ingestion, the
 morning research pipeline, the scheduler). Exposed to the outside world
 through exactly two surfaces:
 
-- **`/api/v1`** — a versioned, frozen REST API (44 paths, 50
+- **`/api/v1`** — a versioned, frozen REST API (49 paths, 55
   operations) exposing each domain engine's own service methods
   directly, with no duplicated business logic in the HTTP layer. Bearer
   JWT authentication, policy-based authorization on every non-public

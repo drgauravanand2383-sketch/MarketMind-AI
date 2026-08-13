@@ -75,7 +75,7 @@ export function HistoricalTimeline({ runId, periods }: { runId: string; periods:
           <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-800" />
           <XAxis dataKey="timestamp" tickFormatter={formatTick} tick={{ fontSize: 11 }} />
           <YAxis tick={{ fontSize: 12 }} />
-          <Tooltip labelFormatter={(value: string) => new Date(value).toLocaleString()} />
+          <Tooltip labelFormatter={(value) => (typeof value === "string" || typeof value === "number" ? new Date(value).toLocaleString() : "")} />
           <Legend />
           {(metric === "portfolio" || metric === "both") && (
             <Line type="monotone" dataKey="portfolio_value" name="Portfolio" stroke="#0ea5e9" dot={false} strokeWidth={2} />

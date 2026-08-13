@@ -124,7 +124,11 @@ export function useUpdateScreeningProfile(profileId: string) {
     onMutate: async (body): Promise<ProfileMutationSnapshot> => {
       const snapshot = await snapshotProfileCaches(queryClient, profileId);
       if (snapshot.previousDetail) {
-        patchProfileInCache(queryClient, { ...snapshot.previousDetail, ...body });
+        patchProfileInCache(queryClient, {
+          ...snapshot.previousDetail,
+          ...body,
+          description: body.description ?? snapshot.previousDetail.description,
+        });
       }
       return snapshot;
     },

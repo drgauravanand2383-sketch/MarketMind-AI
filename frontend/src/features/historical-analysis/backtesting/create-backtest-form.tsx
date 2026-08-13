@@ -26,7 +26,8 @@ const createBacktestSchema = z
     path: ["end_date"],
   });
 
-type CreateBacktestValues = z.infer<typeof createBacktestSchema>;
+type CreateBacktestInput = z.input<typeof createBacktestSchema>;
+type CreateBacktestValues = z.output<typeof createBacktestSchema>;
 
 export function CreateBacktestForm(): ReactNode {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ export function CreateBacktestForm(): ReactNode {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<CreateBacktestValues>({
+  } = useForm<CreateBacktestInput, unknown, CreateBacktestValues>({
     resolver: zodResolver(createBacktestSchema),
     defaultValues: { name: "", description: "", start_date: "", end_date: "", initial_capital: 100000, benchmark: "SPY", replay_mode: "DAILY" },
   });
@@ -48,7 +49,7 @@ export function CreateBacktestForm(): ReactNode {
     setSelectedStrategyIds((prev) => (prev.includes(id) ? prev.filter((existing) => existing !== id) : [...prev, id]));
   }
 
-  const submit = handleSubmit((values: CreateBacktestValues) => {
+  const submit = handleSubmit((values) => {
     createBacktest.mutate(
       {
         name: values.name,

@@ -47,7 +47,7 @@ actual frontend origin(s), not `localhost`).
 
 ```bash
 alembic upgrade head
-alembic current   # should report 0001_baseline_schema (head)
+alembic current   # should report 0002_auth_schema (head)
 ```
 
 Migrations are async and idempotent — see
@@ -82,7 +82,7 @@ came up.
 ```bash
 curl http://localhost:8000/api/v1/health
 curl http://localhost:8000/api/v1/ready
-curl http://localhost:8000/openapi.json | jq '.paths | keys | length'   # expect 44
+curl http://localhost:8000/openapi.json | jq '.paths | keys | length'   # expect 49
 ```
 
 `GET /ready` returns `503` (with `data.blocking_issues` populated) if

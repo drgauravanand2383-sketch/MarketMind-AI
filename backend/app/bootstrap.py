@@ -1096,7 +1096,7 @@ async def bootstrap_application_state(app: FastAPI) -> None:
     app.state.health_check_service = health_check_service
     app.state.configuration_validation_service = configuration_validation_service
     app.state.startup_validation_service = startup_validation_service
-    app.state.startup_validation_report = _run_startup_validation(app, startup_validation_service, settings)
+    app.state.startup_validation_report = _run_startup_validation(app, startup_validation_service, settings, auth_settings)
 
     duration_seconds = time.perf_counter() - started_at
     metrics_recorder.record_duration(METRIC_STARTUP_DURATION_SECONDS, duration_seconds)
@@ -1110,7 +1110,10 @@ async def bootstrap_application_state(app: FastAPI) -> None:
 
 
 def _run_startup_validation(
-    app: FastAPI, startup_validation_service: StartupValidationService, settings: AppSettings
+    app: FastAPI,
+    startup_validation_service: StartupValidationService,
+    settings: AppSettings,
+    auth_settings: AuthSettings,
 ) -> ValidationReport:
     """Run `StartupValidationService.validate_full()` against every
     component just wired into `app.state`. Never crashes bootstrap on a
@@ -1134,6 +1137,7 @@ def _run_startup_validation(
         llm=LLMSettings(),
         api=APISettings(),
         rss=RSSSettings(),
+        auth=auth_settings,
     )
 
 

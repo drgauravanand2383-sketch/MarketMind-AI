@@ -38,7 +38,10 @@ export function DrawdownCurveChart({ periods }: { periods: BacktestPeriod[] }): 
         <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-800" />
         <XAxis dataKey="timestamp" tickFormatter={formatTick} tick={{ fontSize: 11 }} />
         <YAxis tick={{ fontSize: 12 }} reversed />
-        <Tooltip labelFormatter={(value: string) => new Date(value).toLocaleString()} formatter={(value: number) => `${value.toFixed(2)}%`} />
+        <Tooltip
+          labelFormatter={(value) => (typeof value === "string" || typeof value === "number" ? new Date(value).toLocaleString() : "")}
+          formatter={(value) => `${Number(value).toFixed(2)}%`}
+        />
         <Area type="monotone" dataKey="drawdown" stroke="#ef4444" fill="#fecaca" fillOpacity={0.5} />
       </AreaChart>
     </ResponsiveContainer>
