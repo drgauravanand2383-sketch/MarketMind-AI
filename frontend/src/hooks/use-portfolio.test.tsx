@@ -4,10 +4,11 @@ import { http, HttpResponse } from "msw";
 import { server } from "@/test/msw/server";
 import { buildMeta } from "@/test/msw/fixtures";
 import { renderHookWithQueryClient } from "@/test/test-utils";
+import { queryClient } from "@/app/query-client";
 import { API_BASE_URL } from "@/services/api/config";
 import { useDecisionHistoryStore } from "@/store/decision-history-store";
 import { useNotificationStore } from "@/store/notification-store";
-import { useGenerateRecommendations, usePortfolioRecommendations, usePortfolioRisk } from "@/hooks/use-portfolio";
+import { useGenerateRecommendations, usePortfolioIntelligence, usePortfolioRecommendations, usePortfolioRisk } from "@/hooks/use-portfolio";
 
 describe("use-portfolio (Milestone 5 additions)", () => {
   beforeEach(() => {
@@ -75,5 +76,71 @@ describe("use-portfolio (Milestone 5 additions)", () => {
     expect(useDecisionHistoryStore.getState().entries).toHaveLength(1);
     expect(useDecisionHistoryStore.getState().entries[0]?.kind).toBe("recommendations_generated");
     expect(useNotificationStore.getState().notifications.some((n) => /generated/i.test(n.message))).toBe(true);
+  });
+
+  // These render through the app's real `queryClient` singleton
+  // (`app/query-client.ts`), not the isolated per-test client the suite
+  // otherwise uses — only that singleton carries the global
+  // `QueryCache`/`MutationCache` `onError` toast wiring (`notifyApiError`),
+  // so it's the only way to actually exercise (and regression-guard) the
+  // `meta: { suppressErrorToast: true }` fix below.
+  describe("global error-toast suppression for expected 404s", () => {
+    beforeEach(() => {
+      queryClient.clear();
+    });
+
+    it("usePortfolioRisk does not show the global error toast for an expected 404", async () => {
+      server.use(
+        http.get(`${API_BASE_URL}/portfolio/risk`, () =>
+          HttpResponse.json({ error: "not_found", message: "Not found.", meta: buildMeta() }, { status: 404 }),
+        ),
+      );
+      const { result } = renderHookWithQueryClient(() => usePortfolioRisk("wl-1"), queryClient);
+
+      await waitFor(() => {
+        expect(result.current.isUnavailable).toBe(true);
+      });
+      expect(result.current.isError).toBe(false);
+      expect(useNotificationStore.getState().notifications).toHaveLength(0);
+    });
+
+    it("usePortfolioRecommendations does not show the global error toast for an expected 404", async () => {
+      server.use(
+        http.get(`${API_BASE_URL}/portfolio/recommendations`, () =>
+          HttpResponse.json({ error: "not_found", message: "Not found.", meta: buildMeta() }, { status: 404 }),
+        ),
+      );
+      const { result } = renderHookWithQueryClient(() => usePortfolioRecommendations("wl-1"), queryClient);
+
+      await waitFor(() => {
+        expect(result.current.isUnavailable).toBe(true);
+      });
+      expect(result.current.isError).toBe(false);
+      expect(useNotificationStore.getState().notifications).toHaveLength(0);
+    });
+
+    it("an unrelated query (usePortfolioIntelligence) still shows the global error toast for a genuinely unexpected error", async () => {
+      // Proves the suppression is scoped to exactly the two touched hooks
+      // (`meta: { suppressErrorToast: true }` added only to `usePortfolioRisk`/
+      // `usePortfolioRecommendations`) — every other query's errors, including
+      // a genuine 500 from a sibling portfolio endpoint, still surface the
+      // global toast exactly as before. `usePortfolioIntelligence` already
+      // sets `retry: false` (unrelated to this fix), so the failure — and
+      // the toast it triggers — is deterministic and fast.
+      server.use(
+        http.get(`${API_BASE_URL}/portfolio/intelligence`, () =>
+          HttpResponse.json({ error: "internal_error", message: "Something broke.", meta: buildMeta() }, { status: 500 }),
+        ),
+      );
+      const { result } = renderHookWithQueryClient(() => usePortfolioIntelligence("wl-1"), queryClient);
+
+      await waitFor(() => {
+        expect(result.current.isError).toBe(true);
+      });
+      await waitFor(() => {
+        expect(useNotificationStore.getState().notifications).toHaveLength(1);
+      });
+      expect(useNotificationStore.getState().notifications[0]?.message).toBe("Something broke.");
+    });
   });
 });

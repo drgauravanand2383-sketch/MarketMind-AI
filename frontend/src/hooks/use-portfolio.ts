@@ -45,6 +45,10 @@ export function usePortfolioRisk(portfolioId: string) {
     queryFn: () => portfolioApi.getRisk(portfolioId),
     enabled: portfolioId.length > 0,
     retry: false,
+    // A 404 here is `isUnavailable`, not `isError` (see docstring above) —
+    // the global error toast (`app/query-client.ts`) must not fire for it;
+    // the panel already renders its own graceful empty state.
+    meta: { suppressErrorToast: true },
   });
   const isUnavailable = query.error instanceof ApiError && query.error.status === 404;
   return { ...query, isUnavailable, isError: query.isError && !isUnavailable };
@@ -60,6 +64,8 @@ export function usePortfolioRecommendations(portfolioId: string) {
     queryFn: () => portfolioApi.getRecommendations(portfolioId),
     enabled: portfolioId.length > 0,
     retry: false,
+    // Same 404-is-`isUnavailable`-not-`isError` reasoning as `usePortfolioRisk` above.
+    meta: { suppressErrorToast: true },
   });
   const isUnavailable = query.error instanceof ApiError && query.error.status === 404;
   return { ...query, isUnavailable, isError: query.isError && !isUnavailable };
