@@ -9,13 +9,42 @@ storage happens here: only structural mapping.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
 
 from app.agents.news_collector.models import NewsItem
 from app.providers.models import ProviderResult
-from app.providers.rss.models import RSSFeedData
+from app.providers.rss.models import RSSFeedData, RSSFeedEntry
 
 __all__ = ["normalize_provider_result", "register_normalizer"]
+
+
+def _deterministic_id_from_url(url: str) -> str:
+    """A stable id derived from a canonical URL, for feeds that omit a
+    `<guid>`/`<id>` element (common for feeds that only ever set `<link>`).
+
+    Same URL always produces the same id — this is what makes
+    reprocessing the same article on a later ingestion run idempotent
+    (`ChromaKnowledgeRepository.save_batch` upserts by this id) rather
+    than either silently duplicating it or, absent any id at all, having
+    `KnowledgeIngestionService` reject the item outright
+    (`RejectionReason.MISSING_ID`).
+    """
+    return f"rss:{hashlib.sha256(url.encode('utf-8')).hexdigest()}"
+
+
+def _entry_id(entry: RSSFeedEntry) -> str | None:
+    """The entry's own `<guid>`/`<id>` if present and non-blank; otherwise
+    a deterministic fallback derived from its canonical URL (`link`).
+    `None` only when neither is available — an entry with no stable
+    identity of any kind, which `KnowledgeIngestionService` correctly
+    rejects rather than ingesting under a made-up id.
+    """
+    if entry.id and entry.id.strip():
+        return entry.id
+    if entry.link and entry.link.strip():
+        return _deterministic_id_from_url(entry.link)
+    return None
 
 
 def _normalize_rss(result: ProviderResult) -> list[NewsItem]:
@@ -27,7 +56,7 @@ def _normalize_rss(result: ProviderResult) -> list[NewsItem]:
         for entry in feed.entries:
             items.append(
                 NewsItem(
-                    id=entry.id,
+                    id=_entry_id(entry),
                     title=entry.title,
                     summary=entry.summary,
                     url=entry.link,

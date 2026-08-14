@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { MarketFreshnessBadge } from "@/components/market-freshness-badge";
 import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
 import { SkeletonList } from "@/components/states/skeleton";
@@ -88,6 +89,29 @@ export function PortfolioIntelligencePanel({ portfolioId }: { portfolioId: strin
           <ul className="mt-1 flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
             {data.data_quality_notes.map((note) => (
               <li key={note.code}>{note.description}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {data.market_snapshot && (
+        <div>
+          <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400">Live market data</h3>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {data.market_snapshot.fresh_count} fresh · {data.market_snapshot.stale_count} stale ·{" "}
+            {data.market_snapshot.unavailable_count} unavailable · {data.market_snapshot.entity_not_mapped_count} not mapped
+          </p>
+          <ul className="mt-2 flex flex-col gap-1.5">
+            {data.market_snapshot.company_snapshots.map((company) => (
+              <li key={company.entity_id} className="flex items-center justify-between gap-2 text-sm">
+                <span className="text-slate-700 dark:text-slate-300">
+                  {company.snapshot?.ticker ?? company.entity_id}
+                  {company.snapshot != null && (
+                    <span className="ml-2 text-slate-500 dark:text-slate-400">${company.snapshot.price.toFixed(2)}</span>
+                  )}
+                </span>
+                <MarketFreshnessBadge status={company.status} />
+              </li>
             ))}
           </ul>
         </div>

@@ -30,25 +30,29 @@ implementation `execute()` uses.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 from datetime import datetime, timezone
 from types import MappingProxyType
 
 from app.agents.news_collector.agent import NewsCollectorAgent
-from app.agents.news_collector.models import NewsCollectionRequest
+from app.agents.news_collector.models import NewsCollectionRequest, NewsCollectionResult
 from app.core.context import ExecutionContext, ExecutionError, WorkflowStatus
+from app.providers.embedding.models import EmbeddingResult
 from app.providers.embedding.provider import BaseEmbeddingProvider
-from app.repositories.knowledge.models import KnowledgeRecord
+from app.repositories.knowledge.models import KnowledgeRecord, SaveResult
 from app.repositories.knowledge.repository import BaseKnowledgeRepository
 from app.services.embedding.service import EmbeddingService
 from app.services.evidence_engine.engine import EvidenceEngine
-from app.services.knowledge_ingestion.models import IngestionBatch
+from app.services.knowledge_ingestion.models import IngestionBatch, RejectionReason
 from app.services.knowledge_ingestion.service import KnowledgeIngestionService
 from app.services.market_intelligence.engine import MarketIntelligenceEngine
 from app.services.relationship_engine.engine import RelationshipEngine
 from app.workflows.morning_pipeline.models import PipelineResult, PipelineStatus, StageMetric
 
 __all__ = ["MorningPipeline"]
+
+_logger = logging.getLogger("marketmind.workflows.morning_pipeline")
 
 # Retained as a reference constant (naming the eight stages this pipeline
 # advances through `agent_outputs`) even though, since this pipeline no
@@ -176,6 +180,8 @@ class MorningPipeline:
         stage_metrics: list[StageMetric] = []
         request = news_request if news_request is not None else NewsCollectionRequest()
 
+        _logger.info("ingestion_run_started", extra={"execution_id": execution_id})
+
         # Stage 1: News Collector (internally invokes RSS Provider, and any
         # other registered providers, via its own ProviderRegistry).
         stage_started = datetime.now(timezone.utc)
@@ -274,6 +280,10 @@ class MorningPipeline:
         working_context = self._advance(working_context, "relationship_engine", relationship_graph)
         working_context = replace(working_context, status=WorkflowStatus.COMPLETED)
 
+        self._log_run_completed(
+            execution_id, started_at, collection_result, ingestion_batch, embedding_result, save_result
+        )
+
         return PipelineResult(
             status=PipelineStatus.COMPLETED,
             execution_id=execution_id,
@@ -284,6 +294,59 @@ class MorningPipeline:
             evidence_graph=evidence_graph,
             market_intelligence=market_intelligence,
             relationship_graph=relationship_graph,
+        )
+
+    def _log_run_completed(
+        self,
+        execution_id: str,
+        started_at: datetime,
+        collection_result: NewsCollectionResult,
+        ingestion_batch: IngestionBatch,
+        embedding_result: EmbeddingResult,
+        save_result: SaveResult,
+    ) -> None:
+        """One structured summary line per successful run — covers every
+        count this milestone's observability requirements ask for
+        (articles fetched, deduplicated, persisted, embedded, and how many
+        resolved to a known entity — currently always zero, since no
+        entity-resolution mechanism exists yet; recorded honestly rather
+        than omitted, see `KnowledgeIngestionService`).
+
+        `providers_*` counts summarize at the *provider* level
+        (`NewsCollectionResult.provider_summary` — one entry per
+        configured news source, e.g. "rss"), the only granularity
+        `NewsCollectorAgent` exposes upward; per-individual-feed-URL
+        success/failure is logged separately, at the point it's actually
+        known, as `rss_feed_fetched`/`rss_feed_fetch_failed`
+        (`app.providers.rss.provider`)."""
+        deduplicated = sum(
+            1 for item in ingestion_batch.ingestion_metadata.rejected_items
+            if item.reason == RejectionReason.DUPLICATE_ID
+        )
+        entity_resolved = sum(
+            1 for doc in ingestion_batch.vector_documents
+            if doc.metadata.get("entity_resolved") is True
+        )
+        duration_seconds = (datetime.now(timezone.utc) - started_at).total_seconds()
+        provider_summary = collection_result.provider_summary
+
+        _logger.info(
+            "ingestion_run_completed",
+            extra={
+                "execution_id": execution_id,
+                "providers_attempted": len(provider_summary),
+                "providers_succeeded": sum(1 for s in provider_summary if s.success),
+                "providers_failed": sum(1 for s in provider_summary if not s.success),
+                "articles_fetched": len(collection_result.items),
+                "articles_deduplicated": deduplicated,
+                "articles_rejected_total": len(ingestion_batch.ingestion_metadata.rejected_items),
+                "articles_persisted": save_result.vector_count,
+                "embeddings_generated": embedding_result.total_succeeded,
+                "embedding_failures": embedding_result.total_failed,
+                "entity_resolved_count": entity_resolved,
+                "entity_unresolved_count": len(ingestion_batch.vector_documents) - entity_resolved,
+                "duration_seconds": duration_seconds,
+            },
         )
 
     async def _fetch_saved_records(self, ingestion_batch: IngestionBatch) -> list[KnowledgeRecord]:
@@ -327,6 +390,10 @@ class MorningPipeline:
         error: Exception,
     ) -> PipelineResult:
         """Record a fatal stage failure and produce the terminal FAILED PipelineResult."""
+        _logger.error(
+            "ingestion_run_failed",
+            extra={"execution_id": execution_id, "failed_stage": stage_name, "error": str(error)},
+        )
         stage_metrics.append(self._metric(stage_name, stage_started, False, str(error)))
         execution_error = ExecutionError(
             agent_id=stage_name,

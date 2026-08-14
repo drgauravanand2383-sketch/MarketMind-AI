@@ -10,6 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
+from app.agents.portfolio_intelligence.models import PortfolioIntelligenceReport
 from app.alerts.models import Alert
 from app.api.ws.connection_manager.manager import ConnectionManager
 from app.api.ws.event_models.event_type import EventType
@@ -18,6 +19,8 @@ from app.api.ws.event_models.events import (
     BacktestEvent,
     ExplainabilityEvent,
     HealthEvent,
+    MarketSnapshotEvent,
+    PortfolioIntelligenceEvent,
     RecommendationEvent,
     RiskEvent,
     StrategyEvent,
@@ -28,6 +31,7 @@ from app.operations.health.models import ApplicationHealth
 from app.recommendations.models import RecommendationResult
 from app.risk.models import RiskAssessment
 from app.strategy.models import StrategyEvaluationResult
+from app.workflows.market_data_refresh.models import MarketDataRefreshResult
 
 __all__ = ["EventPublisher"]
 
@@ -94,4 +98,26 @@ class EventPublisher:
 
     async def publish_health_status_changed(self, health: ApplicationHealth) -> int:
         event = HealthEvent(event_id=_new_event_id(), timestamp=_now(), correlation_id=None, payload=health)
+        return await self._connection_manager.broadcast(event)
+
+    async def publish_market_snapshot_refreshed(self, result: MarketDataRefreshResult) -> int:
+        """Milestone 14. `correlation_id` is the refresh run's own
+        `execution_id` — this event has no watchlist/portfolio to
+        correlate against, since it covers every canonical entity."""
+        event = MarketSnapshotEvent(
+            event_id=_new_event_id(), timestamp=_now(), correlation_id=result.execution_id, payload=result
+        )
+        return await self._connection_manager.broadcast(event)
+
+    async def publish_portfolio_intelligence_updated(self, report: PortfolioIntelligenceReport) -> int:
+        """Milestone 14. `correlation_id` is the portfolio (watchlist) name
+        — `PortfolioIntelligenceReport` carries no portfolio id of its own
+        (see `app.watchlist` module docstring: portfolio_id == watchlist_id,
+        but the report's `request` only carries `portfolio_name`)."""
+        event = PortfolioIntelligenceEvent(
+            event_id=_new_event_id(),
+            timestamp=_now(),
+            correlation_id=report.request.portfolio_name,
+            payload=report,
+        )
         return await self._connection_manager.broadcast(event)

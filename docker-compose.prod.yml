@@ -63,6 +63,18 @@ services:
       CHROMA_HOST: chromadb
     ports:
       - "${API_PORT:-8000}:8000"
+    volumes:
+      # `app.bootstrap.build_knowledge_repository` uses `chromadb.PersistentClient`
+      # — a local, embedded store on the *backend* container's own
+      # filesystem (`CHROMA_PERSIST_DIRECTORY`, default `./data/cache/chroma`),
+      # not a connection to the separate `chromadb` service above (which
+      # this backend never actually talks to over the network). Without
+      # a named volume here, every routine `docker compose build backend`
+      # + recreate would silently wipe all previously-ingested knowledge
+      # records — this volume is what makes Milestone 11's ingestion
+      # pipeline (docs/architecture/MARKET_INTELLIGENCE_INGESTION.md)
+      # durable across redeploys.
+      - backend_chroma_cache:/app/data/cache
     depends_on:
       postgres:
         condition: service_healthy
@@ -94,3 +106,6 @@ services:
       - backend
     networks:
       - marketmind-network
+
+volumes:
+  backend_chroma_cache:

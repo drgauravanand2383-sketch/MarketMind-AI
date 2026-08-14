@@ -127,4 +127,14 @@ describe("WatchlistDetailPage", () => {
 
     expect(await screen.findByText("Portfolio intelligence unavailable")).toBeInTheDocument();
   });
+
+  it("shows live market data attached to the portfolio intelligence report (Milestone 14)", async () => {
+    renderWithQueryClient(<WatchlistDetailPage watchlistId="wl-1" />);
+
+    expect(await screen.findByText("Live market data")).toBeInTheDocument();
+    expect(screen.getByText("NFLX")).toBeInTheDocument();
+    expect(screen.getByText("$610.25")).toBeInTheDocument();
+    expect(screen.getByText("Fresh")).toBeInTheDocument();
+    expect(screen.getByText(/1 fresh/)).toBeInTheDocument();
+  });
 });

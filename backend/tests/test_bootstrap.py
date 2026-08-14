@@ -14,12 +14,14 @@ from app.bootstrap import (
     NoOpEventBus,
     SettingsConfiguration,
     build_embedding_provider,
+    build_entity_resolution_service,
     build_knowledge_repository,
     build_news_collector_agent,
     build_scheduler_infrastructure,
     build_screening_engine,
     build_screening_repository,
     build_market_data_provider,
+    build_market_snapshot_service,
     build_normalization_service,
     build_signal_detection_service,
     build_signal_repository,
@@ -64,10 +66,14 @@ from app.core.runtime import AgentRuntime
 from app.knowledge.hub import KnowledgeHub
 from app.market_data.normalization import NormalizationService
 from app.prompts.registry import PromptRegistry
+from app.providers.embedding.local import LocalEmbeddingProvider
 from app.providers.market_data.mock import MockMarketDataProvider
+from app.providers.market_data.yahoo import YahooFinanceProvider
 from app.scheduler.ap_scheduler import APSchedulerService
 from app.scheduler.scheduler import Scheduler
+from app.services.entity_resolution.service import EntityResolutionService
 from app.services.llm.service import LLMService
+from app.services.market_snapshot.service import MarketSnapshotService
 from app.workflows.engine import WorkflowEngine
 
 
@@ -144,14 +150,66 @@ def test_settings_configuration_returns_default_for_unknown_key() -> None:
     assert config.get("does_not_exist", "fallback") == "fallback"
 
 
-# --- build_embedding_provider (documented gap) -----------------------------------------------------------
+# --- build_embedding_provider (Milestone 11: LocalEmbeddingProvider) -----------------------------------------------------------
 
 
-def test_build_embedding_provider_returns_none() -> None:
-    """No concrete BaseEmbeddingProvider implementation exists yet; this is
-    an intentional, documented gap, not a bug."""
+def test_build_embedding_provider_returns_a_local_provider_by_default() -> None:
+    """Milestone 11: `settings.embedding_provider` defaults to `"local"`,
+    which constructs a real, concrete LocalEmbeddingProvider — no longer
+    the documented gap it used to be."""
     settings = AppSettings()
+    provider = build_embedding_provider(settings, _LOGGER)
+    assert isinstance(provider, LocalEmbeddingProvider)
+    assert provider.config.model == settings.embedding_model
+
+
+def test_build_embedding_provider_returns_none_for_unrecognized_selector() -> None:
+    """`embedding_provider` never crashes startup for a bad config value —
+    the same None-when-unconfigured shape every other optional dependency
+    in this module uses."""
+    settings = AppSettings(embedding_provider="not-a-real-provider")
     assert build_embedding_provider(settings, _LOGGER) is None
+
+
+# --- build_entity_resolution_service (Milestone 12) -----------------------------------------------------------
+
+
+def test_build_entity_resolution_service_returns_a_service_by_default() -> None:
+    """`entity_resolution_enabled` defaults to True — unlike ingestion,
+    entity resolution is a safe, deterministic, in-process enrichment
+    with no new scheduled job."""
+    settings = AppSettings()
+    service = build_entity_resolution_service(settings, _LOGGER)
+    assert isinstance(service, EntityResolutionService)
+
+
+def test_build_entity_resolution_service_returns_none_when_disabled() -> None:
+    settings = AppSettings(entity_resolution_enabled=False)
+    assert build_entity_resolution_service(settings, _LOGGER) is None
+
+
+def test_build_entity_resolution_service_returns_none_for_invalid_thresholds() -> None:
+    """A bad threshold configuration degrades to None (logged) rather
+    than crashing startup — the same shape every other optional
+    dependency in this module uses."""
+    settings = AppSettings(entity_match_high_threshold=0.1, entity_match_medium_threshold=0.9)
+    assert build_entity_resolution_service(settings, _LOGGER) is None
+
+
+def test_build_entity_resolution_service_returns_none_for_invalid_max_candidates() -> None:
+    settings = AppSettings(entity_max_candidates=0)
+    assert build_entity_resolution_service(settings, _LOGGER) is None
+
+
+def test_build_entity_resolution_service_uses_configured_thresholds() -> None:
+    """Behavioral check (not reaching into private state): a
+    medium_threshold set above what a real company match would score
+    means even Apple's own canonical name no longer resolves at all."""
+    settings = AppSettings(entity_match_high_threshold=0.999, entity_match_medium_threshold=0.999)
+    service = build_entity_resolution_service(settings, _LOGGER)
+    assert isinstance(service, EntityResolutionService)
+    result = service.resolve("Apple Inc. reported strong earnings.", None)
+    assert result.primary is None
 
 
 # --- build_knowledge_repository (graceful degradation) -----------------------------------------------------------
@@ -322,17 +380,41 @@ def test_build_screening_engine_wires_the_configured_max_filters() -> None:
 # --- build_market_data_provider / build_normalization_service -----------------------------------------------------------
 
 
-def test_build_market_data_provider_returns_a_mock_provider() -> None:
+def test_build_market_data_provider_returns_a_mock_provider_by_default() -> None:
     """Never None: MockMarketDataProvider has no external dependency that
-    can fail, unlike the database-backed repositories above."""
-    provider = build_market_data_provider()
+    can fail, unlike the database-backed repositories above. Default
+    MARKET_DATA_PROVIDER="mock" preserves pre-Milestone-13 behavior."""
+    provider, is_live = build_market_data_provider(AppSettings(), _LOGGER)
     assert isinstance(provider, MockMarketDataProvider)
+    assert is_live is False
 
 
 def test_build_market_data_provider_returns_a_fresh_instance_each_call() -> None:
-    first = build_market_data_provider()
-    second = build_market_data_provider()
+    first, _ = build_market_data_provider(AppSettings(), _LOGGER)
+    second, _ = build_market_data_provider(AppSettings(), _LOGGER)
     assert first is not second
+
+
+def test_build_market_data_provider_returns_yahoo_finance_when_selected() -> None:
+    """Milestone 13: a real, non-mock provider is now selectable."""
+    settings = AppSettings(market_data_provider="yahoo_finance")
+    provider, is_live = build_market_data_provider(settings, _LOGGER)
+    assert isinstance(provider, YahooFinanceProvider)
+    assert is_live is True
+
+
+def test_build_market_data_provider_falls_back_to_mock_for_unrecognized_selector() -> None:
+    settings = AppSettings(market_data_provider="not-a-real-provider")
+    provider, is_live = build_market_data_provider(settings, _LOGGER)
+    assert isinstance(provider, MockMarketDataProvider)
+    assert is_live is False
+
+
+def test_build_market_snapshot_service_always_succeeds() -> None:
+    settings = AppSettings()
+    provider, _ = build_market_data_provider(settings, _LOGGER)
+    service = build_market_snapshot_service(provider, None, settings)
+    assert isinstance(service, MarketSnapshotService)
 
 
 def test_build_normalization_service_returns_a_service() -> None:
@@ -932,7 +1014,7 @@ def test_build_company_research_agent_returns_none_without_knowledge_hub() -> No
     runtime = _build_test_runtime()
     registry = build_prompt_registry()
 
-    result = build_company_research_agent(runtime, None, None, registry)
+    result = build_company_research_agent(runtime, None, None, registry, None)
 
     assert result is None
 
@@ -942,7 +1024,7 @@ def test_build_company_research_agent_returns_none_without_llm_service() -> None
     registry = build_prompt_registry()
     hub = build_knowledge_hub(_FakeKnowledgeRepository())
 
-    result = build_company_research_agent(runtime, hub, None, registry)
+    result = build_company_research_agent(runtime, hub, None, registry, None)
 
     assert result is None
 
@@ -956,7 +1038,7 @@ def test_build_company_research_agent_returns_an_agent_when_dependencies_availab
     hub = build_knowledge_hub(_FakeKnowledgeRepository())
     llm_service = build_llm_service(_LOGGER)
 
-    agent = build_company_research_agent(runtime, hub, llm_service, registry)
+    agent = build_company_research_agent(runtime, hub, llm_service, registry, None)
 
     assert isinstance(agent, CompanyResearchAgent)
 
@@ -979,7 +1061,7 @@ def test_build_portfolio_intelligence_agent_returns_an_agent_when_dependencies_a
     registry = build_prompt_registry()
     hub = build_knowledge_hub(_FakeKnowledgeRepository())
     llm_service = build_llm_service(_LOGGER)
-    company_research_agent = build_company_research_agent(runtime, hub, llm_service, registry)
+    company_research_agent = build_company_research_agent(runtime, hub, llm_service, registry, None)
 
     agent = build_portfolio_intelligence_agent(runtime, hub, llm_service, registry, company_research_agent)
 

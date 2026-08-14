@@ -62,8 +62,19 @@ def _mock_response(content: bytes, url: str, status_code: int = 200) -> httpx.Re
     return httpx.Response(status_code, content=content, request=request)
 
 
-def _config(feed_urls: list[str], timeout: float = 10.0) -> RSSProviderConfig:
-    return RSSProviderConfig(provider_id="rss", feed_urls=feed_urls, timeout=timeout)
+def _config(
+    feed_urls: list[str],
+    timeout: float = 10.0,
+    retry_attempts: int = 0,
+    retry_backoff_seconds: float = 0.0,
+) -> RSSProviderConfig:
+    return RSSProviderConfig(
+        provider_id="rss",
+        feed_urls=feed_urls,
+        timeout=timeout,
+        retry_attempts=retry_attempts,
+        retry_backoff_seconds=retry_backoff_seconds,
+    )
 
 
 def test_provider_identity() -> None:
@@ -193,6 +204,82 @@ async def test_fetch_partial_success_when_one_of_several_feeds_times_out() -> No
     by_url = {feed.feed_url: feed for feed in result.data}
     assert by_url[FEED_URL_A].fetch_error is None
     assert by_url[FEED_URL_B].fetch_error is not None
+
+
+# --- Retry policy tests -----------------------------------------------
+
+
+async def test_fetch_retries_on_transient_failure_then_succeeds() -> None:
+    provider = RSSProvider(_config([FEED_URL_A], retry_attempts=2))
+    call_count = 0
+
+    async def fake_get(url: str, headers: dict[str, str]) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        if call_count < 3:
+            raise httpx.ConnectTimeout("transient failure")
+        return _mock_response(VALID_RSS, url)
+
+    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=fake_get)):
+        result = await provider.fetch()
+
+    assert call_count == 3
+    feed = result.data[0]
+    assert feed.fetch_error is None
+    assert len(feed.entries) == 2
+    assert result.success is True
+
+
+async def test_fetch_gives_up_after_exhausting_retry_attempts() -> None:
+    provider = RSSProvider(_config([FEED_URL_A], retry_attempts=2))
+    call_count = 0
+
+    async def fake_get(url: str, headers: dict[str, str]) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        raise httpx.ConnectTimeout("persistent failure")
+
+    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=fake_get)):
+        result = await provider.fetch()
+
+    assert call_count == 3  # initial attempt + 2 retries
+    feed = result.data[0]
+    assert feed.fetch_error is not None
+    assert result.success is False
+
+
+async def test_fetch_with_zero_retry_attempts_tries_exactly_once() -> None:
+    provider = RSSProvider(_config([FEED_URL_A], retry_attempts=0))
+    call_count = 0
+
+    async def fake_get(url: str, headers: dict[str, str]) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        raise httpx.ConnectTimeout("failure")
+
+    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=fake_get)):
+        await provider.fetch()
+
+    assert call_count == 1
+
+
+async def test_fetch_retry_isolated_per_feed() -> None:
+    """One feed exhausting its retries must not affect another feed's own
+    independent retry attempts or its eventual success."""
+    provider = RSSProvider(_config([FEED_URL_A, FEED_URL_B], retry_attempts=1))
+
+    async def fake_get(url: str, headers: dict[str, str]) -> httpx.Response:
+        if url == FEED_URL_A:
+            raise httpx.ConnectTimeout("always fails")
+        return _mock_response(VALID_RSS, url)
+
+    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=fake_get)):
+        result = await provider.fetch()
+
+    by_url = {feed.feed_url: feed for feed in result.data}
+    assert by_url[FEED_URL_A].fetch_error is not None
+    assert by_url[FEED_URL_B].fetch_error is None
+    assert len(by_url[FEED_URL_B].entries) == 2
 
 
 # --- Empty feed tests -------------------------------------------------

@@ -33,11 +33,13 @@ def test_startup_knowledge_repository_is_repository_or_none() -> None:
         assert repository is None or hasattr(repository, "search")
 
 
-def test_startup_embedding_provider_is_none() -> None:
-    """Documents the intentional gap: no concrete BaseEmbeddingProvider exists yet."""
+def test_startup_embedding_provider_is_configured() -> None:
+    """Milestone 11: a concrete BaseEmbeddingProvider (LocalEmbeddingProvider)
+    is now built by default — no longer the documented gap it used to be."""
     app = create_app()
     with TestClient(app) as client:
-        assert client.app.state.embedding_provider is None
+        assert client.app.state.embedding_provider is not None
+        assert hasattr(client.app.state.embedding_provider, "generate")
 
 
 def test_startup_populates_settings_in_state() -> None:

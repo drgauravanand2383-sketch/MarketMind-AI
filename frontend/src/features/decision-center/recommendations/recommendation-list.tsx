@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
+import { MarketFreshnessBadge } from "@/components/market-freshness-badge";
 import { EmptyState } from "@/components/states/empty-state";
 import { RecommendationTypeBadge } from "@/features/decision-center/recommendations/recommendation-type-badge";
 import type { RecommendationCandidate, RecommendationType } from "@/types/portfolio";
@@ -112,6 +113,9 @@ export function RecommendationList({
                 </th>
                 <SortHeader label="Score" field="overall_score" active={sortField} desc={sortDesc} onSort={toggleSort} />
                 <SortHeader label="Confidence" field="confidence" active={sortField} desc={sortDesc} onSort={toggleSort} />
+                <th scope="col" className="px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Market
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -140,6 +144,32 @@ export function RecommendationList({
                   </td>
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{candidate.overall_score.toFixed(0)}</td>
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{candidate.confidence.toFixed(0)}%</td>
+                  <td className="px-3 py-2">
+                    {candidate.market_price != null ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-700 dark:text-slate-300">
+                          ${candidate.market_price.toFixed(2)}
+                          {candidate.market_change_percent != null && (
+                            <span
+                              className={
+                                candidate.market_change_percent >= 0
+                                  ? "ml-1 text-green-700 dark:text-green-400"
+                                  : "ml-1 text-red-700 dark:text-red-400"
+                              }
+                            >
+                              {candidate.market_change_percent >= 0 ? "+" : ""}
+                              {candidate.market_change_percent.toFixed(2)}%
+                            </span>
+                          )}
+                        </span>
+                        {candidate.market_freshness && <MarketFreshnessBadge status={candidate.market_freshness} />}
+                      </div>
+                    ) : candidate.market_freshness ? (
+                      <MarketFreshnessBadge status={candidate.market_freshness} />
+                    ) : (
+                      <span className="text-slate-400 dark:text-slate-600">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

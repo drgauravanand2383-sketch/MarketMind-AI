@@ -110,14 +110,27 @@ class SearchableInMemoryRepository(BaseKnowledgeRepository):
 
     async def search(self, query: SearchQuery) -> list[SearchResult]:
         query_text = (query.query_text or "").lower()
-        results = []
-        for stored in self._records.values():
-            haystack = " ".join(part for part in (stored.title, stored.text) if part).lower()
-            if query_text and query_text in haystack:
-                results.append(
-                    SearchResult(id=stored.id, score=1.0, text=stored.text, metadata=stored.metadata)
-                )
-        return results[: query.top_k]
+        if query_text:
+            results = []
+            for stored in self._records.values():
+                haystack = " ".join(part for part in (stored.title, stored.text) if part).lower()
+                if query_text in haystack:
+                    results.append(
+                        SearchResult(id=stored.id, score=1.0, text=stored.text, metadata=stored.metadata)
+                    )
+            return results[: query.top_k]
+        if query.filters:
+            # Milestone 12: a pure metadata-filter lookup (no query text) —
+            # mirrors ChromaKnowledgeRepository.search()'s own `get(where=...)`
+            # path, so CompanyResearchAgent's entity-aware retrieval can be
+            # exercised meaningfully against this fake.
+            results = [
+                SearchResult(id=stored.id, score=None, text=stored.text, metadata=stored.metadata)
+                for stored in self._records.values()
+                if all(stored.metadata.get(key) == value for key, value in query.filters.items())
+            ]
+            return results[: query.top_k]
+        return []
 
     async def get(self, record_id: str) -> KnowledgeRecord | None:
         return self._records.get(record_id)

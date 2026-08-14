@@ -57,7 +57,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -65,10 +65,12 @@ from app.agents.company_research.models import CompanyResearchReport
 from app.agents.portfolio_intelligence.models import CompanySummary
 from app.alerts.models import Alert
 from app.screening.models import ScreenResult
+from app.services.market_snapshot.models import MarketSnapshotResult, MarketSnapshotStatus
 from app.signals.models import SignalResult
 
 __all__ = [
     "RecommendationType",
+    "MarketContribution",
     "ScoringWeights",
     "RecommendationThresholds",
     "CandidateEvidence",
@@ -85,6 +87,32 @@ class RecommendationType(str, Enum):
     WATCH = "WATCH"
     HOLD = "HOLD"
     AVOID = "AVOID"
+
+
+MarketContribution = Literal["direct", "indirect", "none"]
+"""Whether live market data (Milestone 13) informed one
+`RecommendationCandidate` — always computed, never a hidden/opaque
+signal (§7's own "no hidden weighting... all scoring contributions must
+remain inspectable" requirement):
+
+- `"direct"`: `CandidateEvidence.market_snapshot` was supplied for this
+  ticker and its status was `FRESH`/`STALE` (real data, just possibly
+  aging — never `ENTITY_NOT_MAPPED` or a provider-failure status).
+- `"indirect"`: no direct market snapshot, but at least one of the
+  candidate's `supporting_signals` was evaluated against a
+  `"quote.*"`-namespaced `SignalCondition` (Milestone 13's Signal
+  Detection integration — see `app.services.portfolio_market_snapshot`'s
+  signal adapter) — i.e. market data reached this candidate through
+  Signal Detection, the one real existing pathway (this codebase's
+  Signals engine is upstream of Recommendations; Risk is downstream of
+  Recommendations and cannot feed back into it, so "indirectly through
+  risk" — as this milestone's own prose names it — is not a real
+  pathway in this architecture; "indirectly through signals" is the
+  literal, honest equivalent, flagged here as a documented
+  interpretation).
+- `"none"`: neither applies — this candidate's score is exactly what it
+  would have been without Milestone 14.
+"""
 
 
 class ScoringWeights(BaseModel):
@@ -168,6 +196,11 @@ class CandidateEvidence(BaseModel):
     research_report: CompanyResearchReport | None = None
     portfolio_summary: CompanySummary | None = None
     planning_score: float | None = Field(default=None, ge=0, le=100)
+    market_snapshot: MarketSnapshotResult | None = None
+    """Milestone 13 market data for this ticker, supplied by the caller
+    — this engine never fetches market data itself, exactly like every
+    other evidence field above. Purely additive: `None` (the default)
+    reproduces this model's exact pre-Milestone-14 shape and behavior."""
 
     @field_validator("ticker")
     @classmethod
@@ -198,7 +231,19 @@ class RecommendationRequest(BaseModel):
 
 
 class RecommendationCandidate(BaseModel):
-    """One scored, ranked, explainable recommendation candidate."""
+    """One scored, ranked, explainable recommendation candidate.
+
+    `market_price`/`market_change_percent`/`market_freshness` (Milestone
+    14) are flat scalars, deliberately not nested inside
+    `market_snapshot` alone — `app.strategy.models.StrategyRule.field`
+    derives its allowed field set generically from this model's own
+    field names (`getattr(candidate, rule.field)`), and a strategy rule
+    needs a directly-comparable scalar to reference (mirrors §6's own
+    example list: "current price, percentage change, market status").
+    `market_snapshot` itself carries full provenance (§21) but is
+    excluded from strategy rules — see
+    `app.strategy.models._STRATEGY_RULE_FIELDS`.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -219,6 +264,11 @@ class RecommendationCandidate(BaseModel):
     portfolio_score: float | None = None
     signal_score: float | None = None
     alert_score: float | None = None
+    market_price: float | None = None
+    market_change_percent: float | None = None
+    market_freshness: MarketSnapshotStatus | None = None
+    market_snapshot: MarketSnapshotResult | None = None
+    market_contribution: MarketContribution = "none"
     created_at: datetime
 
 

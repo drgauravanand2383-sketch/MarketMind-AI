@@ -41,6 +41,8 @@ from app.risk.exceptions import (
     RiskAssessmentRequestNotFoundError,
 )
 from app.risk.models import (
+    MarketDataCoverage,
+    MarketDataCoverageStatus,
     PortfolioExposure,
     RiskAssessment,
     RiskAssessmentRequest,
@@ -50,6 +52,7 @@ from app.risk.models import (
     RiskThresholds,
     RiskWeighting,
 )
+from app.services.market_snapshot.models import MarketSnapshotStatus
 from app.signals.models import SignalCategory
 from app.strategy.models import StrategyEvaluationResult
 
@@ -389,9 +392,54 @@ class RiskAnalyticsService:
             exposures=exposures,
             recommendations=recommendations,
             summary=_build_summary(overall_score, overall_severity, metrics, len(candidates)),
+            market_data_coverage=_compute_market_data_coverage(candidates),
             generated_at=self._now_fn(),
         )
         return await self._repository.store_assessment(assessment)
+
+
+_MARKET_DATA_PRESENT_STATUSES = (MarketSnapshotStatus.FRESH, MarketSnapshotStatus.STALE)
+
+
+def _compute_market_data_coverage(candidates: tuple[RecommendationCandidate, ...]) -> MarketDataCoverage:
+    """Purely informational (§5): summarizes how many of `candidates` carry
+    live market data, without feeding into `overall_risk_score` or any
+    `RiskMetric` above. `market_freshness` is `None` for candidates
+    generated before Milestone 14 wired market data into Recommendations
+    (or when this recommendation run had none supplied) — those count as
+    `not_evaluated`, distinct from a candidate that was evaluated and
+    genuinely came back unmapped/unavailable."""
+    total = len(candidates)
+    fresh = stale = unavailable = not_evaluated = 0
+    for candidate in candidates:
+        freshness = candidate.market_freshness
+        if freshness is None:
+            not_evaluated += 1
+        elif freshness == MarketSnapshotStatus.FRESH:
+            fresh += 1
+        elif freshness == MarketSnapshotStatus.STALE:
+            stale += 1
+        else:
+            unavailable += 1
+
+    present = fresh + stale
+    if total == 0 or present + unavailable == 0:
+        status = MarketDataCoverageStatus.NOT_EVALUATED
+    elif present == 0:
+        status = MarketDataCoverageStatus.NONE
+    elif present == total:
+        status = MarketDataCoverageStatus.FULL
+    else:
+        status = MarketDataCoverageStatus.PARTIAL
+
+    return MarketDataCoverage(
+        status=status,
+        fresh_count=fresh,
+        stale_count=stale,
+        unavailable_count=unavailable,
+        not_evaluated_count=not_evaluated,
+        total_candidates=total,
+    )
 
 
 def _dimension_weights(

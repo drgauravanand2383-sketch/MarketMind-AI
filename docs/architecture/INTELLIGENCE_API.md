@@ -85,6 +85,23 @@ all three domains:
 | POST | `/research/batch` | `research:run` | `CompanyResearchAgent.run()` once per company, one shared `ExecutionContext` (cached) |
 | GET | `/research/{request_id}` | `research:read` | `InMemoryResultStore.get()` |
 
+No request/response schema changed for Milestone 12 (Entity Resolution &
+Company Intelligence, post-v1.0/v1.1) — `CompanyResearchReport.company_overview`
+gained purely additive optional fields (`resolved_entity_id`,
+`resolution_confidence`, `resolution_method`, `sector`, `industry`,
+`country`), and retrieval became entity-aware alongside the existing
+semantic search, not instead of it. See
+`docs/architecture/ENTITY_RESOLUTION.md` for the full design.
+
+Likewise, no request/response schema changed for Milestone 13 (Live
+Market Data & Price Intelligence, post-v1.0/v1.1) —
+`CompanyResearchReport` gained one purely additive optional field,
+`market_snapshot` (present, with an honest `status`, whenever a
+`market_snapshot_service` is configured and the company resolved to a
+canonical entity — `None` otherwise, exactly like before this field
+existed). See `docs/architecture/MARKET_DATA_ARCHITECTURE.md` for the
+full design.
+
 ### Screening (`/api/v1/screening`)
 
 | Method | Path | Permission | Delegates to |

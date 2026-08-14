@@ -1,7 +1,17 @@
 import type { ReactNode } from "react";
 import { PriorityBadge } from "@/components/priority-badge";
 import { deriveRiskScores } from "@/features/decision-center/risk/derive-risk-scores";
-import type { RiskAssessment, RiskMetric } from "@/types/portfolio";
+import type { MarketDataCoverageStatus, RiskAssessment, RiskMetric } from "@/types/portfolio";
+
+/** Milestone 14, purely informational — never affects `overall_risk_score`
+ * itself (`app.risk.engine`'s own formulas are unchanged). `NOT_EVALUATED`
+ * renders nothing, to avoid noise on the common case of an assessment
+ * whose candidates never carried market data at all. */
+const COVERAGE_LABELS: Partial<Record<MarketDataCoverageStatus, string>> = {
+  FULL: "Live market data: full coverage",
+  PARTIAL: "Live market data: partial coverage",
+  NONE: "Live market data: unavailable",
+};
 
 function ScoreCard({ label, metric }: { label: string; metric: RiskMetric | null }): ReactNode {
   return (
@@ -29,6 +39,9 @@ function ScoreCard({ label, metric }: { label: string; metric: RiskMetric | null
  * didn't emit that category for this portfolio. */
 export function RiskScoreCards({ assessment }: { assessment: RiskAssessment }): ReactNode {
   const derived = deriveRiskScores(assessment.risk_metrics);
+  const coverageLabel = assessment.market_data_coverage
+    ? COVERAGE_LABELS[assessment.market_data_coverage.status]
+    : undefined;
 
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -38,6 +51,7 @@ export function RiskScoreCards({ assessment }: { assessment: RiskAssessment }): 
           <span className="text-xl font-semibold text-slate-900 dark:text-slate-100">{assessment.overall_risk_score.toFixed(0)}</span>
           <PriorityBadge level={assessment.overall_severity} />
         </div>
+        {coverageLabel && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{coverageLabel}</p>}
       </div>
       <ScoreCard label="Diversification" metric={derived.diversification} />
       <ScoreCard label="Concentration" metric={derived.concentration} />

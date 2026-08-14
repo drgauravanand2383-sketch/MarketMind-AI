@@ -45,6 +45,7 @@ from app.auth.security.jwt_signer import HmacJWTSigner
 from app.auth.security.password_hashing import Pbkdf2PasswordHasher
 from app.auth.services.authentication import AuthenticationService
 from app.auth.services.authorization import AuthorizationService
+from app.providers.market_data.mock import MockMarketDataProvider
 from app.recommendations.engine import PortfolioRecommendationService
 from app.repositories.recommendations.postgres.models import Base as RecommendationBase
 from app.repositories.recommendations.postgres.repository import PostgresRecommendationRepository
@@ -53,6 +54,9 @@ from app.repositories.risk.postgres.repository import PostgresRiskAnalyticsRepos
 from app.repositories.watchlist.postgres.models import Base as WatchlistBase
 from app.repositories.watchlist.postgres.repository import PostgresWatchlistRepository
 from app.risk.engine import RiskAnalyticsService
+from app.services.market_snapshot.cache import InMemoryMarketSnapshotCache
+from app.services.market_snapshot.service import MarketSnapshotService
+from app.services.portfolio_market_snapshot.service import PortfolioMarketSnapshotService
 from app.watchlist.service import WatchlistService
 
 ALL_PORTFOLIO_PERMISSIONS = ("portfolio:read", "portfolio:recommend")
@@ -163,12 +167,32 @@ def risk_service(risk_repository: PostgresRiskAnalyticsRepository) -> RiskAnalyt
 
 
 @pytest.fixture
+def portfolio_market_snapshot_service() -> PortfolioMarketSnapshotService:
+    """No entity resolver: every item reports ENTITY_NOT_MAPPED — the same
+    graceful-degradation behavior `build_portfolio_market_snapshot_service`
+    documents for a real deployment without a resolver configured. Fine
+    for these router tests, which only assert `market_snapshot` is present
+    and well-formed, never a specific ticker's live price."""
+    market_snapshot_service = MarketSnapshotService(
+        MockMarketDataProvider(), None, InMemoryMarketSnapshotCache(60.0)
+    )
+    return PortfolioMarketSnapshotService(market_snapshot_service, None)
+
+
+@pytest.fixture
+def connection_manager() -> ConnectionManager:
+    return ConnectionManager()
+
+
+@pytest.fixture
 def app(
     auth_service: AuthenticationService,
     authorization_service: AuthorizationService,
     watchlist_service: WatchlistService,
     recommendation_service: PortfolioRecommendationService,
     risk_service: RiskAnalyticsService,
+    portfolio_market_snapshot_service: PortfolioMarketSnapshotService,
+    connection_manager: ConnectionManager,
 ) -> FastAPI:
     application = FastAPI()
     application.state.authentication_service = auth_service
@@ -177,7 +201,8 @@ def app(
     application.state.watchlist_service = watchlist_service
     application.state.recommendation_service = recommendation_service
     application.state.risk_service = risk_service
-    application.state.event_publisher = EventPublisher(ConnectionManager())
+    application.state.portfolio_market_snapshot_service = portfolio_market_snapshot_service
+    application.state.event_publisher = EventPublisher(connection_manager)
     application.add_middleware(AuthenticationMiddleware)
     application.include_router(portfolio_router, prefix="/api/v1")
     application.dependency_overrides[get_portfolio_intelligence_agent] = (

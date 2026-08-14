@@ -39,8 +39,15 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
+COPY scripts ./scripts
 
-RUN chown -R appuser:appuser /app
+# Pre-create the ChromaDB persistence directory so it exists (owned by
+# appuser) inside the image before docker-compose.prod.yml's named volume
+# is first mounted here — an empty named volume is initialized from the
+# image's directory at that path, ownership included; without this the
+# volume's mount point is created by the daemon as root and appuser can't
+# write to it.
+RUN mkdir -p /app/data/cache && chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8000

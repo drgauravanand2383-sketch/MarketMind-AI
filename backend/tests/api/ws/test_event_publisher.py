@@ -6,6 +6,11 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
+from app.agents.portfolio_intelligence.models import (
+    PortfolioIntelligenceReport,
+    PortfolioIntelligenceRequest,
+    PortfolioOverview,
+)
 from app.alerts.models import Alert, AlertPriority, AlertStatus
 from app.api.ws.connection_manager.manager import ConnectionManager
 from app.api.ws.event_models.event_type import EventType
@@ -19,6 +24,7 @@ from app.operations.health.models import ApplicationHealth, HealthState
 from app.recommendations.models import RecommendationResult, RecommendationSummary
 from app.risk.models import RiskAssessment, RiskSeverity
 from app.strategy.models import StrategyEvaluationResult, StrategySummary
+from app.workflows.market_data_refresh.models import MarketDataRefreshResult
 from tests.api.ws.fakes import FakeWebSocket
 
 import json
@@ -152,6 +158,44 @@ async def test_publish_health_status_changed_has_no_correlation_id() -> None:
     assert envelope.event.event_type == EventType.HEALTH_STATUS_CHANGED
     assert envelope.event.correlation_id is None
     assert envelope.event.payload.state == HealthState.DEGRADED
+
+
+async def test_publish_market_snapshot_refreshed() -> None:
+    manager, ws = await _subscribed_connection_manager(EventType.MARKET_SNAPSHOT_REFRESHED)
+    publisher = EventPublisher(manager)
+    result = MarketDataRefreshResult(
+        execution_id="exec-1", started_at=NOW, completed_at=NOW,
+        entities_requested=2, fresh_count=1, stale_count=0, unavailable_count=1,
+    )
+
+    delivered = await publisher.publish_market_snapshot_refreshed(result)
+
+    assert delivered == 1
+    envelope = _received_envelope(ws)
+    assert envelope.event.event_type == EventType.MARKET_SNAPSHOT_REFRESHED
+    assert envelope.event.correlation_id == "exec-1"
+    assert envelope.event.payload.fresh_count == 1
+
+
+async def test_publish_portfolio_intelligence_updated() -> None:
+    manager, ws = await _subscribed_connection_manager(EventType.PORTFOLIO_INTELLIGENCE_UPDATED)
+    publisher = EventPublisher(manager)
+    request = PortfolioIntelligenceRequest(portfolio_name="My Portfolio")
+    report = PortfolioIntelligenceReport(
+        request=request,
+        generated_at=NOW,
+        executive_summary="x",
+        portfolio_overview=PortfolioOverview(
+            portfolio_name="My Portfolio", holding_count=0, matched_holding_count=0, generated_at=NOW
+        ),
+    )
+
+    delivered = await publisher.publish_portfolio_intelligence_updated(report)
+
+    assert delivered == 1
+    envelope = _received_envelope(ws)
+    assert envelope.event.event_type == EventType.PORTFOLIO_INTELLIGENCE_UPDATED
+    assert envelope.event.correlation_id == "My Portfolio"
 
 
 async def test_publish_with_no_subscribers_returns_zero() -> None:

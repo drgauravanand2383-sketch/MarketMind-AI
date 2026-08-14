@@ -16,6 +16,7 @@ __all__ = [
     "ProviderAuthenticationError",
     "ProviderRateLimitError",
     "ProviderResponseError",
+    "ProviderNoDataError",
     "ProviderNotRegisteredError",
     "ProviderAlreadyRegisteredError",
 ]
@@ -51,6 +52,15 @@ class ProviderRateLimitError(ProviderError):
 
 class ProviderResponseError(ProviderError):
     """Raised when a provider receives a malformed or unexpected response."""
+
+
+class ProviderNoDataError(ProviderError):
+    """Raised when a provider was reached and responded successfully, but
+    has no data at all for the requested identifier (e.g. an unknown or
+    delisted ticker) — distinct from `ProviderResponseError` (the
+    response itself was malformed/unparseable) and from a connection or
+    timeout failure (Milestone 13 §7: "no data exists" must never be
+    confused with "provider failed")."""
 
 
 class ProviderNotRegisteredError(ProviderError):

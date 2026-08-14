@@ -9,6 +9,7 @@ from typing import Literal, Union
 
 from pydantic import BaseModel, ConfigDict
 
+from app.agents.portfolio_intelligence.models import PortfolioIntelligenceReport
 from app.alerts.models import Alert
 from app.api.ws.event_models.base import BaseEvent, EventMetadata
 from app.api.ws.event_models.event_type import EventType
@@ -18,6 +19,7 @@ from app.operations.health.models import ApplicationHealth
 from app.recommendations.models import RecommendationResult
 from app.risk.models import RiskAssessment
 from app.strategy.models import StrategyEvaluationResult
+from app.workflows.market_data_refresh.models import MarketDataRefreshResult
 
 __all__ = [
     "AlertEvent",
@@ -27,6 +29,8 @@ __all__ = [
     "RiskEvent",
     "ExplainabilityEvent",
     "HealthEvent",
+    "MarketSnapshotEvent",
+    "PortfolioIntelligenceEvent",
     "AnyEvent",
     "EventEnvelope",
 ]
@@ -65,8 +69,31 @@ class HealthEvent(BaseEvent[ApplicationHealth]):
     event_type: Literal[EventType.HEALTH_STATUS_CHANGED] = EventType.HEALTH_STATUS_CHANGED
 
 
+class MarketSnapshotEvent(BaseEvent[MarketDataRefreshResult]):
+    """Milestone 14: published when `MarketDataRefreshWorkflow.execute()`
+    completes — payload is the same `MarketDataRefreshResult` the workflow
+    already returns."""
+
+    event_type: Literal[EventType.MARKET_SNAPSHOT_REFRESHED] = EventType.MARKET_SNAPSHOT_REFRESHED
+
+
+class PortfolioIntelligenceEvent(BaseEvent[PortfolioIntelligenceReport]):
+    """Milestone 14: published from `GET /portfolio/intelligence` after
+    the report (with its attached market snapshot) is built."""
+
+    event_type: Literal[EventType.PORTFOLIO_INTELLIGENCE_UPDATED] = EventType.PORTFOLIO_INTELLIGENCE_UPDATED
+
+
 AnyEvent = Union[
-    AlertEvent, RecommendationEvent, BacktestEvent, StrategyEvent, RiskEvent, ExplainabilityEvent, HealthEvent
+    AlertEvent,
+    RecommendationEvent,
+    BacktestEvent,
+    StrategyEvent,
+    RiskEvent,
+    ExplainabilityEvent,
+    HealthEvent,
+    MarketSnapshotEvent,
+    PortfolioIntelligenceEvent,
 ]
 
 

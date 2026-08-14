@@ -26,6 +26,17 @@ MIN_RECORDS_FOR_FULL_CONFIDENCE = 5
 
 # Seed reference sets for deterministic keyword matching. Not exhaustive —
 # intended to be extended as real coverage requirements are defined.
+#
+# Milestone 12 note: this is the single canonical company reference set for
+# the whole codebase — app.services.entity_resolution.reference_data builds
+# its richer CompanyReference records (ticker/exchange/country/sector/
+# industry/legal_name) on top of exactly this dict, rather than defining a
+# second one, per that milestone's own "do not invent a second company
+# entity model" constraint. The five entries added below (Dell through
+# SanDisk) are real, publicly-known companies/tickers, added because they
+# are exactly the companies real live RSS ingestion (Milestone 11's own
+# Docker acceptance run, against a real MarketWatch feed) produced — not
+# arbitrary additions.
 COMPANY_KEYWORDS: dict[str, tuple[str, ...]] = {
     "Apple Inc.": ("Apple", "AAPL"),
     "Tesla Inc.": ("Tesla", "TSLA"),
@@ -34,6 +45,11 @@ COMPANY_KEYWORDS: dict[str, tuple[str, ...]] = {
     "Alphabet Inc.": ("Alphabet", "Google", "GOOGL"),
     "Meta Platforms Inc.": ("Meta", "Facebook", "META"),
     "NVIDIA Corporation": ("NVIDIA", "NVDA"),
+    "Dell Technologies Inc.": ("Dell", "Dell Technologies", "DELL"),
+    "Salesforce Inc.": ("Salesforce", "CRM"),
+    "Workday Inc.": ("Workday", "WDAY"),
+    "Reddit Inc.": ("Reddit", "RDDT"),
+    "SanDisk Corporation": ("SanDisk", "Sandisk", "SNDK"),
 }
 
 SECTOR_KEYWORDS: dict[str, tuple[str, ...]] = {

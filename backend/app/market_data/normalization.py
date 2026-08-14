@@ -36,6 +36,13 @@ _EXCHANGE_ALIASES: dict[str, Exchange] = {
     "SHENZHEN STOCK EXCHANGE": Exchange.SZSE,
     "TORONTO STOCK EXCHANGE": Exchange.TSX,
     "AUSTRALIAN SECURITIES EXCHANGE": Exchange.ASX,
+    # Milestone 13: real full-exchange-name strings observed from Yahoo
+    # Finance's own chart endpoint (`meta.fullExchangeName`).
+    "NASDAQGS": Exchange.NASDAQ,
+    "NASDAQGM": Exchange.NASDAQ,
+    "NASDAQCM": Exchange.NASDAQ,
+    "NYSEAMERICAN": Exchange.AMEX,
+    "NYSEARCA": Exchange.NYSE,
 }
 
 

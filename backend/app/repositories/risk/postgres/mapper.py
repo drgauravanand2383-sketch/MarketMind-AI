@@ -11,7 +11,14 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.repositories.risk.postgres.models import RiskAssessmentModel, RiskAssessmentRequestModel
-from app.risk.models import PortfolioExposure, RiskAssessment, RiskAssessmentRequest, RiskMetric
+from app.risk.models import (
+    MarketDataCoverage,
+    MarketDataCoverageStatus,
+    PortfolioExposure,
+    RiskAssessment,
+    RiskAssessmentRequest,
+    RiskMetric,
+)
 
 __all__ = ["request_to_model", "model_to_request", "assessment_to_model", "model_to_assessment"]
 
@@ -54,12 +61,21 @@ def assessment_to_model(assessment: RiskAssessment) -> RiskAssessmentModel:
         exposures=[e.model_dump(mode="json") for e in assessment.exposures],
         recommendations=list(assessment.recommendations),
         summary=assessment.summary,
+        market_data_coverage=assessment.market_data_coverage.model_dump(mode="json"),
         generated_at=assessment.generated_at,
     )
 
 
 def model_to_assessment(model: RiskAssessmentModel) -> RiskAssessment:
-    """Map a `RiskAssessmentModel` row into a `RiskAssessment`."""
+    """Map a `RiskAssessmentModel` row into a `RiskAssessment`. A `None`
+    `market_data_coverage` (a row written before Milestone 14 added the
+    column) maps to the same `NOT_EVALUATED` default the Pydantic model
+    itself uses — never fabricated coverage data for an old row."""
+    coverage = (
+        MarketDataCoverage.model_validate(model.market_data_coverage)
+        if model.market_data_coverage is not None
+        else MarketDataCoverage(status=MarketDataCoverageStatus.NOT_EVALUATED)
+    )
     return RiskAssessment(
         request_id=model.request_id,
         overall_risk_score=model.overall_risk_score,
@@ -68,5 +84,6 @@ def model_to_assessment(model: RiskAssessmentModel) -> RiskAssessment:
         exposures=tuple(PortfolioExposure.model_validate(e) for e in model.exposures),
         recommendations=tuple(model.recommendations),
         summary=model.summary,
+        market_data_coverage=coverage,
         generated_at=_ensure_aware(model.generated_at),
     )

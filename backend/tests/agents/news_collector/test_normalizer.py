@@ -93,6 +93,53 @@ def test_normalize_returns_empty_list_for_unrecognized_provider() -> None:
     assert normalize_provider_result(result) == []
 
 
+def test_normalize_derives_a_deterministic_id_from_canonical_url_when_guid_missing() -> None:
+    """Many real-world feeds omit <guid> and only ever set <link> — this
+    must not fall through to a rejected (MISSING_ID) item; identity must
+    still be derivable, and stably so across separate ingestion runs."""
+    entry = RSSFeedEntry(title="Fed holds rates steady", link="https://example.com/fed-holds-rates")
+    result = _rss_result([entry])
+
+    items = normalize_provider_result(result)
+
+    assert items[0].id is not None
+    assert items[0].id != ""
+
+
+def test_normalize_fallback_id_is_deterministic_across_separate_calls() -> None:
+    entry = RSSFeedEntry(title="Fed holds rates steady", link="https://example.com/fed-holds-rates")
+
+    first = normalize_provider_result(_rss_result([entry]))
+    second = normalize_provider_result(_rss_result([entry]))
+
+    assert first[0].id == second[0].id
+
+
+def test_normalize_fallback_id_differs_for_different_urls() -> None:
+    entry_a = RSSFeedEntry(title="A", link="https://example.com/a")
+    entry_b = RSSFeedEntry(title="B", link="https://example.com/b")
+
+    items = normalize_provider_result(_rss_result([entry_a, entry_b]))
+
+    assert items[0].id != items[1].id
+
+
+def test_normalize_prefers_explicit_guid_over_derived_url_id() -> None:
+    entry = RSSFeedEntry(id="explicit-guid-1", title="A", link="https://example.com/a")
+
+    items = normalize_provider_result(_rss_result([entry]))
+
+    assert items[0].id == "explicit-guid-1"
+
+
+def test_normalize_returns_none_id_when_neither_guid_nor_link_present() -> None:
+    entry = RSSFeedEntry(title="No identity available")
+
+    items = normalize_provider_result(_rss_result([entry]))
+
+    assert items[0].id is None
+
+
 def test_normalize_handles_no_data() -> None:
     result = ProviderResult(
         provider_id="rss", fetched_at=datetime.now(timezone.utc), success=True, data=None

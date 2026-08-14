@@ -17,6 +17,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.api.ws.connection_manager.manager import ConnectionManager
+from app.api.ws.event_models.event_type import EventType
+from app.api.ws.event_models.events import EventEnvelope
+from app.api.ws.subscriptions.models import Subscription
+from app.auth.models.authentication import AuthenticatedPrincipal
 from app.auth.repositories.postgres.repository import PostgresAuthRepository
 from app.auth.services.authentication import AuthenticationService
 from app.recommendations.engine import PortfolioRecommendationService
@@ -25,6 +30,7 @@ from app.risk.engine import RiskAnalyticsService
 from app.watchlist.models import WatchlistItem
 from app.watchlist.service import WatchlistService
 from tests.api.v1.portfolio.conftest import make_authenticated_headers
+from tests.api.ws.fakes import FakeWebSocket
 
 
 async def make_watchlist(watchlist_service: WatchlistService, name: str = "Tech Growth") -> str:
@@ -151,6 +157,47 @@ async def test_portfolio_intelligence(
     body = response.json()["data"]
     assert body["portfolio_overview"]["holding_count"] == 1
     assert body["request"]["companies"][0]["ticker"] == "AAPL"
+
+
+async def test_portfolio_intelligence_attaches_market_snapshot(
+    client: TestClient, auth_headers: dict[str, str], watchlist_service: WatchlistService
+) -> None:
+    """Milestone 14 §10/§34: the agent itself never fetches market data —
+    the router attaches it via PortfolioMarketSnapshotService afterward.
+    The test fixture has no entity resolver configured, so AAPL correctly
+    comes back ENTITY_NOT_MAPPED rather than a fabricated price."""
+    portfolio_id = await make_watchlist(watchlist_service)
+    response = client.get(f"/api/v1/portfolio/intelligence?portfolio_id={portfolio_id}", headers=auth_headers)
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["market_snapshot"] is not None
+    assert body["market_snapshot"]["portfolio_id"] == str(portfolio_id)
+    assert body["market_snapshot"]["entity_not_mapped_count"] == 1
+    assert body["market_snapshot"]["valuation_status"] == "VALUATION_UNAVAILABLE"
+
+
+async def test_portfolio_intelligence_publishes_portfolio_intelligence_updated_event(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    watchlist_service: WatchlistService,
+    connection_manager: ConnectionManager,
+) -> None:
+    """Milestone 14 §11: GET /portfolio/intelligence is a real trigger
+    point — a subscribed WebSocket client actually receives the event."""
+    ws = FakeWebSocket()
+    principal = AuthenticatedPrincipal(user_id="u1", username="u1", roles=(), permissions=(), token_id="t1")
+    connection_id = await connection_manager.connect(ws, principal)
+    connection_manager.subscribe(
+        connection_id, Subscription(event_types=frozenset({EventType.PORTFOLIO_INTELLIGENCE_UPDATED}))
+    )
+
+    portfolio_id = await make_watchlist(watchlist_service)
+    response = client.get(f"/api/v1/portfolio/intelligence?portfolio_id={portfolio_id}", headers=auth_headers)
+
+    assert response.status_code == 200
+    assert len(ws.sent) == 1
+    envelope = EventEnvelope.model_validate_json(ws.sent[0])
+    assert envelope.event.event_type == EventType.PORTFOLIO_INTELLIGENCE_UPDATED
 
 
 def test_portfolio_intelligence_unknown_portfolio_returns_404(

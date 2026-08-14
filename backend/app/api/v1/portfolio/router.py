@@ -51,7 +51,11 @@ from app.agents.portfolio_intelligence.models import (
     PortfolioIntelligenceRequest,
 )
 from app.api.intelligence.dependencies import get_portfolio_intelligence_agent
-from app.api.v1.portfolio.dependencies import get_recommendation_service, get_risk_service
+from app.api.v1.portfolio.dependencies import (
+    get_portfolio_market_snapshot_service,
+    get_recommendation_service,
+    get_risk_service,
+)
 from app.api.v1.portfolio.schemas import GenerateRecommendationsRequest
 from app.api.v1.schemas.common import PaginatedResponse, SuccessResponse, build_success_response
 from app.api.v1.schemas.filters import WatchlistFilterParams, matches_watchlist_filters, watchlist_filter_params
@@ -68,6 +72,7 @@ from app.recommendations.models import RecommendationResult
 from app.risk.engine import RiskAnalyticsService
 from app.risk.exceptions import RiskAssessmentRequestNotFoundError
 from app.risk.models import RiskAssessment
+from app.services.portfolio_market_snapshot.service import PortfolioMarketSnapshotService
 from app.watchlist.models import Watchlist, WatchlistStatistics
 from app.watchlist.service import WatchlistService
 
@@ -127,7 +132,9 @@ async def get_portfolio_summary(
     "/intelligence",
     response_model=SuccessResponse[PortfolioIntelligenceReport],
     summary="Get portfolio intelligence report",
-    description="Runs the existing PortfolioIntelligenceAgent over the watchlist's current companies.",
+    description="Runs the existing PortfolioIntelligenceAgent over the watchlist's current companies, "
+    "attaches a live market snapshot (Milestone 14) via PortfolioMarketSnapshotService — the agent "
+    "itself never fetches market data — and publishes a PORTFOLIO_INTELLIGENCE_UPDATED real-time event.",
     dependencies=[Depends(require_policy(RequirePermission("portfolio:read")))],
 )
 async def get_portfolio_intelligence(
@@ -135,6 +142,8 @@ async def get_portfolio_intelligence(
     portfolio_id: uuid_module.UUID = Query(...),
     watchlist_service: WatchlistService = Depends(get_watchlist_service),
     agent: PortfolioIntelligenceAgent = Depends(get_portfolio_intelligence_agent),
+    market_snapshot_service: PortfolioMarketSnapshotService = Depends(get_portfolio_market_snapshot_service),
+    event_publisher: EventPublisher = Depends(get_event_publisher),
 ) -> SuccessResponse[PortfolioIntelligenceReport]:
     watchlist = await watchlist_service.get_watchlist(str(portfolio_id))
     intelligence_request = PortfolioIntelligenceRequest(
@@ -154,6 +163,9 @@ async def get_portfolio_intelligence(
         participating_agents=(agent.agent_id,),
     )
     report = await agent.run(context, intelligence_request)
+    market_snapshot = await market_snapshot_service.get_portfolio_snapshot(watchlist)
+    report = report.model_copy(update={"market_snapshot": market_snapshot})
+    await event_publisher.publish_portfolio_intelligence_updated(report)
     return build_success_response(report, request)
 
 

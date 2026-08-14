@@ -1,8 +1,15 @@
 import type { ReactNode } from "react";
+import { MarketFreshnessBadge } from "@/components/market-freshness-badge";
 import { PriorityBadge } from "@/components/priority-badge";
 import { EmptyState } from "@/components/states/empty-state";
 import { RecommendationTypeBadge } from "@/features/decision-center/recommendations/recommendation-type-badge";
-import type { RecommendationCandidate } from "@/types/portfolio";
+import type { MarketContribution, RecommendationCandidate } from "@/types/portfolio";
+
+const MARKET_CONTRIBUTION_LABELS: Record<MarketContribution, string> = {
+  direct: "Direct — live price data informed this score",
+  indirect: "Indirect — a supporting signal referenced live price data",
+  none: "None — this score is unaffected by live market data",
+};
 
 const SCORE_COMPONENTS: { key: keyof RecommendationCandidate; label: string }[] = [
   { key: "screening_score", label: "Screening" },
@@ -56,6 +63,33 @@ export function RecommendationDetailPanel({ candidate }: { candidate: Recommenda
           })}
         </ul>
       </div>
+
+      {candidate.market_contribution && (
+        <div>
+          <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Market data</h4>
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm dark:border-slate-800">
+            {candidate.market_price != null && (
+              <span className="font-medium text-slate-900 dark:text-slate-100">
+                ${candidate.market_price.toFixed(2)}
+                {candidate.market_change_percent != null && (
+                  <span
+                    className={
+                      candidate.market_change_percent >= 0
+                        ? "ml-1 text-green-700 dark:text-green-400"
+                        : "ml-1 text-red-700 dark:text-red-400"
+                    }
+                  >
+                    {candidate.market_change_percent >= 0 ? "+" : ""}
+                    {candidate.market_change_percent.toFixed(2)}%
+                  </span>
+                )}
+              </span>
+            )}
+            {candidate.market_freshness && <MarketFreshnessBadge status={candidate.market_freshness} />}
+            <span className="text-slate-600 dark:text-slate-400">{MARKET_CONTRIBUTION_LABELS[candidate.market_contribution]}</span>
+          </div>
+        </div>
+      )}
 
       <div>
         <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Reasoning</h4>

@@ -93,6 +93,48 @@ async def test_subscribe_without_permission_is_forbidden(
         assert response["code"] == "forbidden"
 
 
+def test_subscribe_to_portfolio_intelligence_updated_with_permission_succeeds(client: TestClient, token: str) -> None:
+    """Milestone 14: PORTFOLIO_INTELLIGENCE_UPDATED requires portfolio:read,
+    matching its own REST source (GET /portfolio/intelligence) and its
+    sibling events (RECOMMENDATION_GENERATED/RISK_ASSESSMENT_COMPLETED)."""
+    with client.websocket_connect(f"/ws?token={token}") as ws:
+        ws.receive_json()
+        ws.send_json({"action": "subscribe", "event_types": ["PORTFOLIO_INTELLIGENCE_UPDATED"]})
+        response = ws.receive_json()
+        assert response["type"] == "subscribed"
+        assert response["event_types"] == ["PORTFOLIO_INTELLIGENCE_UPDATED"]
+
+
+async def test_subscribe_to_portfolio_intelligence_updated_without_permission_is_forbidden(
+    client: TestClient, auth_repository, auth_service
+) -> None:
+    headers = await make_authenticated_headers(auth_repository, auth_service, permissions=())
+    token = headers["Authorization"].removeprefix("Bearer ")
+    with client.websocket_connect(f"/ws?token={token}") as ws:
+        ws.receive_json()
+        ws.send_json({"action": "subscribe", "event_types": ["PORTFOLIO_INTELLIGENCE_UPDATED"]})
+        response = ws.receive_json()
+        assert response["type"] == "error"
+        assert response["code"] == "forbidden"
+
+
+async def test_subscribe_to_market_snapshot_refreshed_needs_no_special_permission(
+    client: TestClient, auth_repository, auth_service
+) -> None:
+    """Milestone 14: MARKET_SNAPSHOT_REFRESHED has no per-portfolio scope
+    and no REST source to inherit a permission from — authentication
+    alone is sufficient, the same posture HEALTH_STATUS_CHANGED already
+    established."""
+    headers = await make_authenticated_headers(auth_repository, auth_service, permissions=())
+    token = headers["Authorization"].removeprefix("Bearer ")
+    with client.websocket_connect(f"/ws?token={token}") as ws:
+        ws.receive_json()
+        ws.send_json({"action": "subscribe", "event_types": ["MARKET_SNAPSHOT_REFRESHED"]})
+        response = ws.receive_json()
+        assert response["type"] == "subscribed"
+        assert response["event_types"] == ["MARKET_SNAPSHOT_REFRESHED"]
+
+
 def test_duplicate_subscription_is_reported(client: TestClient, token: str) -> None:
     with client.websocket_connect(f"/ws?token={token}") as ws:
         ws.receive_json()

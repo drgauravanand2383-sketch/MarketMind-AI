@@ -14,6 +14,8 @@ from app.services.knowledge_ingestion.models import VectorDocument
 __all__ = [
     "vector_documents_to_chroma_add_kwargs",
     "chroma_get_result_to_record",
+    "chroma_get_result_to_records",
+    "chroma_get_result_to_search_results",
     "chroma_query_result_to_search_results",
 ]
 
@@ -49,6 +51,51 @@ def chroma_get_result_to_record(get_result: dict[str, Any]) -> KnowledgeRecord |
         source_provider_id=metadata.get("source_provider_id"),
         metadata=metadata,
     )
+
+
+def chroma_get_result_to_records(get_result: dict[str, Any]) -> list[KnowledgeRecord]:
+    """Map a ChromaDB `get` response for *multiple* ids (e.g. a `list_all`
+    page) into KnowledgeRecords — the many-record counterpart of
+    `chroma_get_result_to_record`, which only handles the single-id shape
+    (`ids[0]`)."""
+    ids = get_result.get("ids") or []
+    documents = get_result.get("documents") or []
+    metadatas = get_result.get("metadatas") or []
+
+    records: list[KnowledgeRecord] = []
+    for index, record_id in enumerate(ids):
+        metadata = metadatas[index] if index < len(metadatas) else {}
+        metadata = metadata or {}
+        text = documents[index] if index < len(documents) else None
+        records.append(
+            KnowledgeRecord(
+                id=record_id,
+                title=metadata.get("title"),
+                text=text,
+                url=metadata.get("url"),
+                published_at=metadata.get("published_at"),
+                source_provider_id=metadata.get("source_provider_id"),
+                metadata=metadata,
+            )
+        )
+    return records
+
+
+def chroma_get_result_to_search_results(get_result: dict[str, Any]) -> list[SearchResult]:
+    """Map a ChromaDB `get` response (a metadata-only/structured lookup,
+    no nearest-neighbor ranking) into SearchResults. `score` is always
+    None — a `get` response carries no distance, unlike `query`'s own
+    `chroma_query_result_to_search_results` counterpart."""
+    ids = get_result.get("ids") or []
+    documents = get_result.get("documents") or []
+    metadatas = get_result.get("metadatas") or []
+
+    results: list[SearchResult] = []
+    for index, record_id in enumerate(ids):
+        metadata = metadatas[index] if index < len(metadatas) else {}
+        text = documents[index] if index < len(documents) else None
+        results.append(SearchResult(id=record_id, score=None, text=text, metadata=metadata or {}))
+    return results
 
 
 def chroma_query_result_to_search_results(query_result: dict[str, Any]) -> list[SearchResult]:

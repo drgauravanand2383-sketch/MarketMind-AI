@@ -59,6 +59,8 @@ __all__ = [
     "RiskAssessmentRequest",
     "PortfolioExposure",
     "RiskMetric",
+    "MarketDataCoverageStatus",
+    "MarketDataCoverage",
     "RiskAssessment",
 ]
 
@@ -178,6 +180,47 @@ class RiskMetric(BaseModel):
     description: str
 
 
+class MarketDataCoverageStatus(str, Enum):
+    """How much of a `RiskAssessment`'s underlying `RecommendationCandidate`s
+    (Milestone 14) carry live market data — purely informational (see
+    `app.risk.engine`'s own docstring: this engine never fetches market
+    data and no risk formula changes based on this value; distinguishing
+    fresh from stale, and propagating unavailable honestly, is §5's own
+    requirement, satisfied here without touching a single existing
+    calculation).
+
+    NOT_EVALUATED: no candidate carried a `market_freshness` at all (the
+        pre-Milestone-14 shape, or this recommendation run never had
+        market data wired in) — indistinguishable from "not applicable."
+    NONE: market data was evaluated for every candidate, but none came
+        back `FRESH`/`STALE` (e.g. every ticker unmapped/unavailable).
+    PARTIAL: some, but not all, candidates have `FRESH`/`STALE` market data.
+    FULL: every candidate has `FRESH`/`STALE` market data.
+    """
+
+    NOT_EVALUATED = "NOT_EVALUATED"
+    NONE = "NONE"
+    PARTIAL = "PARTIAL"
+    FULL = "FULL"
+
+
+class MarketDataCoverage(BaseModel):
+    """Additive, informational-only summary of how much live market data
+    backs one `RiskAssessment`'s input candidates. Never changes
+    `overall_risk_score`/`risk_metrics` — see `app.risk.engine`'s module
+    docstring for why this engine's formulas stay deterministic and
+    market-data-free regardless of this field's value."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: MarketDataCoverageStatus
+    fresh_count: int = Field(ge=0, default=0)
+    stale_count: int = Field(ge=0, default=0)
+    unavailable_count: int = Field(ge=0, default=0)
+    not_evaluated_count: int = Field(ge=0, default=0)
+    total_candidates: int = Field(ge=0, default=0)
+
+
 class RiskAssessment(BaseModel):
     """The outcome of one `RiskAnalyticsService.assess_portfolio()` run."""
 
@@ -190,4 +233,7 @@ class RiskAssessment(BaseModel):
     exposures: tuple[PortfolioExposure, ...] = Field(default_factory=tuple)
     recommendations: tuple[str, ...] = Field(default_factory=tuple)
     summary: str
+    market_data_coverage: MarketDataCoverage = Field(
+        default_factory=lambda: MarketDataCoverage(status=MarketDataCoverageStatus.NOT_EVALUATED)
+    )
     generated_at: datetime

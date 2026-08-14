@@ -93,4 +93,4 @@ def test_current_revision_is_the_head_after_upgrade(alembic_config: Config, sqli
         (version,) = connection.execute("SELECT version_num FROM alembic_version").fetchone()
     finally:
         connection.close()
-    assert version == "0002_auth_schema"
+    assert version == "0003_risk_market_data_coverage"

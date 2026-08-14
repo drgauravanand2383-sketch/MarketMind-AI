@@ -25,9 +25,11 @@ from app.agents.company_research.models import (
     ThemeExposure,
 )
 from app.repositories.knowledge.models import KnowledgeRecord
+from app.services.entity_resolution.models import CompanyReference
 from app.services.evidence_engine.models import EvidenceGraph
 from app.services.market_intelligence.engine import COMPANY_KEYWORDS
 from app.services.market_intelligence.models import MarketIntelligence
+from app.services.market_snapshot.models import MarketSnapshotResult
 from app.services.relationship_engine.models import NodeType, RelationshipGraph, RelationshipType
 
 __all__ = ["resolve_company_name", "build_report"]
@@ -67,6 +69,8 @@ def build_report(
     evidence_graph: EvidenceGraph,
     market_intelligence: MarketIntelligence,
     relationship_graph: RelationshipGraph | None,
+    resolved_entity: CompanyReference | None = None,
+    market_snapshot: MarketSnapshotResult | None = None,
 ) -> CompanyResearchReport:
     """Assemble a deterministic CompanyResearchReport.
 
@@ -86,6 +90,21 @@ def build_report(
         market_intelligence: Market intelligence analyzed from `records`.
         relationship_graph: Relationships derived from `market_intelligence`,
             or None if `request.include_relationships` was False.
+        resolved_entity: The canonical entity `request.company_name`/
+            `.ticker` resolved to (Milestone 12's
+            `EntityResolutionService.lookup_by_name_or_ticker`), or None
+            when no entity-resolution service was injected into the
+            calling agent, or the company isn't in the reference set.
+            Purely additive — populates `company_overview`'s new
+            `resolved_*`/`sector`/`industry`/`country` fields only; every
+            other section is computed exactly as before this parameter
+            existed.
+        market_snapshot: The market snapshot for `resolved_entity`
+            (Milestone 13's `MarketSnapshotService.get_snapshot`), or
+            None when no `market_snapshot_service` was injected into the
+            calling agent. Passed straight through onto the returned
+            report's own `market_snapshot` field — this function performs
+            no market-data logic of its own.
 
     Returns:
         A CompanyResearchReport covering all nine required sections.
@@ -99,12 +118,18 @@ def build_report(
     )
 
     company_overview = CompanyOverview(
-        company_name=resolved_name or request.company_name,
-        ticker=request.ticker,
+        company_name=resolved_name or (resolved_entity.canonical_name if resolved_entity else request.company_name),
+        ticker=request.ticker or (resolved_entity.ticker if resolved_entity else None),
         matched=len(records) > 0,
         entity_recognized=mention is not None,
         mention_count=mention.mention_count if mention else 0,
         supporting_record_ids=sorted(supporting_ids),
+        resolved_entity_id=resolved_entity.entity_id if resolved_entity else None,
+        resolution_confidence=1.0 if resolved_entity else None,
+        resolution_method="direct_lookup" if resolved_entity else None,
+        sector=resolved_entity.sector if resolved_entity else None,
+        industry=resolved_entity.industry if resolved_entity else None,
+        country=resolved_entity.country if resolved_entity else None,
     )
 
     latest_news = [
@@ -163,6 +188,7 @@ def build_report(
         supporting_evidence=supporting_evidence,
         confidence_summary=confidence_summary,
         key_risks=key_risks,
+        market_snapshot=market_snapshot,
     )
 
 

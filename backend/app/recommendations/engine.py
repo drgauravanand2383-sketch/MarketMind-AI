@@ -29,6 +29,7 @@ from app.recommendations.exceptions import (
 )
 from app.recommendations.models import (
     CandidateEvidence,
+    MarketContribution,
     RecommendationCandidate,
     RecommendationRequest,
     RecommendationResult,
@@ -37,6 +38,7 @@ from app.recommendations.models import (
     RecommendationType,
     ScoringWeights,
 )
+from app.services.market_snapshot.models import MarketSnapshotResult, MarketSnapshotStatus
 from app.signals.models import SignalResult
 
 if TYPE_CHECKING:
@@ -145,16 +147,29 @@ class PortfolioRecommendationService:
 
     def score_candidate(self, evidence: CandidateEvidence) -> RecommendationCandidate:
         """Score, classify, and explain one candidate. Pure and
-        synchronous — no I/O, no market data, no AI reasoning. Merges
-        every one of the candidate's six possible evidence sources (see
-        `app.recommendations.models` module docstring for how each
-        component score is derived and scaled)."""
+        synchronous — no I/O, no market data fetch, no AI reasoning.
+        Merges every one of the candidate's six possible evidence sources
+        (see `app.recommendations.models` module docstring for how each
+        component score is derived and scaled).
+
+        Milestone 14: `evidence.market_snapshot`, if the caller supplied
+        one, is relayed onto the candidate's own `market_price`/
+        `market_change_percent`/`market_freshness`/`market_snapshot`
+        fields — exactly like every other evidence field, this method
+        never fetches it. `_derive_components`/`_weighted_score` (the
+        actual scoring formula) are completely untouched by this —
+        market data never becomes a seventh weighted score component,
+        only a transparently-labeled `market_contribution` (see
+        `app.recommendations.models.MarketContribution`'s own docstring).
+        """
         components = _derive_components(evidence)
         overall_score = _weighted_score(components, self._weights)
         confidence = _confidence(components)
         recommendation = self._thresholds.classify(overall_score)
         supporting_signals = _triggered_signals(evidence)
         supporting_alerts = _generated_alerts(evidence)
+        market_price, market_change_percent, market_freshness = _market_fields(evidence.market_snapshot)
+        market_contribution = _market_contribution(evidence.market_snapshot, supporting_signals)
 
         return RecommendationCandidate(
             ticker=evidence.ticker,
@@ -176,6 +191,11 @@ class PortfolioRecommendationService:
             portfolio_score=components["portfolio"],
             signal_score=components["signals"],
             alert_score=components["alerts"],
+            market_price=market_price,
+            market_change_percent=market_change_percent,
+            market_freshness=market_freshness,
+            market_snapshot=evidence.market_snapshot,
+            market_contribution=market_contribution,
             created_at=self._now_fn(),
         )
 
@@ -240,6 +260,45 @@ def _generated_alerts(evidence: CandidateEvidence) -> tuple[Alert, ...]:
     """Only `GENERATED` alerts count as supporting evidence — a `SUPPRESSED`
     alert is noise the Alert Engine already decided not to act on."""
     return tuple(alert for alert in evidence.alerts if alert.status == AlertStatus.GENERATED)
+
+
+_MARKET_DATA_PRESENT_STATUSES = (MarketSnapshotStatus.FRESH, MarketSnapshotStatus.STALE)
+
+
+def _market_fields(
+    market_snapshot: MarketSnapshotResult | None,
+) -> tuple[float | None, float | None, MarketSnapshotStatus | None]:
+    """Extract the flat scalar market fields from a caller-supplied
+    `MarketSnapshotResult`, if any. Only unpacks price/change_percent
+    when a real snapshot exists (`status` FRESH/STALE) — an
+    `ENTITY_NOT_MAPPED`/provider-failure result carries no `.snapshot` to
+    unpack, and `market_freshness` alone already records that outcome
+    honestly (never a fabricated 0.0)."""
+    if market_snapshot is None:
+        return None, None, None
+    freshness = market_snapshot.status
+    if market_snapshot.snapshot is None:
+        return None, None, freshness
+    return market_snapshot.snapshot.price, market_snapshot.snapshot.change_percent, freshness
+
+
+def _market_contribution(
+    market_snapshot: MarketSnapshotResult | None, supporting_signals: tuple[SignalResult, ...]
+) -> MarketContribution:
+    """See `app.recommendations.models.MarketContribution`'s own
+    docstring for the full definition of "direct"/"indirect"/"none"."""
+    if market_snapshot is not None and market_snapshot.status in _MARKET_DATA_PRESENT_STATUSES:
+        return "direct"
+    if any(_references_market_quote(signal) for signal in supporting_signals):
+        return "indirect"
+    return "none"
+
+
+def _references_market_quote(signal: SignalResult) -> bool:
+    return any(
+        condition.field.startswith("quote.")
+        for condition in (*signal.matched_conditions, *signal.failed_conditions)
+    )
 
 
 def _average_score(items: tuple) -> float | None:  # noqa: ANN401 - SignalResult or Alert, both have `.score`

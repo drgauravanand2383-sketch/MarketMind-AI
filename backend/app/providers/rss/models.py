@@ -26,6 +26,7 @@ class RSSProviderConfig(ProviderConfig):
 
     feed_urls: list[str] = Field(default_factory=list)
     user_agent: str = "MarketMind-AI/1.0"
+    retry_backoff_seconds: float = Field(default=1.0, ge=0)
 
 
 class RSSFeedEntry(BaseModel):

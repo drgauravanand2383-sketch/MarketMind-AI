@@ -46,6 +46,15 @@ describe("RiskPanel", () => {
     expect(matchCount).toBe(1);
   });
 
+  it("shows the market-data-coverage indicator on the overall risk card (Milestone 14)", async () => {
+    renderWithQueryClient(<RiskPanel portfolioId="wl-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("42")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Live market data: partial coverage")).toBeInTheDocument();
+  });
+
   it("shows an unavailable empty state for a portfolio with no risk assessment yet", async () => {
     server.use(
       http.get(`${API_BASE_URL}/portfolio/risk`, () =>

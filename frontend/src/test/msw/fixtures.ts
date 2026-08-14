@@ -167,6 +167,14 @@ export const testRiskAssessment: RiskAssessment = {
   ],
   recommendations: ["Diversify away from Technology."],
   summary: "Moderate concentration risk in Technology.",
+  market_data_coverage: {
+    status: "PARTIAL",
+    fresh_count: 1,
+    stale_count: 0,
+    unavailable_count: 0,
+    not_evaluated_count: 2,
+    total_candidates: 3,
+  },
   generated_at: "2026-01-03T00:00:00Z",
 };
 
@@ -236,7 +244,12 @@ export const testRecommendationResult: RecommendationResult = {
   generated_at: "2026-01-03T00:00:00Z",
   total_candidates: 3,
   recommendations: [
-    buildRecommendationCandidate(),
+    buildRecommendationCandidate({
+      market_price: 195.5,
+      market_change_percent: 1.25,
+      market_freshness: "FRESH",
+      market_contribution: "direct",
+    }),
     buildRecommendationCandidate({
       ticker: "MSFT",
       company_name: "Microsoft",
@@ -498,4 +511,39 @@ export const testPortfolioIntelligenceReport: PortfolioIntelligenceReport = {
   notable_market_events: [],
   evidence_summary: [],
   data_quality_notes: [],
+  market_snapshot: {
+    portfolio_id: "wl-1",
+    generated_at: "2026-01-03T00:00:00Z",
+    company_snapshots: [
+      {
+        entity_id: "netflix",
+        status: "FRESH",
+        snapshot: {
+          entity_id: "netflix",
+          canonical_name: "Netflix Inc.",
+          ticker: "NFLX",
+          exchange: "NASDAQ",
+          currency: "USD",
+          price: 610.25,
+          previous_close: 605.0,
+          change: 5.25,
+          change_percent: 0.87,
+          day_high: 612.0,
+          day_low: 604.5,
+          volume: 3_000_000,
+          quoted_at: "2026-01-03T00:00:00Z",
+          fetched_at: "2026-01-03T00:00:00Z",
+          provider: "Yahoo Finance",
+          trading_status: null,
+        },
+        reason: "ok",
+      },
+    ],
+    valuation_status: "VALUATION_UNAVAILABLE",
+    valuation_unavailable_reason: "No holdings quantity/position-size data exists for this portfolio.",
+    fresh_count: 1,
+    stale_count: 0,
+    unavailable_count: 0,
+    entity_not_mapped_count: 0,
+  },
 };

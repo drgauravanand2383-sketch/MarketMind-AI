@@ -156,3 +156,108 @@ async def test_bootstrap_then_shutdown_completes_without_error() -> None:
     app = FastAPI()
     await bootstrap_application_state(app)
     await shutdown_application_state(app)
+
+
+# --- Market Intelligence Ingestion (Milestone 11) -----------------------------------------------------------
+
+
+async def test_bootstrap_populates_morning_pipeline_when_dependencies_available() -> None:
+    """chromadb and LocalEmbeddingProvider are both real, locally-available
+    dependencies in this test environment (no network required at
+    construction time — see LocalEmbeddingProvider's own lazy-init
+    docstring), so `morning_pipeline` should always build successfully
+    here, exactly as every other optional-but-normally-available
+    dependency in this suite already does."""
+    from app.workflows.morning_pipeline.pipeline import MorningPipeline
+
+    app = FastAPI()
+    await bootstrap_application_state(app)
+
+    try:
+        assert app.state.knowledge_repository is not None
+        assert app.state.embedding_provider is not None
+        assert isinstance(app.state.morning_pipeline, MorningPipeline)
+    finally:
+        await shutdown_application_state(app)
+
+
+async def test_bootstrap_registers_the_ingestion_workflow_and_schedule() -> None:
+    from app.bootstrap import INGESTION_WORKFLOW_ID
+
+    app = FastAPI()
+    await bootstrap_application_state(app)
+
+    try:
+        assert INGESTION_WORKFLOW_ID in app.state.workflow_engine.list_workflows()
+        schedules = {s.workflow_id: s for s in app.state.scheduler.list_schedules()}
+        assert INGESTION_WORKFLOW_ID in schedules
+        schedule = schedules[INGESTION_WORKFLOW_ID]
+        # INGESTION_ENABLED defaults to False (Milestone 11's own explicit
+        # opt-in default) — this test's .env does not set it, so the
+        # registered schedule must reflect that default, not silently on.
+        assert schedule.enabled is app.state.settings.ingestion_enabled
+        assert schedule.enabled is False
+    finally:
+        await shutdown_application_state(app)
+
+
+async def test_ingestion_schedule_reflects_ingestion_enabled_setting(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setenv("INGESTION_ENABLED", "true")
+    app = FastAPI()
+    await bootstrap_application_state(app)
+
+    try:
+        from app.bootstrap import INGESTION_WORKFLOW_ID
+
+        schedules = {s.workflow_id: s for s in app.state.scheduler.list_schedules()}
+        assert schedules[INGESTION_WORKFLOW_ID].enabled is True
+    finally:
+        await shutdown_application_state(app)
+
+
+async def test_bootstrap_registers_the_market_data_refresh_workflow_and_schedule() -> None:
+    from app.bootstrap import MARKET_DATA_WORKFLOW_ID
+
+    app = FastAPI()
+    await bootstrap_application_state(app)
+
+    try:
+        assert MARKET_DATA_WORKFLOW_ID in app.state.workflow_engine.list_workflows()
+        schedules = {s.workflow_id: s for s in app.state.scheduler.list_schedules()}
+        assert MARKET_DATA_WORKFLOW_ID in schedules
+        # MARKET_DATA_ENABLED defaults to False (same explicit opt-in
+        # default rationale as INGESTION_ENABLED) — this test's .env does
+        # not set it, so the registered schedule must reflect that.
+        assert schedules[MARKET_DATA_WORKFLOW_ID].enabled is app.state.settings.market_data_enabled
+        assert schedules[MARKET_DATA_WORKFLOW_ID].enabled is False
+    finally:
+        await shutdown_application_state(app)
+
+
+async def test_market_data_schedule_reflects_market_data_enabled_setting(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setenv("MARKET_DATA_ENABLED", "true")
+    app = FastAPI()
+    await bootstrap_application_state(app)
+
+    try:
+        from app.bootstrap import MARKET_DATA_WORKFLOW_ID
+
+        schedules = {s.workflow_id: s for s in app.state.scheduler.list_schedules()}
+        assert schedules[MARKET_DATA_WORKFLOW_ID].enabled is True
+    finally:
+        await shutdown_application_state(app)
+
+
+async def test_bootstrap_wires_market_data_provider_and_snapshot_service() -> None:
+    from app.providers.market_data.mock import MockMarketDataProvider
+    from app.services.market_snapshot.service import MarketSnapshotService
+
+    app = FastAPI()
+    await bootstrap_application_state(app)
+
+    try:
+        assert isinstance(app.state.market_data_provider, MockMarketDataProvider)
+        assert app.state.market_data_provider_is_live is False
+        assert isinstance(app.state.market_snapshot_service, MarketSnapshotService)
+    finally:
+        await shutdown_application_state(app)

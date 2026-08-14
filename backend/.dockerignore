@@ -10,7 +10,6 @@ htmlcov
 tests
 data
 logs
-scripts
 .env
 .env.local
 *.log

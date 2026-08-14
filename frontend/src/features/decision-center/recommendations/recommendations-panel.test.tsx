@@ -76,6 +76,22 @@ describe("RecommendationsPanel", () => {
     });
   });
 
+  it("shows live market data for a candidate with a direct market contribution (Milestone 14)", async () => {
+    const user = userEvent.setup();
+    renderWithQueryClient(<RecommendationsPanel portfolioId="wl-1" />);
+    await waitFor(() => {
+      expect(screen.getByText("AAPL")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("$195.50")).toBeInTheDocument();
+    expect(screen.getByText("+1.25%")).toBeInTheDocument();
+    expect(screen.getAllByText("Fresh").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "AAPL" }));
+
+    expect(screen.getByText(/Direct — live price data informed this score/)).toBeInTheDocument();
+  });
+
   it("renders the score-distribution chart panel once candidates are loaded", async () => {
     // jsdom has no real layout engine, so Recharts' `ResponsiveContainer`
     // doesn't render meaningful SVG internals in tests (same limitation

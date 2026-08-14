@@ -52,16 +52,21 @@ from app.agents.company_research.report_builder import build_report
 from app.core.context import ExecutionContext
 from app.core.runtime import AgentRuntime
 from app.knowledge.hub import KnowledgeHub
+from app.knowledge.models import KnowledgeSearchFilters
 from app.prompts.exceptions import PromptError, TemplateNotFoundError
 from app.prompts.registry import PromptRegistry
 from app.prompts.renderer import PromptRenderer
 from app.repositories.knowledge.models import KnowledgeRecord
+from app.services.entity_resolution.models import CompanyReference
+from app.services.entity_resolution.service import EntityResolutionService
 from app.services.evidence_engine.engine import EvidenceEngine
 from app.services.evidence_engine.models import EvidenceGraph
 from app.services.llm.models import LLMRequest
 from app.services.llm.service import LLMService, LLMServiceError
 from app.services.market_intelligence.engine import MarketIntelligenceEngine
 from app.services.market_intelligence.models import MarketIntelligence
+from app.services.market_snapshot.models import MarketSnapshotResult, MarketSnapshotStatus
+from app.services.market_snapshot.service import MarketSnapshotService
 from app.services.relationship_engine.engine import RelationshipEngine
 from app.services.relationship_engine.models import RelationshipGraph
 
@@ -114,6 +119,8 @@ class CompanyResearchAgent(BaseAgent):
         knowledge_hub: KnowledgeHub,
         llm_service: LLMService,
         prompt_registry: PromptRegistry,
+        entity_resolver: EntityResolutionService | None = None,
+        market_snapshot_service: MarketSnapshotService | None = None,
     ) -> None:
         """Initialize the agent with every injected dependency.
 
@@ -122,7 +129,8 @@ class CompanyResearchAgent(BaseAgent):
                 the BaseAgent contract (this agent does not otherwise read
                 or write memory).
             knowledge_hub: Read-only retrieval. This agent only calls
-                `knowledge_hub.query(...)` — never a write path.
+                `knowledge_hub.query(...)`/`.search(...)` — never a write
+                path.
             llm_service: Generates the narrative analysis. This agent
                 never imports or calls an SDK directly — only
                 `LLMService.generate()`.
@@ -132,17 +140,36 @@ class CompanyResearchAgent(BaseAgent):
                 — this agent never registers it itself, since owning a
                 registry's contents is the caller's responsibility, not
                 an agent's.
-
-        Raises:
-            PromptRenderingError: If `prompt_registry` doesn't have the
-                Company Research template registered — checked eagerly
-                here (fail fast) rather than on the first `run()` call.
+            entity_resolver: Optional EntityResolutionService (Milestone
+                12). When None (the default), `_fetch_company_records`
+                behaves exactly as before — pure semantic retrieval — and
+                `company_overview`'s new `resolved_*`/`sector`/`industry`/
+                `country` fields stay `None`. When provided,
+                `request.company_name`/`.ticker` is resolved to a
+                canonical entity and used for entity-aware retrieval
+                (`_fetch_company_records`) alongside the existing semantic
+                path, which always still runs too — see that method's own
+                docstring.
+            market_snapshot_service: Optional MarketSnapshotService
+                (Milestone 13). When None (the default), `run()` never
+                attaches a market snapshot — `CompanyResearchReport.market_snapshot`
+                stays `None`, exactly like before this parameter existed.
+                When provided, a snapshot for `resolved_entity` (the same
+                lookup `entity_resolver` already performs — no second,
+                separate resolution) is fetched and attached, honestly
+                reflecting whatever `MarketSnapshotService` itself
+                reports (including "no data"/"provider unavailable") —
+                never fabricated, and never allowed to fail the report:
+                a market-data failure degrades `market_snapshot.status`,
+                it never raises out of `run()`.
         """
         super().__init__(runtime.memory)
         self._runtime = runtime
         self._knowledge_hub = knowledge_hub
         self._llm_service = llm_service
         self._prompt_registry = prompt_registry
+        self._entity_resolver = entity_resolver
+        self._market_snapshot_service = market_snapshot_service
 
         try:
             prompt_registry.get(COMPANY_RESEARCH_TEMPLATE_ID)
@@ -239,7 +266,12 @@ class CompanyResearchAgent(BaseAgent):
         """
         assert isinstance(input_data, CompanyResearchRequest)
 
-        records = await self._fetch_company_records(input_data)
+        resolved_entity = (
+            self._entity_resolver.lookup_by_name_or_ticker(input_data.company_name, input_data.ticker)
+            if self._entity_resolver is not None
+            else None
+        )
+        records = await self._fetch_company_records(input_data, resolved_entity)
 
         evidence_graph = (
             self._evidence_engine.build_graph(records)
@@ -252,9 +284,16 @@ class CompanyResearchAgent(BaseAgent):
             if input_data.include_relationships
             else None
         )
+        market_snapshot = await self._fetch_market_snapshot(resolved_entity)
 
         report = build_report(
-            input_data, records, evidence_graph, market_intelligence, relationship_graph
+            input_data,
+            records,
+            evidence_graph,
+            market_intelligence,
+            relationship_graph,
+            resolved_entity,
+            market_snapshot,
         )
 
         if not records:
@@ -266,9 +305,62 @@ class CompanyResearchAgent(BaseAgent):
         )
         return report.model_copy(update={"narrative": narrative})
 
-    async def _fetch_company_records(self, request: CompanyResearchRequest) -> list[KnowledgeRecord]:
-        """Read-only retrieval via KnowledgeHub. Never writes."""
-        return await self._knowledge_hub.query(request.company_name, top_k=DEFAULT_TOP_K)
+    async def _fetch_market_snapshot(
+        self, resolved_entity: CompanyReference | None
+    ) -> MarketSnapshotResult | None:
+        """Fetch a market snapshot for `resolved_entity`, if a
+        MarketSnapshotService was injected (Milestone 13).
+
+        Returns `None` (not a `MarketSnapshotResult`) only when no
+        `market_snapshot_service` was configured at all, or when the
+        company itself never resolved to a canonical entity — mirroring
+        `company_overview.resolved_entity_id`'s own "nothing to look up"
+        case. Once a service is configured and an entity resolved, this
+        always returns a `MarketSnapshotResult` (never raises): a
+        market-data failure is reported honestly via `.status`, never
+        allowed to fail company research itself.
+        """
+        if self._market_snapshot_service is None or resolved_entity is None:
+            return None
+        try:
+            return await self._market_snapshot_service.get_snapshot(resolved_entity.entity_id)
+        except Exception as exc:  # noqa: BLE001 - market data must never fail Research
+            return MarketSnapshotResult(
+                entity_id=resolved_entity.entity_id,
+                status=MarketSnapshotStatus.UNAVAILABLE,
+                reason=f"Unexpected error fetching market snapshot: {exc}",
+            )
+
+    async def _fetch_company_records(
+        self, request: CompanyResearchRequest, resolved_entity: CompanyReference | None
+    ) -> list[KnowledgeRecord]:
+        """Read-only retrieval via KnowledgeHub. Never writes.
+
+        Milestone 12: entity-aware retrieval, with the pre-existing
+        semantic search always still performed — never replaced, only
+        supplemented. When `resolved_entity` is available (this request's
+        company_name/ticker resolved to a canonical entity),
+        records explicitly tagged with that entity during ingestion
+        (Milestone 12's `KnowledgeIngestionService` enrichment, filtered
+        via `KnowledgeHub.search`'s structured `company` filter) are
+        fetched and placed first — the most precise evidence available.
+        Semantic results are appended after, deduplicated by id, so
+        nothing semantic search alone would have found is ever lost, and a
+        record found by both paths is never double-counted.
+        """
+        semantic_records = await self._knowledge_hub.query(request.company_name, top_k=DEFAULT_TOP_K)
+
+        if resolved_entity is None:
+            return semantic_records
+
+        entity_records = await self._knowledge_hub.search(
+            KnowledgeSearchFilters(company=resolved_entity.entity_id, top_k=DEFAULT_TOP_K)
+        )
+        if not entity_records:
+            return semantic_records
+
+        seen_ids = {record.id for record in entity_records}
+        return [*entity_records, *(record for record in semantic_records if record.id not in seen_ids)]
 
     async def _generate_narrative(
         self,

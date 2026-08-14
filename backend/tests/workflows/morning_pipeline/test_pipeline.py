@@ -388,3 +388,101 @@ async def test_run_and_execute_share_the_same_underlying_implementation() -> Non
 
     assert execute_result.failed_stage == run_result.failed_stage == "knowledge_repository"
     assert len(execute_result.stage_metrics) == len(run_result.stage_metrics) == 5
+
+
+# --- Observability tests -----------------------------------------------
+
+
+async def test_successful_run_logs_start_and_completion_with_counts(caplog) -> None:  # noqa: ANN001
+    import logging
+
+    pipeline = build_pipeline()
+
+    with caplog.at_level(logging.INFO, logger="marketmind.workflows.morning_pipeline"):
+        await pipeline.execute(context())
+
+    events = {record.message: record for record in caplog.records}
+    assert "ingestion_run_started" in events
+    assert "ingestion_run_completed" in events
+
+    completed = events["ingestion_run_completed"]
+    assert completed.providers_attempted == 1
+    assert completed.providers_succeeded == 1
+    assert completed.providers_failed == 0
+    assert completed.articles_fetched == 1
+    assert completed.articles_persisted == 1
+    assert completed.embeddings_generated == 1
+    assert completed.embedding_failures == 0
+    # No entity-resolution mechanism exists yet — every article is
+    # honestly reported as unresolved, never fabricated as a match.
+    assert completed.entity_resolved_count == 0
+    assert completed.entity_unresolved_count == 1
+    assert completed.duration_seconds >= 0
+
+
+async def test_failed_run_logs_the_failing_stage(caplog) -> None:  # noqa: ANN001
+    import logging
+
+    class _BrokenRepository(InMemoryKnowledgeRepository):
+        async def save_batch(self, ingestion_batch, embedding_batch):  # noqa: ANN001
+            raise RuntimeError("simulated repository failure")
+
+    pipeline = build_pipeline(knowledge_repository=_BrokenRepository())
+
+    with caplog.at_level(logging.INFO, logger="marketmind.workflows.morning_pipeline"):
+        await pipeline.execute(context())
+
+    events = {record.message: record for record in caplog.records}
+    assert "ingestion_run_failed" in events
+    assert events["ingestion_run_failed"].failed_stage == "knowledge_repository"
+    assert "ingestion_run_completed" not in events
+
+
+async def test_duplicate_articles_are_counted_as_deduplicated(caplog) -> None:  # noqa: ANN001
+    import logging
+
+    from app.providers.base import BaseProvider
+    from app.providers.rss.models import RSSFeedData, RSSFeedEntry
+
+    class _DuplicateEntryProvider(BaseProvider):
+        @property
+        def provider_id(self) -> str:
+            return "rss"
+
+        @property
+        def provider_name(self) -> str:
+            return "Duplicate Entry Provider"
+
+        @property
+        def version(self) -> str:
+            return "0.0.0-test"
+
+        async def fetch(self, **kwargs):  # noqa: ANN003, ANN201
+            from datetime import datetime, timezone
+
+            from app.providers.models import ProviderResult
+
+            entry = RSSFeedEntry(id="dup-1", title="Same article", summary="Same content")
+            feed = RSSFeedData(
+                feed_url="https://example.com/feed.xml", entries=[entry, entry]
+            )
+            return ProviderResult(
+                provider_id=self.provider_id,
+                fetched_at=datetime.now(timezone.utc),
+                success=True,
+                data=[feed],
+            )
+
+        async def health_check(self) -> bool:
+            return True
+
+    pipeline = build_pipeline(news_collector=build_news_collector(_DuplicateEntryProvider))
+
+    with caplog.at_level(logging.INFO, logger="marketmind.workflows.morning_pipeline"):
+        await pipeline.execute(context())
+
+    events = {record.message: record for record in caplog.records}
+    completed = events["ingestion_run_completed"]
+    assert completed.articles_fetched == 2
+    assert completed.articles_deduplicated == 1
+    assert completed.articles_persisted == 1

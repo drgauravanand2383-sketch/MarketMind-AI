@@ -144,6 +144,23 @@ def test_strategy_rule_rejects_tuple_typed_candidate_fields() -> None:
         StrategyRule(id="r1", field="supporting_alerts", operator=StrategyOperator.EQUALS, value=1)
 
 
+def test_strategy_rule_rejects_nested_market_snapshot_field() -> None:
+    """Milestone 14: market_snapshot is a nested object, not comparable by
+    a single operator/value pair — excluded exactly like the tuple-typed
+    fields above."""
+    with pytest.raises(ValidationError):
+        StrategyRule(id="r1", field="market_snapshot", operator=StrategyOperator.EQUALS, value=1)
+
+
+@pytest.mark.parametrize("field", ["market_price", "market_change_percent", "market_freshness", "market_contribution"])
+def test_strategy_rule_accepts_market_scalar_fields(field: str) -> None:
+    """Milestone 14's flat scalar fields on RecommendationCandidate are
+    usable in strategy rules with zero engine changes, exactly like every
+    pre-existing scalar field."""
+    rule = StrategyRule(id="r1", field=field, operator=StrategyOperator.EQUALS, value="x")
+    assert rule.field == field
+
+
 def test_strategy_rule_rejects_blank_field() -> None:
     with pytest.raises(ValidationError):
         StrategyRule(id="r1", field="", operator=StrategyOperator.EQUALS, value=1)

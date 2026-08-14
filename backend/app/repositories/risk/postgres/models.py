@@ -50,4 +50,10 @@ class RiskAssessmentModel(Base):
     exposures: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
     recommendations: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     summary: Mapped[str] = mapped_column(String, nullable=False)
+    market_data_coverage: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True, default=None)
+    """Milestone 14, additive, nullable: rows written before this column
+    existed have no value here — `model_to_assessment` maps `None` to the
+    same `NOT_EVALUATED` default `RiskAssessment.market_data_coverage`
+    itself already defaults to, never fabricating a coverage value for a
+    pre-Milestone-14 row."""
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)

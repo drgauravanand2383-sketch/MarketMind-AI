@@ -21,6 +21,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.services.market_snapshot.models import MarketSnapshotResult
+
 __all__ = [
     "CompanyResearchRequest",
     "CompanyOverview",
@@ -50,7 +52,18 @@ class CompanyResearchRequest(BaseModel):
 
 
 class CompanyOverview(BaseModel):
-    """Section 1: Company Overview."""
+    """Section 1: Company Overview.
+
+    `resolved_*`/`sector`/`industry`/`country` (Milestone 12) are populated
+    only when `CompanyResearchAgent`'s injected EntityResolutionService
+    resolved `request.company_name`/`.ticker` to a canonical entity —
+    `None` otherwise (no entity-resolution service configured, or the
+    company isn't in the reference set). Distinct from `entity_recognized`
+    (pre-existing, MarketIntelligenceEngine's own per-request keyword
+    detection over the *retrieved records'* text): this is Company
+    Research's own direct identity lookup, not a signal derived from
+    what happened to come back from retrieval.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -60,6 +73,12 @@ class CompanyOverview(BaseModel):
     entity_recognized: bool
     mention_count: int
     supporting_record_ids: list[str] = Field(default_factory=list)
+    resolved_entity_id: str | None = None
+    resolution_confidence: float | None = None
+    resolution_method: str | None = None
+    sector: str | None = None
+    industry: str | None = None
+    country: str | None = None
 
 
 class NewsReference(BaseModel):
@@ -185,9 +204,19 @@ class CompanyResearchNarrative(BaseModel):
 class CompanyResearchReport(BaseModel):
     """The output of CompanyResearchAgent.run(): all nine required sections.
 
-    `narrative` (Sprint 39) is purely additive — every other field is
-    computed exactly as before, deterministically, from retrieved
-    evidence via the existing engines.
+    `narrative` (Sprint 39) and `market_snapshot` (Milestone 13) are
+    purely additive — every other field is computed exactly as before,
+    deterministically, from retrieved evidence via the existing engines.
+
+    `market_snapshot` reuses `MarketSnapshotResult` directly (not a
+    second, report-local model) — it already carries everything §9
+    requires (ticker, exchange, price, daily change, timestamp, market
+    status where available) plus an explicit `status`/`reason` so the
+    report is always honest about *why* there's no price shown when one
+    isn't available, never silently blank. `None` only when no
+    `market_snapshot_service` was injected into the agent at all — once
+    one is, this field is always populated (even for an unresolved
+    company, where `status` is `ENTITY_NOT_MAPPED`).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -205,3 +234,4 @@ class CompanyResearchReport(BaseModel):
     confidence_summary: ConfidenceSummary
     key_risks: list[RiskFlag] = Field(default_factory=list)
     narrative: CompanyResearchNarrative | None = None
+    market_snapshot: MarketSnapshotResult | None = None

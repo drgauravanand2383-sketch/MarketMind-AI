@@ -19,9 +19,16 @@ _EVENT_TYPE_PERMISSIONS: dict[EventType, str] = {
     EventType.STRATEGY_EVALUATION_COMPLETED: "strategy:read",
     EventType.RISK_ASSESSMENT_COMPLETED: "portfolio:read",
     EventType.EXPLAINABILITY_COMPLETED: "explainability:read",
+    EventType.PORTFOLIO_INTELLIGENCE_UPDATED: "portfolio:read",
     # HEALTH_STATUS_CHANGED intentionally absent: any authenticated
     # connection may subscribe, matching the unauthenticated-but-public
     # posture of GET /health itself (Sprint 55).
+    # MARKET_SNAPSHOT_REFRESHED (Milestone 14) intentionally absent too:
+    # unlike every other mapped event, it has no per-portfolio scope and
+    # no REST source endpoint to inherit a permission from — it covers
+    # every canonical entity system-wide (the same set `GET /capabilities`
+    # already reports unauthenticated), so any authenticated connection
+    # may subscribe.
 }
 
 

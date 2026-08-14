@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.agents.news_collector.models import NewsCollectionResult, NewsItem
+from app.services.entity_resolution.models import CompanyReference
+from app.services.entity_resolution.service import EntityResolutionService
 from app.services.knowledge_ingestion.models import RejectionReason
 from app.services.knowledge_ingestion.service import KnowledgeIngestionService
 
@@ -64,6 +66,25 @@ def test_vector_document_metadata_preserves_url_and_timestamp() -> None:
     metadata = batch.vector_documents[0].metadata
     assert metadata["url"] == "https://example.com/x"
     assert metadata["published_at"] == "2026-08-03"
+
+
+def test_vector_document_metadata_records_ingestion_provenance() -> None:
+    """Provenance requirement: every record must be able to answer "when
+    was it ingested" and "was its entity/company ever resolved" — see
+    docs/architecture/MARKET_INTELLIGENCE_INGESTION.md."""
+    service = KnowledgeIngestionService()
+    result = _collection_result([_item()])
+
+    before = datetime.now(timezone.utc)
+    batch = service.prepare_batch(result)
+    after = datetime.now(timezone.utc)
+
+    metadata = batch.vector_documents[0].metadata
+    ingested_at = datetime.fromisoformat(metadata["ingested_at"])
+    assert before <= ingested_at <= after
+    # No entity/company resolution mechanism exists yet — this must be
+    # recorded honestly as unresolved, not fabricated or silently omitted.
+    assert metadata["entity_resolved"] is False
 
 
 def test_relational_record_preserves_raw_payload_for_traceability() -> None:
@@ -178,3 +199,81 @@ def test_three_duplicates_keep_only_first() -> None:
     assert len(batch.vector_documents) == 1
     assert batch.ingestion_metadata.accepted_count == 1
     assert len(batch.ingestion_metadata.rejected_items) == 2
+
+
+# --- Entity resolution enrichment (Milestone 12) ---------------------------
+
+
+def _resolver() -> EntityResolutionService:
+    references = (
+        CompanyReference(
+            entity_id="acme", canonical_name="Acme Corporation", ticker="ACME",
+            exchange="NASDAQ", country="United States", sector="Technology",
+            industry="Software", aliases=("Acme",),
+        ),
+    )
+    return EntityResolutionService(references)
+
+
+def test_without_entity_resolver_behavior_is_unchanged() -> None:
+    """Backward compatibility: KnowledgeIngestionService() with no
+    resolver must behave exactly as it did before Milestone 12."""
+    service = KnowledgeIngestionService()
+    result = _collection_result([_item(title="Acme Corporation reports earnings", summary="Acme Corporation results.")])
+
+    batch = service.prepare_batch(result)
+
+    metadata = batch.vector_documents[0].metadata
+    assert metadata["entity_resolved"] is False
+    assert "entity_id" not in metadata
+    assert "entity_confidence_tier" not in metadata
+
+
+def test_with_entity_resolver_high_confidence_item_is_enriched() -> None:
+    service = KnowledgeIngestionService(entity_resolver=_resolver())
+    result = _collection_result(
+        [_item(title="Acme Corporation reports earnings", summary="Acme Corporation posted strong results.")]
+    )
+
+    batch = service.prepare_batch(result)
+
+    metadata = batch.vector_documents[0].metadata
+    assert metadata["entity_resolved"] is True
+    assert metadata["entity_id"] == "acme"
+    assert metadata["company"] == "acme"
+    assert metadata["entity_confidence_tier"] == "HIGH"
+    assert metadata["entity_ticker"] == "ACME"
+
+
+def test_with_entity_resolver_unrelated_item_stays_unresolved() -> None:
+    """§18 regression: an unrelated item is never falsely attached to a company."""
+    service = KnowledgeIngestionService(entity_resolver=_resolver())
+    result = _collection_result([_item(title="Local weather update", summary="Sunny skies expected today.")])
+
+    batch = service.prepare_batch(result)
+
+    metadata = batch.vector_documents[0].metadata
+    assert metadata["entity_resolved"] is False
+    assert "entity_id" not in metadata
+    assert metadata["entity_confidence_tier"] == "UNRESOLVED"
+
+
+def test_entity_enrichment_never_alters_document_text() -> None:
+    service = KnowledgeIngestionService(entity_resolver=_resolver())
+    result = _collection_result([_item(title="Acme Corporation reports earnings", summary="Acme Corporation posted results.")])
+
+    batch = service.prepare_batch(result)
+
+    assert batch.vector_documents[0].text == "Acme Corporation reports earnings\n\nAcme Corporation posted results."
+
+
+def test_entity_enrichment_preserves_existing_provenance_fields() -> None:
+    service = KnowledgeIngestionService(entity_resolver=_resolver())
+    result = _collection_result([_item(url="https://example.com/x", published_at="2026-08-03")])
+
+    batch = service.prepare_batch(result)
+
+    metadata = batch.vector_documents[0].metadata
+    assert metadata["url"] == "https://example.com/x"
+    assert metadata["published_at"] == "2026-08-03"
+    assert "ingested_at" in metadata

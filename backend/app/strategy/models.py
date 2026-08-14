@@ -106,7 +106,7 @@ class StrategyType(str, Enum):
 _STRATEGY_RULE_FIELDS: frozenset[str] = frozenset(
     name
     for name in RecommendationCandidate.model_fields
-    if name not in {"supporting_signals", "supporting_alerts"}
+    if name not in {"supporting_signals", "supporting_alerts", "market_snapshot"}
 )
 
 _WEIGHTING_FIELDS = (
@@ -146,8 +146,13 @@ class StrategyRule(BaseModel):
     """One strategy condition: `field` `operator` `value`, evaluated
     against a `RecommendationCandidate`. `field` must be one of
     `RecommendationCandidate`'s own scalar field names — its two
-    tuple-typed fields (`supporting_signals`/`supporting_alerts`) are not
-    comparable by a single operator/value pair and are excluded.
+    tuple-typed fields (`supporting_signals`/`supporting_alerts`) and its
+    nested `market_snapshot` (Milestone 14) are not comparable by a single
+    operator/value pair and are excluded. Milestone 14's flat scalar
+    fields (`market_price`, `market_change_percent`, `market_freshness`,
+    `market_contribution`) remain usable here with no engine changes,
+    exactly like every other `RecommendationCandidate` scalar field — see
+    `docs/architecture/PORTFOLIO_INTELLIGENCE.md`.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)

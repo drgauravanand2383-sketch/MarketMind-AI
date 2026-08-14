@@ -30,6 +30,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.agents.company_research.models import CompanyResearchReport
+from app.services.portfolio_market_snapshot.models import PortfolioMarketSnapshot
 
 __all__ = [
     # Pre-Sprint-40 (still used internally via report_builder.py)
@@ -296,6 +297,17 @@ class PortfolioIntelligenceReport(BaseModel):
     LLM-generated narrative layer; when no evidence was retrieved for any
     holding, these fall back to an honest "no data" statement / empty
     lists rather than fabricated content, and the LLM is never called.
+
+    `market_snapshot` (Milestone 14) is additive and optional: this
+    agent's `run()` never computes it — `PortfolioIntelligenceAgent` has
+    no market-data dependency and none is added here (§10's own "extend
+    an existing composition model rather than add another" guidance,
+    applied literally: `GET /portfolio/intelligence` — the one existing
+    place that already builds this report from a `Watchlist` — attaches
+    it afterward via `PortfolioMarketSnapshotService`, without touching
+    the agent's dependencies, prompt, or narrative logic at all). `None`
+    on any report built without that extra step (e.g. a direct
+    `agent.run()` call in a test or a future non-HTTP caller).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -311,3 +323,4 @@ class PortfolioIntelligenceReport(BaseModel):
     notable_market_events: list[str] = Field(default_factory=list)
     evidence_summary: list[PortfolioEvidenceReference] = Field(default_factory=list)
     data_quality_notes: list[DataQualityFlag] = Field(default_factory=list)
+    market_snapshot: PortfolioMarketSnapshot | None = None

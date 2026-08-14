@@ -76,8 +76,32 @@ def test_capabilities_reports_every_wired_engine_as_available(client: TestClient
 def test_capabilities_reports_unimplemented_features_as_unavailable(client: TestClient) -> None:
     capabilities = client.get("/api/v1/capabilities").json()["data"]["capabilities"]
 
-    for name in ("live_market_data", "broker_integration", "notifications", "authentication"):
+    for name in ("broker_integration", "notifications", "authentication"):
         assert capabilities[name] is False
+
+
+def test_capabilities_reports_live_market_data_false_under_default_mock_config(client: TestClient) -> None:
+    """Milestone 13: unlike the three names above, `live_market_data` is
+    no longer permanently hardcoded — but the default `MARKET_DATA_PROVIDER=mock`
+    config still correctly reports it unavailable."""
+    capabilities = client.get("/api/v1/capabilities").json()["data"]["capabilities"]
+    assert capabilities["live_market_data"] is False
+
+
+def test_capabilities_reports_live_market_data_true_when_a_real_provider_is_configured(
+    client: TestClient,
+) -> None:
+    """Proves the flag is genuinely dynamic, not just always False under a
+    different name — flips the already-bootstrapped app's own state flag
+    (set by `app.bootstrap.build_market_data_provider`) directly, the same
+    signal a real `MARKET_DATA_PROVIDER=yahoo_finance` deployment would
+    produce, without needing a second full bootstrap."""
+    client.app.state.market_data_provider_is_live = True
+    try:
+        capabilities = client.get("/api/v1/capabilities").json()["data"]["capabilities"]
+        assert capabilities["live_market_data"] is True
+    finally:
+        client.app.state.market_data_provider_is_live = False
 
 
 def test_capabilities_works_without_full_bootstrap(bare_client: TestClient) -> None:

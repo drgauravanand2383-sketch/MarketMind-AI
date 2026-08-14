@@ -16,3 +16,13 @@ class EventType(str, Enum):
     RISK_ASSESSMENT_COMPLETED = "RISK_ASSESSMENT_COMPLETED"
     EXPLAINABILITY_COMPLETED = "EXPLAINABILITY_COMPLETED"
     HEALTH_STATUS_CHANGED = "HEALTH_STATUS_CHANGED"
+    MARKET_SNAPSHOT_REFRESHED = "MARKET_SNAPSHOT_REFRESHED"
+    """Milestone 14: published when `MarketDataRefreshWorkflow.execute()`
+    completes a scheduled (or manually triggered) refresh run — the
+    payload is the same `MarketDataRefreshResult` the workflow already
+    returns, never recomputed for this event."""
+    PORTFOLIO_INTELLIGENCE_UPDATED = "PORTFOLIO_INTELLIGENCE_UPDATED"
+    """Milestone 14: published from `GET /portfolio/intelligence` after a
+    `PortfolioIntelligenceReport` (now carrying an attached market
+    snapshot — see `app.agents.portfolio_intelligence.models
+    .PortfolioIntelligenceReport`) is built for one portfolio."""

@@ -19,6 +19,16 @@
  * — derive them by filtering `risk_metrics` client-side
  * (`@/features/decision-center/risk/derive-risk-scores.ts`), never invent
  * a field the backend doesn't have.
+ *
+ * Milestone 14 note — live market data. `RecommendationCandidate`,
+ * `RiskAssessment`, and `PortfolioIntelligenceReport` all gained purely
+ * additive market-data fields (`app.services.market_snapshot.models`/
+ * `app.services.portfolio_market_snapshot.models`, backend). Every new
+ * field is optional here — a report/candidate/assessment built before
+ * this milestone (or via `agent.run()` directly, bypassing the REST
+ * handler that attaches it) simply omits them. `MarketSnapshotStatus`
+ * mirrors `app.services.market_snapshot.models.MarketSnapshotStatus`
+ * exactly; never re-interpreted or coarsened client-side.
  */
 
 import type { Alert } from "@/types/alerts";
@@ -57,6 +67,61 @@ export interface PortfolioExposure {
   holding_count: number;
 }
 
+/** Mirrors `app.services.market_snapshot.models.MarketSnapshotStatus`. */
+export type MarketSnapshotStatus =
+  | "FRESH"
+  | "STALE"
+  | "ENTITY_NOT_MAPPED"
+  | "PROVIDER_UNAVAILABLE"
+  | "PROVIDER_TIMEOUT"
+  | "RATE_LIMITED"
+  | "INVALID_RESPONSE"
+  | "NO_DATA"
+  | "UNAVAILABLE";
+
+/** Mirrors `app.services.market_snapshot.models.MarketSnapshot`. */
+export interface MarketSnapshot {
+  entity_id: string;
+  canonical_name: string;
+  ticker: string;
+  exchange: string | null;
+  currency: string | null;
+  price: number;
+  previous_close: number | null;
+  change: number | null;
+  change_percent: number | null;
+  day_high: number | null;
+  day_low: number | null;
+  volume: number | null;
+  quoted_at: string;
+  fetched_at: string;
+  provider: string;
+  trading_status: string | null;
+}
+
+/** Mirrors `app.services.market_snapshot.models.MarketSnapshotResult`.
+ * `snapshot` is populated only when `status` is `FRESH`/`STALE`. */
+export interface MarketSnapshotResult {
+  entity_id: string;
+  status: MarketSnapshotStatus;
+  snapshot: MarketSnapshot | null;
+  reason: string;
+}
+
+/** Mirrors `app.risk.models.MarketDataCoverageStatus`. */
+export type MarketDataCoverageStatus = "NOT_EVALUATED" | "NONE" | "PARTIAL" | "FULL";
+
+/** Mirrors `app.risk.models.MarketDataCoverage` — purely informational;
+ * never affects `overall_risk_score`/`risk_metrics`. */
+export interface MarketDataCoverage {
+  status: MarketDataCoverageStatus;
+  fresh_count: number;
+  stale_count: number;
+  unavailable_count: number;
+  not_evaluated_count: number;
+  total_candidates: number;
+}
+
 export interface RiskAssessment {
   request_id: string;
   overall_risk_score: number;
@@ -65,10 +130,21 @@ export interface RiskAssessment {
   exposures: PortfolioExposure[];
   recommendations: string[];
   summary: string;
+  /** Milestone 14, additive. Absent on an assessment computed before this
+   * milestone (or read from a not-yet-migrated stored row). */
+  market_data_coverage?: MarketDataCoverage;
   generated_at: string;
 }
 
 export type RecommendationType = "STRONG_BUY" | "BUY" | "WATCH" | "HOLD" | "AVOID";
+
+/** Mirrors `app.recommendations.models.MarketContribution` — whether live
+ * market data informed this candidate's score. Always present (defaults
+ * to `"none"` backend-side), never a hidden/opaque signal: `"direct"` a
+ * fresh/stale snapshot was supplied for this ticker; `"indirect"` no
+ * direct snapshot, but a triggered supporting signal referenced live
+ * market data; `"none"` neither applies. */
+export type MarketContribution = "direct" | "indirect" | "none";
 
 export interface RecommendationCandidate {
   ticker: string;
@@ -88,6 +164,14 @@ export interface RecommendationCandidate {
   portfolio_score: number | null;
   signal_score: number | null;
   alert_score: number | null;
+  /** Milestone 14, additive — all `null`/`"none"` on a candidate scored
+   * before this milestone. Never fabricated: `null` unless a real
+   * FRESH/STALE snapshot was supplied for this ticker. */
+  market_price?: number | null;
+  market_change_percent?: number | null;
+  market_freshness?: MarketSnapshotStatus | null;
+  market_snapshot?: MarketSnapshotResult | null;
+  market_contribution?: MarketContribution;
   created_at: string;
 }
 
@@ -184,6 +268,26 @@ export interface GenerateRecommendationsRequest {
   minimum_score?: number;
 }
 
+/** Mirrors `app.services.portfolio_market_snapshot.models.ValuationStatus`
+ * — a single member today: `WatchlistItem` carries no quantity/position
+ * size/market value anywhere, so an aggregate portfolio value is never
+ * computed, never fabricated. */
+export type ValuationStatus = "VALUATION_UNAVAILABLE";
+
+/** Mirrors `app.services.portfolio_market_snapshot.models
+ * .PortfolioMarketSnapshot`. */
+export interface PortfolioMarketSnapshot {
+  portfolio_id: string;
+  generated_at: string;
+  company_snapshots: MarketSnapshotResult[];
+  valuation_status: ValuationStatus;
+  valuation_unavailable_reason: string;
+  fresh_count: number;
+  stale_count: number;
+  unavailable_count: number;
+  entity_not_mapped_count: number;
+}
+
 export interface PortfolioIntelligenceReport {
   /** The original request that generated this report — not rendered by
    * this milestone, so left unmodeled rather than guessed. */
@@ -198,4 +302,9 @@ export interface PortfolioIntelligenceReport {
   notable_market_events: string[];
   evidence_summary: PortfolioEvidenceReference[];
   data_quality_notes: DataQualityFlag[];
+  /** Milestone 14, additive — attached by `GET /portfolio/intelligence`
+   * via `PortfolioMarketSnapshotService`, never computed by the agent
+   * itself. Absent when a report was built without that extra step
+   * (e.g. directly from `PortfolioIntelligenceAgent.run()`). */
+  market_snapshot?: PortfolioMarketSnapshot | null;
 }
