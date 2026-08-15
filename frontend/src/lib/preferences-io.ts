@@ -17,7 +17,9 @@ const numberFormatLocaleSchema = z.enum(NUMBER_FORMAT_LOCALES as [NumberFormatLo
 const tablePageSizeSchema = z.union(
   TABLE_PAGE_SIZE_OPTIONS.map((size) => z.literal(size)) as [z.ZodLiteral<TablePageSize>, ...z.ZodLiteral<TablePageSize>[]],
 );
-const notificationDomainSchema = z.enum(["alerts", "backtests", "recommendations", "strategy", "explainability", "health"]);
+const notificationDomainSchema = z.enum([
+  "alerts", "backtests", "recommendations", "strategy", "explainability", "health", "market", "news", "decisions",
+]);
 const cardSizeSchema = z.enum(["sm", "md", "lg"]);
 const dashboardCardIdSchema = z.enum([
   "user",

@@ -16,6 +16,9 @@ const DOMAIN_LABELS: Record<NotificationDomain, string> = {
   strategy: "Strategy",
   explainability: "Explainability",
   health: "Health",
+  market: "Market",
+  news: "News",
+  decisions: "Decisions",
 };
 
 const PRIORITY_OPTIONS: (PriorityLevel | "")[] = ["", "LOW", "MODERATE", "MEDIUM", "HIGH", "CRITICAL"];
@@ -50,6 +53,15 @@ function entryLink(entry: NotificationCenterEntry): { to: string; params: Record
       return { to: "/historical-analysis/backtests/$runId", params: { runId: entry.entityRef.runId } };
     case "explainability":
       return { to: "/historical-analysis/explainability/$requestId", params: { requestId: entry.entityRef.requestId } };
+    case "market":
+    case "news":
+    case "decision":
+      // Milestone 15: only deep-linkable when Decision Impact attached a
+      // portfolio_id — a portfolio-agnostic change (no watchlist tracks
+      // that entity yet) has nowhere to link to.
+      return entry.entityRef.portfolioId
+        ? { to: "/decisions/$portfolioId", params: { portfolioId: entry.entityRef.portfolioId } }
+        : null;
     default:
       return null;
   }

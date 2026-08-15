@@ -81,6 +81,63 @@ and portfolio intelligence. Every other endpoint works without it.
 background scheduling subsystem entirely (no `APSchedulerService`
 constructed, no timer running).
 
+## Ingestion & embeddings — `INGESTION_*` / `EMBEDDING_*` (Milestone 11)
+
+| Variable | Default | Notes |
+|---|---|---|
+| `INGESTION_ENABLED` | `false` | Gates the scheduled Market Intelligence Ingestion cycle (RSS -> embed -> `KnowledgeRepository`). Same "off by default, never silently change an existing deployment's behavior" convention as every other milestone toggle below. |
+| `INGESTION_INTERVAL_SECONDS` | `3600.0` | 1 hour. |
+| `EMBEDDING_PROVIDER` | `local` | Only `local` is implemented; any other value degrades `embedding_provider` to unavailable (logged), which in turn degrades ingestion to unavailable — never crashes startup. |
+| `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Passed to the local embedding provider. |
+
+## Entity Resolution — `ENTITY_RESOLUTION_*` / `ENTITY_MATCH_*` / `ENTITY_MAX_CANDIDATES` (Milestone 12)
+
+| Variable | Default | Notes |
+|---|---|---|
+| `ENTITY_RESOLUTION_ENABLED` | `true` | Set `false` to disable entity resolution entirely (`entity_resolution_service` becomes `None` — ingestion/backfill/research all degrade gracefully, never crash). |
+| `ENTITY_MATCH_HIGH_THRESHOLD` | `0.85` | Minimum score (after the ambiguity-margin check) for `ConfidenceTier.HIGH`. |
+| `ENTITY_MATCH_MEDIUM_THRESHOLD` | `0.5` | Minimum score for `ConfidenceTier.MEDIUM`. |
+| `ENTITY_MAX_CANDIDATES` | `5` | Maximum candidates returned per resolution. |
+| `CANONICAL_ENTITIES_OVERLAY_PATH` | unset | Milestone 16 §8: optional path to a JSON file of *additional* real canonical companies, validated (collision + alias-governance checks) and merged into the base 12-company reference set at startup. Unset = no overlay, zero behavior change. See `docs/architecture/CONTINUOUS_INTELLIGENCE_PERSISTENCE.md` §8. |
+
+## Live Market Data — `MARKET_DATA_*` (Milestone 13)
+
+| Variable | Default | Notes |
+|---|---|---|
+| `MARKET_DATA_ENABLED` | `false` | Gates the *scheduled* Market Data Refresh cycle — separate from `MARKET_DATA_PROVIDER` below, which configures the provider itself regardless of whether the schedule runs. |
+| `MARKET_DATA_PROVIDER` | `mock` | Set `yahoo_finance` for real live prices (Yahoo Finance's public, unauthenticated chart endpoint — no API key). `mock` is safe for any environment without real network access. |
+| `MARKET_DATA_TIMEOUT_SECONDS` | `10.0` | Per-request HTTP timeout. |
+| `MARKET_DATA_RETRY_ATTEMPTS` | `1` | Retries on transient failure (timeout/connection/5xx/429), fixed backoff. |
+| `MARKET_DATA_RETRY_BACKOFF_SECONDS` | `1.0` | Delay between retry attempts. |
+| `MARKET_DATA_CACHE_TTL_SECONDS` | `60.0` | How long a fetched snapshot is served from cache before a fresh fetch is attempted. |
+
+Milestone 16 §10 additionally tracks real, observed consecutive-failure
+history on the Yahoo provider to report `DEGRADED`/`UNAVAILABLE` health
+status (thresholds are code-level constants, not currently
+environment-configurable — see
+`app/providers/market_data/yahoo.py::YahooFinanceProviderConfig`).
+
+## Continuous Intelligence — `CONTINUOUS_INTELLIGENCE_*` / significance thresholds (Milestone 15/16)
+
+| Variable | Default | Notes |
+|---|---|---|
+| `CONTINUOUS_INTELLIGENCE_ENABLED` | `false` | Gates the scheduled proactive-detection cycle. |
+| `CONTINUOUS_INTELLIGENCE_INTERVAL_SECONDS` | `900.0` | 15 minutes. |
+| `MARKET_CHANGE_THRESHOLD` | `3.0` | Minimum \|change_percent\| for a market move to be significant. |
+| `NEWS_SIGNIFICANCE_THRESHOLD` | `2` | Minimum newly-seen knowledge-record count since the last cycle. |
+| `NEWS_HIGH_CONFIDENCE_THRESHOLD` | `0.75` | Confidence score an entity's evidence must *newly* cross. |
+| `RECOMMENDATION_SCORE_DELTA_THRESHOLD` | `10.0` | Minimum score delta (0-100) when the recommendation type itself didn't change. |
+| `STRATEGY_ALIGNMENT_DELTA_THRESHOLD` | `10.0` | Minimum alignment delta (0-100). |
+| `CONTINUOUS_INTELLIGENCE_SUPPRESSION_COOLDOWN_MINUTES` | `60.0` | How long an identical change fingerprint is suppressed after being emitted once. |
+| `CONTINUOUS_INTELLIGENCE_LOCK_TTL_SECONDS` | `300.0` | Milestone 16 §5/§6: how long a cross-process cycle-lock claim is honored before being treated as abandoned and automatically reclaimed. Must comfortably exceed one real cycle's duration (observed ~90-100s for 12 canonical entities) — a value shorter than actual cycle time risks two cycles overlapping via the stale-reclaim path. |
+
+Persistence for Continuous Intelligence's own state/suppression/locking
+(Milestone 16) requires no separate configuration — it reuses the same
+`DATABASE_URL`/`POSTGRES_*` settings above, falling back to in-memory
+(same-process-only, restart-unsafe) automatically if PostgreSQL is
+unreachable at startup. See
+`docs/architecture/CONTINUOUS_INTELLIGENCE_PERSISTENCE.md`.
+
 ## RSS — `RSS_*`
 
 Feed URLs for `NewsCollectorAgent`. Empty by default — the agent

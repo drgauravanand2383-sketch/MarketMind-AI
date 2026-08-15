@@ -67,6 +67,43 @@ resumption or missed-event replay (Sprint 59's own explicit constraint).
 If running multiple replicas, restart one at a time behind your load
 balancer's readiness check (`/ready`) rather than all at once.
 
+## Scheduled workflows & operational scripts (Milestones 11-16)
+
+Post-v1.0.0 work added several background schedules (each gated by its
+own `*_ENABLED` setting — see `docs/release/PRODUCTION_CONFIGURATION_GUIDE.md`)
+and matching container-exec-only operational scripts (no HTTP admin
+endpoint exists for any of these — reachable only by whoever can already
+run a command inside the backend container):
+
+| Schedule | Setting | Manual "run now" script |
+|---|---|---|
+| Market Intelligence Ingestion (M11) | `INGESTION_ENABLED` | `python scripts/run_ingestion.py` |
+| Entity Resolution Backfill (M12) | manual only, no schedule | `python scripts/run_entity_backfill.py` |
+| Market Data Refresh (M13) | `MARKET_DATA_ENABLED` (default `false`; separate from `MARKET_DATA_PROVIDER`/`MARKET_DATA_*` in the Configuration Guide, which configure the provider itself, not whether this schedule runs) | `python scripts/run_market_data_refresh.py` |
+| Portfolio Intelligence Refresh (M14) | manual only, no schedule | `python scripts/run_portfolio_intelligence_refresh.py` |
+| Continuous Intelligence (M15/M16) | `CONTINUOUS_INTELLIGENCE_ENABLED` | `python scripts/run_continuous_intelligence.py` |
+
+Every manual trigger prints a JSON summary to stdout and exits non-zero
+on fatal failure — safe to run against a live deployment; each shares the
+same `Schedule.enabled` gate as its own scheduled cycle (a disabled
+schedule cannot be run through either path).
+
+**Read-only inspection** (Milestone 16 §15):
+`python scripts/inspect_continuous_intelligence.py` — reports current
+Continuous Intelligence comparison-state entries, suppression entries
+(with remaining cooldown), the cycle lock's current claim
+(held/stale/free), and overall scheduler health, without executing a
+cycle or mutating anything. Reports `"status": "in_memory_only"` (not an
+error) when no durable PostgreSQL repository is configured — see
+`docs/architecture/CONTINUOUS_INTELLIGENCE_PERSISTENCE.md` §10-11.
+
+Run any of the above via:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+    exec backend python scripts/<script_name>.py
+```
+
 ## Database migrations in production
 
 ```bash

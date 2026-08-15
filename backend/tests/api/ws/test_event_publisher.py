@@ -23,6 +23,7 @@ from app.explainability.models import ExplainabilityResult
 from app.operations.health.models import ApplicationHealth, HealthState
 from app.recommendations.models import RecommendationResult, RecommendationSummary
 from app.risk.models import RiskAssessment, RiskSeverity
+from app.services.continuous_intelligence.models import ChangeDomain, ChangePriority, DetectedChange
 from app.strategy.models import StrategyEvaluationResult, StrategySummary
 from app.workflows.market_data_refresh.models import MarketDataRefreshResult
 from tests.api.ws.fakes import FakeWebSocket
@@ -196,6 +197,59 @@ async def test_publish_portfolio_intelligence_updated() -> None:
     envelope = _received_envelope(ws)
     assert envelope.event.event_type == EventType.PORTFOLIO_INTELLIGENCE_UPDATED
     assert envelope.event.correlation_id == "My Portfolio"
+
+
+def _detected_change(portfolio_id: str | None = None) -> DetectedChange:
+    return DetectedChange(
+        fingerprint="MARKET:dell:price", domain=ChangeDomain.MARKET, entity_id="dell", label="Dell",
+        priority=ChangePriority.HIGH, summary="Dell moved up 5%.", portfolio_id=portfolio_id, detected_at=NOW,
+    )
+
+
+async def test_publish_significant_market_change() -> None:
+    manager, ws = await _subscribed_connection_manager(EventType.SIGNIFICANT_MARKET_CHANGE)
+    publisher = EventPublisher(manager)
+
+    delivered = await publisher.publish_significant_market_change(_detected_change())
+
+    assert delivered == 1
+    envelope = _received_envelope(ws)
+    assert envelope.event.event_type == EventType.SIGNIFICANT_MARKET_CHANGE
+    assert envelope.event.correlation_id == "dell"
+    assert envelope.event.payload.summary == "Dell moved up 5%."
+
+
+async def test_publish_significant_market_change_prefers_portfolio_id_correlation() -> None:
+    manager, ws = await _subscribed_connection_manager(EventType.SIGNIFICANT_MARKET_CHANGE)
+    publisher = EventPublisher(manager)
+
+    await publisher.publish_significant_market_change(_detected_change(portfolio_id="wl-1"))
+
+    envelope = _received_envelope(ws)
+    assert envelope.event.correlation_id == "wl-1"
+
+
+async def test_publish_significant_news_update() -> None:
+    manager, ws = await _subscribed_connection_manager(EventType.SIGNIFICANT_NEWS_UPDATE)
+    publisher = EventPublisher(manager)
+
+    delivered = await publisher.publish_significant_news_update(_detected_change())
+
+    assert delivered == 1
+    envelope = _received_envelope(ws)
+    assert envelope.event.event_type == EventType.SIGNIFICANT_NEWS_UPDATE
+
+
+async def test_publish_portfolio_intelligence_changed() -> None:
+    manager, ws = await _subscribed_connection_manager(EventType.PORTFOLIO_INTELLIGENCE_CHANGED)
+    publisher = EventPublisher(manager)
+
+    delivered = await publisher.publish_portfolio_intelligence_changed(_detected_change(portfolio_id="wl-1"))
+
+    assert delivered == 1
+    envelope = _received_envelope(ws)
+    assert envelope.event.event_type == EventType.PORTFOLIO_INTELLIGENCE_CHANGED
+    assert envelope.event.correlation_id == "wl-1"
 
 
 async def test_publish_with_no_subscribers_returns_zero() -> None:

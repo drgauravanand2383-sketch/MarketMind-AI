@@ -18,6 +18,7 @@ from app.explainability.models import ExplainabilityResult
 from app.operations.health.models import ApplicationHealth
 from app.recommendations.models import RecommendationResult
 from app.risk.models import RiskAssessment
+from app.services.continuous_intelligence.models import DetectedChange
 from app.strategy.models import StrategyEvaluationResult
 from app.workflows.market_data_refresh.models import MarketDataRefreshResult
 
@@ -31,6 +32,9 @@ __all__ = [
     "HealthEvent",
     "MarketSnapshotEvent",
     "PortfolioIntelligenceEvent",
+    "SignificantMarketChangeEvent",
+    "SignificantNewsUpdateEvent",
+    "PortfolioIntelligenceChangedEvent",
     "AnyEvent",
     "EventEnvelope",
 ]
@@ -84,6 +88,28 @@ class PortfolioIntelligenceEvent(BaseEvent[PortfolioIntelligenceReport]):
     event_type: Literal[EventType.PORTFOLIO_INTELLIGENCE_UPDATED] = EventType.PORTFOLIO_INTELLIGENCE_UPDATED
 
 
+class SignificantMarketChangeEvent(BaseEvent[DetectedChange]):
+    """Milestone 15: published by `ContinuousIntelligenceService` for one
+    entity's significant price move or freshness transition."""
+
+    event_type: Literal[EventType.SIGNIFICANT_MARKET_CHANGE] = EventType.SIGNIFICANT_MARKET_CHANGE
+
+
+class SignificantNewsUpdateEvent(BaseEvent[DetectedChange]):
+    """Milestone 15: published by `ContinuousIntelligenceService` for a
+    significant new-evidence-volume or newly-high-confidence change."""
+
+    event_type: Literal[EventType.SIGNIFICANT_NEWS_UPDATE] = EventType.SIGNIFICANT_NEWS_UPDATE
+
+
+class PortfolioIntelligenceChangedEvent(BaseEvent[DetectedChange]):
+    """Milestone 15: published by `ContinuousIntelligenceService` for a
+    proactively-detected Risk/Recommendation/Strategy/Signal state
+    transition for one portfolio."""
+
+    event_type: Literal[EventType.PORTFOLIO_INTELLIGENCE_CHANGED] = EventType.PORTFOLIO_INTELLIGENCE_CHANGED
+
+
 AnyEvent = Union[
     AlertEvent,
     RecommendationEvent,
@@ -94,6 +120,9 @@ AnyEvent = Union[
     HealthEvent,
     MarketSnapshotEvent,
     PortfolioIntelligenceEvent,
+    SignificantMarketChangeEvent,
+    SignificantNewsUpdateEvent,
+    PortfolioIntelligenceChangedEvent,
 ]
 
 

@@ -157,9 +157,64 @@ def test_default_jwt_secret_key_flagged_as_insecure() -> None:
 
 
 def test_real_jwt_secret_key_not_flagged() -> None:
-    report = _validate(_service(), auth=AuthSettings(secret_key="a-real-jwt-secret"))
+    # `AuthSettings.secret_key` carries `validation_alias="SECRET_KEY"` (preserving
+    # a previously-documented bare env var name) with no `populate_by_name` — same
+    # footgun as `postgres.database_url` above: a direct constructor kwarg must use
+    # that alias, not the python attribute name, or it is silently dropped
+    # (`extra="ignore"`) and the field falls back to its insecure default.
+    report = _validate(_service(), auth=AuthSettings(SECRET_KEY="a-real-jwt-secret"))
 
     assert _check(report, "missing_secret:auth.secret_key").passed is True
+
+
+# --- production-only blocking secret check (Milestone 17 §7) -----------------------------------------------------------
+
+
+def test_insecure_jwt_secret_in_production_is_a_blocking_error() -> None:
+    """§7: an insecure default secret must not be silently accepted in a
+    real `environment=production` deployment — unlike the general
+    `missing_secret:*` check (WARNING, non-blocking, correct for local
+    development), this is ERROR-severity and fails `report.passed`."""
+    report = _validate(_service(), environment="production", auth=AuthSettings())
+
+    check = _check(report, "production_secret:auth.secret_key")
+    assert check.passed is False
+    assert check.severity == ValidationSeverity.ERROR
+    assert report.passed is False
+
+
+def test_insecure_postgres_password_in_production_is_a_blocking_error() -> None:
+    report = _validate(_service(), environment="production", postgres=PostgreSQLSettings())
+
+    check = _check(report, "production_secret:postgres.password")
+    assert check.passed is False
+    assert check.severity == ValidationSeverity.ERROR
+    assert report.passed is False
+
+
+def test_real_secrets_in_production_pass_the_blocking_check() -> None:
+    report = _validate(
+        _service(), environment="production",
+        auth=AuthSettings(SECRET_KEY="a-real-jwt-secret"),
+        postgres=PostgreSQLSettings(password="a-real-secret"),
+    )
+
+    assert _check(report, "production_secret:auth.secret_key").passed is True
+    assert _check(report, "production_secret:postgres.password").passed is True
+    assert report.passed is True
+
+
+def test_insecure_secret_outside_production_is_not_blocking() -> None:
+    """The same insecure default in `environment=development` (or any
+    non-production value) must not be escalated — local development with
+    the documented placeholder secret is normal and must never fail this
+    check."""
+    report = _validate(_service(), environment="development", auth=AuthSettings())
+
+    check = _check(report, "production_secret:auth.secret_key")
+    assert check.passed is True
+    assert check.severity == ValidationSeverity.INFO
+    assert report.passed is True
 
 
 # --- invalid URLs -----------------------------------------------------------

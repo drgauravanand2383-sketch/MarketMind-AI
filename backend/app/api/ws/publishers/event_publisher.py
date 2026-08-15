@@ -20,9 +20,12 @@ from app.api.ws.event_models.events import (
     ExplainabilityEvent,
     HealthEvent,
     MarketSnapshotEvent,
+    PortfolioIntelligenceChangedEvent,
     PortfolioIntelligenceEvent,
     RecommendationEvent,
     RiskEvent,
+    SignificantMarketChangeEvent,
+    SignificantNewsUpdateEvent,
     StrategyEvent,
 )
 from app.backtesting.models import BacktestResult, BacktestRun
@@ -30,6 +33,7 @@ from app.explainability.models import ExplainabilityResult
 from app.operations.health.models import ApplicationHealth
 from app.recommendations.models import RecommendationResult
 from app.risk.models import RiskAssessment
+from app.services.continuous_intelligence.models import DetectedChange
 from app.strategy.models import StrategyEvaluationResult
 from app.workflows.market_data_refresh.models import MarketDataRefreshResult
 
@@ -119,5 +123,36 @@ class EventPublisher:
             timestamp=_now(),
             correlation_id=report.request.portfolio_name,
             payload=report,
+        )
+        return await self._connection_manager.broadcast(event)
+
+    async def publish_significant_market_change(self, change: DetectedChange) -> int:
+        """Milestone 15. `correlation_id` prefers `portfolio_id` (when
+        Decision Impact attached one) so a client can subscribe narrowly
+        to one portfolio's changes; falls back to `entity_id` for a
+        change with no portfolio impact determined."""
+        event = SignificantMarketChangeEvent(
+            event_id=_new_event_id(),
+            timestamp=_now(),
+            correlation_id=change.portfolio_id or change.entity_id,
+            payload=change,
+        )
+        return await self._connection_manager.broadcast(event)
+
+    async def publish_significant_news_update(self, change: DetectedChange) -> int:
+        event = SignificantNewsUpdateEvent(
+            event_id=_new_event_id(),
+            timestamp=_now(),
+            correlation_id=change.portfolio_id or change.entity_id,
+            payload=change,
+        )
+        return await self._connection_manager.broadcast(event)
+
+    async def publish_portfolio_intelligence_changed(self, change: DetectedChange) -> int:
+        event = PortfolioIntelligenceChangedEvent(
+            event_id=_new_event_id(),
+            timestamp=_now(),
+            correlation_id=change.portfolio_id or change.entity_id,
+            payload=change,
         )
         return await self._connection_manager.broadcast(event)

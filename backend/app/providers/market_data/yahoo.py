@@ -25,7 +25,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.market_data.models import (
     CompanyProfile,
@@ -99,6 +99,23 @@ class YahooFinanceProviderConfig(BaseModel):
     retry_attempts: int = Field(default=1, ge=0)
     retry_backoff_seconds: float = Field(default=1.0, ge=0)
     user_agent: str = "MarketMind-AI/1.0"
+    # Milestone 16 §10: how many *consecutive* fully-exhausted-retry
+    # failures (across any ticker) before `health()` reports DEGRADED,
+    # then UNAVAILABLE — reset to 0 by the next success. A single
+    # transient failure (already absorbed by retry_attempts) never
+    # degrades the reported status; only a real run of failures does.
+    degraded_after_consecutive_failures: int = Field(default=3, ge=1)
+    unavailable_after_consecutive_failures: int = Field(default=8, ge=1)
+
+    @model_validator(mode="after")
+    def _validate_failure_thresholds(self) -> "YahooFinanceProviderConfig":
+        if self.unavailable_after_consecutive_failures < self.degraded_after_consecutive_failures:
+            raise ValueError(
+                "unavailable_after_consecutive_failures must be >= degraded_after_consecutive_failures; "
+                f"got {self.unavailable_after_consecutive_failures!r} < "
+                f"{self.degraded_after_consecutive_failures!r}."
+            )
+        return self
 
 
 class YahooFinanceProvider(MarketDataProvider):
@@ -127,6 +144,11 @@ class YahooFinanceProvider(MarketDataProvider):
         self._config = config
         self._normalization = normalization_service or NormalizationService()
         self._client_factory = client_factory
+        # Milestone 16 §10: real, observed failure history — not a
+        # measured vendor SLA — driving `health()`'s reported status.
+        self._consecutive_failures = 0
+        self._last_failure_at: datetime | None = None
+        self._last_success_at: datetime | None = None
 
     @property
     def config(self) -> YahooFinanceProviderConfig:
@@ -150,13 +172,25 @@ class YahooFinanceProvider(MarketDataProvider):
         )
 
     async def health(self) -> ProviderHealth:
-        """Report configured/reachable without a real data request — this
-        provider has no cheaper "ping" endpoint, so this reports
-        configuration validity only, matching the ABC's own guidance that
-        a health check must never be as expensive as a real data request."""
+        """Report status from real, observed request outcomes — no new
+        request is made here (matching the ABC's own guidance that a
+        health check must never be as expensive as a real data request),
+        but the *reported* status now reflects `_consecutive_failures`
+        accumulated by `_fetch_chart` across real prior calls, not a
+        hardcoded HEALTHY regardless of what actually happened (§10:
+        "clearer provider health state"). Resets to HEALTHY on the very
+        next success — a past outage never permanently marks the provider
+        degraded once it recovers.
+        """
+        if self._consecutive_failures >= self._config.unavailable_after_consecutive_failures:
+            status = ProviderHealthStatus.UNAVAILABLE
+        elif self._consecutive_failures >= self._config.degraded_after_consecutive_failures:
+            status = ProviderHealthStatus.DEGRADED
+        else:
+            status = ProviderHealthStatus.HEALTHY
         return ProviderHealth(
             provider=PROVIDER_NAME,
-            status=ProviderHealthStatus.HEALTHY,
+            status=status,
             latency_ms=None,
             last_updated=datetime.now(UTC),
         )
@@ -285,6 +319,13 @@ class YahooFinanceProvider(MarketDataProvider):
                     message = f"Yahoo Finance returned HTTP {response.status_code} for {ticker!r}."
                     last_error = ProviderConnectionError(message, provider_id=PROVIDER_ID)
                 else:
+                    # A response was received at all — the provider itself is
+                    # reachable, regardless of whether *this ticker* turns out
+                    # to have usable data (`_parse_chart_response` may still
+                    # raise its own ticker-specific error, uncounted below:
+                    # "no data for this symbol" is not "the provider is down").
+                    self._consecutive_failures = 0
+                    self._last_success_at = datetime.now(UTC)
                     return self._parse_chart_response(ticker, response)
 
             if attempt < attempts - 1:
@@ -295,8 +336,14 @@ class YahooFinanceProvider(MarketDataProvider):
                 await asyncio.sleep(self._config.retry_backoff_seconds)
 
         assert last_error is not None
+        self._consecutive_failures += 1
+        self._last_failure_at = datetime.now(UTC)
         _logger.warning(
-            "yahoo_finance_request_failed", extra={"ticker": ticker, "error": str(last_error)}
+            "yahoo_finance_request_failed",
+            extra={
+                "ticker": ticker, "error": str(last_error),
+                "consecutive_failures": self._consecutive_failures,
+            },
         )
         raise last_error
 

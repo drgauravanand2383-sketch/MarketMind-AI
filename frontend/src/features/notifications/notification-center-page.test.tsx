@@ -129,6 +129,57 @@ describe("NotificationCenterPage", () => {
     expect(screen.getByText("No notifications match your filters")).toBeInTheDocument();
   });
 
+  it("deep-links a portfolio-scoped market/news/decision entry to /decisions/$portfolioId", () => {
+    useRealtimeNotificationStore.setState({
+      entries: [
+        buildEntry({
+          id: "a", domain: "market", eventType: "SIGNIFICANT_MARKET_CHANGE", title: "Dell moved 5%",
+          entityRef: { kind: "market", portfolioId: "wl-1" },
+        }),
+      ],
+    });
+
+    render(<NotificationCenterPage />);
+
+    expect(screen.getByRole("link", { name: /Dell moved 5%/ })).toHaveAttribute("href", "/decisions/wl-1");
+  });
+
+  it("renders a portfolio-agnostic market/news/decision entry as a plain button, not a broken link", () => {
+    useRealtimeNotificationStore.setState({
+      entries: [
+        buildEntry({
+          id: "a", domain: "news", eventType: "SIGNIFICANT_NEWS_UPDATE", title: "New evidence for Dell",
+          entityRef: { kind: "news", portfolioId: null },
+        }),
+      ],
+    });
+
+    render(<NotificationCenterPage />);
+
+    expect(screen.queryByRole("link", { name: /New evidence for Dell/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /New evidence for Dell/ })).toBeInTheDocument();
+  });
+
+  it("includes Market/News/Decisions in the domain filter and filters by them", async () => {
+    useRealtimeNotificationStore.setState({
+      entries: [
+        buildEntry({ id: "a", domain: "decisions", eventType: "PORTFOLIO_INTELLIGENCE_CHANGED", title: "Risk changed", entityRef: { kind: "decision", portfolioId: "wl-1" } }),
+        buildEntry({ id: "b", domain: "alerts", title: "Alert entry" }),
+      ],
+    });
+    const user = userEvent.setup();
+    render(<NotificationCenterPage />);
+
+    expect(screen.getByLabelText("Market")).toBeInTheDocument();
+    expect(screen.getByLabelText("News")).toBeInTheDocument();
+    expect(screen.getByLabelText("Decisions")).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Alerts"));
+
+    expect(screen.queryByText("Alert entry")).not.toBeInTheDocument();
+    expect(screen.getByText("Risk changed")).toBeInTheDocument();
+  });
+
   it("marks an entry read on click", async () => {
     useRealtimeNotificationStore.setState({ entries: [buildEntry({ id: "a", title: "Click me", read: false })] });
     const user = userEvent.setup();

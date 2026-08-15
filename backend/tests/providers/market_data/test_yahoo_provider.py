@@ -352,6 +352,66 @@ async def test_health_never_makes_a_real_request() -> None:
     assert health.status.value == "HEALTHY"
 
 
+# --- Health reflects real, observed failure history (§10) -----------------------------------------------------------
+
+
+async def _fail_once(provider: YahooFinanceProvider) -> None:
+    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=httpx.ConnectTimeout("down"))):
+        with pytest.raises(ProviderTimeoutError):
+            await provider.get_quote("DELL")
+
+
+async def test_health_degrades_after_enough_consecutive_failures() -> None:
+    provider = YahooFinanceProvider(_config(degraded_after_consecutive_failures=2))
+    await _fail_once(provider)
+    assert (await provider.health()).status.value == "HEALTHY"  # one failure alone is not degraded
+
+    await _fail_once(provider)
+
+    assert (await provider.health()).status.value == "DEGRADED"
+
+
+async def test_health_becomes_unavailable_after_enough_consecutive_failures() -> None:
+    provider = YahooFinanceProvider(
+        _config(degraded_after_consecutive_failures=2, unavailable_after_consecutive_failures=3)
+    )
+    await _fail_once(provider)
+    await _fail_once(provider)
+    assert (await provider.health()).status.value == "DEGRADED"
+
+    await _fail_once(provider)
+
+    assert (await provider.health()).status.value == "UNAVAILABLE"
+
+
+async def test_health_recovers_to_healthy_after_the_next_success() -> None:
+    provider = YahooFinanceProvider(_config(degraded_after_consecutive_failures=1))
+    await _fail_once(provider)
+    assert (await provider.health()).status.value == "DEGRADED"
+
+    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response(_quote_payload()))):
+        await provider.get_quote("DELL")
+
+    assert (await provider.health()).status.value == "HEALTHY"
+
+
+async def test_a_ticker_specific_no_data_error_does_not_degrade_health() -> None:
+    """A successful HTTP response for a ticker Yahoo simply has no data
+    for is a data problem, not a provider-availability problem — must
+    never accumulate toward DEGRADED/UNAVAILABLE."""
+    provider = YahooFinanceProvider(_config(degraded_after_consecutive_failures=1))
+    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response({}, status_code=404))):
+        with pytest.raises(ProviderNoDataError):
+            await provider.get_quote("NOTATICKER")
+
+    assert (await provider.health()).status.value == "HEALTHY"
+
+
+def test_unavailable_threshold_below_degraded_threshold_rejected() -> None:
+    with pytest.raises(ValueError):
+        _config(degraded_after_consecutive_failures=5, unavailable_after_consecutive_failures=2)
+
+
 @pytest.mark.parametrize(
     "method_name",
     ["get_company_profile", "get_fundamentals", "get_financial_ratios", "get_market_cap", "get_earnings", "get_dividends"],

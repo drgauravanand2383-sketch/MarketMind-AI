@@ -4,13 +4,15 @@ import { useRealtimeSubscriptions } from "@/hooks/use-realtime-subscriptions";
 import { useAuthStore } from "@/store/auth-store";
 import { testUser } from "@/test/msw/fixtures";
 
+const UNGATED_EVENT_TYPES = ["HEALTH_STATUS_CHANGED", "MARKET_SNAPSHOT_REFRESHED", "SIGNIFICANT_MARKET_CHANGE", "SIGNIFICANT_NEWS_UPDATE"];
+
 describe("useRealtimeSubscriptions", () => {
-  it("always includes HEALTH_STATUS_CHANGED, even with zero permissions", () => {
+  it("always includes every ungated event type, even with zero permissions", () => {
     useAuthStore.setState({ user: { ...testUser, permissions: [] } });
 
     const { result } = renderHook(() => useRealtimeSubscriptions());
 
-    expect(result.current).toEqual(["HEALTH_STATUS_CHANGED"]);
+    expect(result.current).toEqual(UNGATED_EVENT_TYPES);
   });
 
   it("includes only the event types whose required permission the user holds", () => {
@@ -18,7 +20,17 @@ describe("useRealtimeSubscriptions", () => {
 
     const { result } = renderHook(() => useRealtimeSubscriptions());
 
-    expect(result.current).toEqual(["HEALTH_STATUS_CHANGED", "ALERT_GENERATED", "BACKTEST_STARTED", "BACKTEST_COMPLETED"]);
+    expect(result.current).toEqual([...UNGATED_EVENT_TYPES, "ALERT_GENERATED", "BACKTEST_STARTED", "BACKTEST_COMPLETED"]);
+  });
+
+  it("includes PORTFOLIO_INTELLIGENCE_UPDATED and PORTFOLIO_INTELLIGENCE_CHANGED when portfolio:read is held", () => {
+    useAuthStore.setState({ user: { ...testUser, permissions: ["portfolio:read"] } });
+
+    const { result } = renderHook(() => useRealtimeSubscriptions());
+
+    expect(result.current).toEqual(
+      expect.arrayContaining(["RECOMMENDATION_GENERATED", "PORTFOLIO_INTELLIGENCE_UPDATED", "PORTFOLIO_INTELLIGENCE_CHANGED"]),
+    );
   });
 
   it("never requests RISK_ASSESSMENT_COMPLETED, even with every other permission granted", () => {

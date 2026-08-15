@@ -45,6 +45,16 @@ function toastFor(event: DomainEvent): { type: NotificationType; message: string
       };
     case "RISK_ASSESSMENT_COMPLETED":
       return null; // never actually published — see types/websocket.ts
+    case "MARKET_SNAPSHOT_REFRESHED":
+    case "PORTFOLIO_INTELLIGENCE_UPDATED":
+      return null; // a fetch/refresh completing, not a proactive notice — see lib/realtime-notifications.ts
+    case "SIGNIFICANT_MARKET_CHANGE":
+    case "SIGNIFICANT_NEWS_UPDATE":
+    case "PORTFOLIO_INTELLIGENCE_CHANGED": {
+      const critical = event.payload.priority === "CRITICAL";
+      const type: NotificationType = critical ? "error" : event.payload.priority === "HIGH" ? "warning" : "info";
+      return { type, message: event.payload.summary, pinned: critical };
+    }
   }
 }
 

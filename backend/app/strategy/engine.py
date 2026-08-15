@@ -254,6 +254,7 @@ class StrategyEvaluationService:
             best_strategy=ranked[0].strategy_id if ranked else None,
             strategy_matches=tuple(ranked),
             summary=_build_summary(ranked),
+            recommendation_result_id=request.recommendation_result_id,
         )
         return await self._repository.store_evaluation(result)
 

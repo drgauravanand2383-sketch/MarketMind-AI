@@ -284,3 +284,16 @@ class StrategyEvaluationResult(BaseModel):
     best_strategy: str | None = None
     strategy_matches: tuple[StrategyMatch, ...] = Field(default_factory=tuple)
     summary: StrategySummary
+    # Milestone 16 §12: carries forward `StrategyEvaluationRequest
+    # .recommendation_result_id` (itself a `RecommendationRequest.id`, per
+    # the same "*_result_id is actually a request id" convention
+    # `RiskAssessmentRequest`/`ExplainabilityRequest`/`BacktestSnapshot`
+    # already use) so a *stored* evaluation can be traced back to the
+    # `RecommendationRequest.watchlist_ids` that produced it — without this,
+    # a persisted `StrategyEvaluationResult` carries no portfolio linkage at
+    # all (`evaluate_recommendations()` received the request transiently and
+    # never persisted it). Optional/nullable: additive, matches the
+    # `RiskAssessment.market_data_coverage` precedent (Milestone 14 §5)
+    # exactly, and stays `None` for any evaluation stored before this field
+    # existed.
+    recommendation_result_id: str | None = None

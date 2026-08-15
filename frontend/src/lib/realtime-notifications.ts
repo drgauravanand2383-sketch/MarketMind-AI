@@ -1,8 +1,16 @@
+import type { PriorityLevel } from "@/components/priority-badge";
+import type { ChangePriority } from "@/types/continuous-intelligence";
 import type { NotificationCenterEntry } from "@/store/realtime-notification-store";
 import type { DomainEvent } from "@/types/websocket";
 
 function signed(value: number): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+/** `ChangePriority` (Milestone 15) has one tier — `INFO` — with no
+ * `PriorityLevel` equivalent; every other tier passes through directly. */
+function toPriorityLevel(priority: ChangePriority): PriorityLevel | null {
+  return priority === "INFO" ? null : priority;
 }
 
 /**
@@ -105,5 +113,53 @@ export function toNotificationEntry(event: DomainEvent): NotificationCenterEntry
       };
     case "RISK_ASSESSMENT_COMPLETED":
       return null;
+    case "MARKET_SNAPSHOT_REFRESHED":
+      // A scheduled refresh completing is not itself meaningful (Milestone
+      // 15's own "do not emit an event simply because a scheduler ran"
+      // principle, applied retroactively to this Milestone 14 event) —
+      // SIGNIFICANT_MARKET_CHANGE below is the "worth telling the user
+      // about" version. Cache invalidation still happens either way.
+      return null;
+    case "PORTFOLIO_INTELLIGENCE_UPDATED":
+      // Fires on every GET /portfolio/intelligence — a fetch, not a
+      // proactive notice. PORTFOLIO_INTELLIGENCE_CHANGED below is the
+      // proactive equivalent.
+      return null;
+    case "SIGNIFICANT_MARKET_CHANGE":
+      return {
+        id: event.event_id,
+        eventType: event.event_type,
+        domain: "market",
+        priority: toPriorityLevel(event.payload.priority),
+        title: `${event.payload.label}: significant market move`,
+        summary: event.payload.summary,
+        occurredAt: event.timestamp,
+        read: false,
+        entityRef: { kind: "market", portfolioId: event.payload.portfolio_id },
+      };
+    case "SIGNIFICANT_NEWS_UPDATE":
+      return {
+        id: event.event_id,
+        eventType: event.event_type,
+        domain: "news",
+        priority: toPriorityLevel(event.payload.priority),
+        title: `${event.payload.label}: new evidence`,
+        summary: event.payload.summary,
+        occurredAt: event.timestamp,
+        read: false,
+        entityRef: { kind: "news", portfolioId: event.payload.portfolio_id },
+      };
+    case "PORTFOLIO_INTELLIGENCE_CHANGED":
+      return {
+        id: event.event_id,
+        eventType: event.event_type,
+        domain: "decisions",
+        priority: toPriorityLevel(event.payload.priority),
+        title: `${event.payload.label}: ${event.payload.domain.toLowerCase()} changed`,
+        summary: event.payload.summary,
+        occurredAt: event.timestamp,
+        read: false,
+        entityRef: { kind: "decision", portfolioId: event.payload.portfolio_id },
+      };
   }
 }

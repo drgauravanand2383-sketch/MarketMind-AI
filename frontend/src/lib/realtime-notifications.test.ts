@@ -5,11 +5,14 @@ import {
   buildAlert,
   buildBacktestResult,
   buildBacktestRun,
+  buildDetectedChange,
   buildExplainabilityResult,
+  buildMarketDataRefreshResult,
   buildRecommendationResult,
   buildRiskAssessment,
   buildStrategyEvaluationResult,
   testApplicationHealth,
+  testPortfolioIntelligenceReport,
 } from "@/test/msw/fixtures";
 
 describe("toNotificationEntry", () => {
@@ -53,5 +56,38 @@ describe("toNotificationEntry", () => {
 
   it("returns null for RISK_ASSESSMENT_COMPLETED (never actually published)", () => {
     expect(toNotificationEntry(buildDomainEvent("RISK_ASSESSMENT_COMPLETED", buildRiskAssessment()))).toBeNull();
+  });
+
+  it("returns null for MARKET_SNAPSHOT_REFRESHED (a scheduled refresh completing is not itself meaningful)", () => {
+    expect(toNotificationEntry(buildDomainEvent("MARKET_SNAPSHOT_REFRESHED", buildMarketDataRefreshResult()))).toBeNull();
+  });
+
+  it("returns null for PORTFOLIO_INTELLIGENCE_UPDATED (a fetch, not a proactive notice)", () => {
+    expect(toNotificationEntry(buildDomainEvent("PORTFOLIO_INTELLIGENCE_UPDATED", testPortfolioIntelligenceReport))).toBeNull();
+  });
+
+  it("maps SIGNIFICANT_MARKET_CHANGE to a market-domain entry carrying the portfolio_id deep link", () => {
+    const change = buildDetectedChange({ domain: "MARKET", label: "Dell", priority: "CRITICAL", portfolio_id: "wl-1" });
+    const entry = toNotificationEntry(buildDomainEvent("SIGNIFICANT_MARKET_CHANGE", change));
+    expect(entry).toMatchObject({ domain: "market", priority: "CRITICAL", entityRef: { kind: "market", portfolioId: "wl-1" } });
+    expect(entry?.title).toContain("Dell");
+  });
+
+  it("maps SIGNIFICANT_NEWS_UPDATE to a news-domain entry", () => {
+    const change = buildDetectedChange({ domain: "NEWS", label: "Dell", priority: "MEDIUM", portfolio_id: null });
+    const entry = toNotificationEntry(buildDomainEvent("SIGNIFICANT_NEWS_UPDATE", change));
+    expect(entry).toMatchObject({ domain: "news", priority: "MEDIUM", entityRef: { kind: "news", portfolioId: null } });
+  });
+
+  it("maps PORTFOLIO_INTELLIGENCE_CHANGED to a decisions-domain entry", () => {
+    const change = buildDetectedChange({ domain: "RISK", label: "My Portfolio", priority: "HIGH", portfolio_id: "wl-1" });
+    const entry = toNotificationEntry(buildDomainEvent("PORTFOLIO_INTELLIGENCE_CHANGED", change));
+    expect(entry).toMatchObject({ domain: "decisions", priority: "HIGH", entityRef: { kind: "decision", portfolioId: "wl-1" } });
+  });
+
+  it("maps ChangePriority INFO to a null PriorityLevel (no equivalent tier)", () => {
+    const change = buildDetectedChange({ priority: "INFO" });
+    const entry = toNotificationEntry(buildDomainEvent("SIGNIFICANT_MARKET_CHANGE", change));
+    expect(entry?.priority).toBeNull();
   });
 });

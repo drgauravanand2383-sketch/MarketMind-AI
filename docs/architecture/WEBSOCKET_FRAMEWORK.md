@@ -25,11 +25,17 @@ app/api/ws/
     manager.py                ConnectionManager — connect/disconnect/heartbeat/
                                 subscribe/unsubscribe/broadcast/targeted delivery
   event_models/
-    event_type.py             EventType enum (8 supported event types)
+    event_type.py             EventType enum (13 supported event types as of
+                                Milestone 15 — 8 original + Milestone 14's
+                                MARKET_SNAPSHOT_REFRESHED/PORTFOLIO_INTELLIGENCE_
+                                UPDATED + Milestone 15's SIGNIFICANT_MARKET_CHANGE/
+                                SIGNIFICANT_NEWS_UPDATE/PORTFOLIO_INTELLIGENCE_CHANGED)
     base.py                    BaseEvent[payload], EventMetadata
     events.py                  AlertEvent, RecommendationEvent, BacktestEvent,
                                 StrategyEvent, RiskEvent, ExplainabilityEvent,
-                                HealthEvent, EventEnvelope
+                                HealthEvent, MarketSnapshotEvent,
+                                PortfolioIntelligenceEvent, SignificantMarketChangeEvent,
+                                SignificantNewsUpdateEvent, PortfolioIntelligenceChangedEvent
   publishers/
     event_publisher.py        EventPublisher — one publish_* method per event
                                 type; wraps an already-computed result, broadcasts
@@ -117,6 +123,11 @@ permission string its equivalent REST resource already requires —
 | `RISK_ASSESSMENT_COMPLETED` | `portfolio:read` |
 | `EXPLAINABILITY_COMPLETED` | `explainability:read` |
 | `HEALTH_STATUS_CHANGED` | *(none — authentication alone is sufficient)* |
+| `MARKET_SNAPSHOT_REFRESHED` (Milestone 14) | *(none — system-wide, no per-portfolio scope)* |
+| `PORTFOLIO_INTELLIGENCE_UPDATED` (Milestone 14) | `portfolio:read` |
+| `SIGNIFICANT_MARKET_CHANGE` (Milestone 15) | *(none — same reasoning as `MARKET_SNAPSHOT_REFRESHED`)* |
+| `SIGNIFICANT_NEWS_UPDATE` (Milestone 15) | *(none — same reasoning)* |
+| `PORTFOLIO_INTELLIGENCE_CHANGED` (Milestone 15) | `portfolio:read` |
 
 Checked via the existing `PolicyEvaluator.evaluate(RequirePermission(...), principal)`
 — the exact same policy objects `require_policy` uses for REST endpoints,
@@ -240,6 +251,11 @@ idle-connection cleanup if needed; nothing currently reads it back.
 | `EXPLAINABILITY_COMPLETED` | `POST /api/v1/explainability` | `ExplainabilityResult.request_id` |
 | `HEALTH_STATUS_CHANGED` | `GET /api/v1/health` (only when `state` differs from the previous call — tracked in `app.state.last_health_state`) | none |
 | `RISK_ASSESSMENT_COMPLETED` | **none — known gap, see below** | `RiskAssessment.request_id` |
+| `MARKET_SNAPSHOT_REFRESHED` (Milestone 14) | `MarketDataRefreshWorkflow.execute()` — the scheduled/on-demand market refresh, not a REST endpoint | `MarketDataRefreshResult.execution_id` |
+| `PORTFOLIO_INTELLIGENCE_UPDATED` (Milestone 14) | `GET /api/v1/portfolio/intelligence` | `PortfolioIntelligenceReport.request.portfolio_name` |
+| `SIGNIFICANT_MARKET_CHANGE` (Milestone 15) | `ContinuousIntelligenceWorkflow.execute()` — the scheduled/on-demand Continuous Intelligence cycle, not a REST endpoint | `DetectedChange.portfolio_id` or `.entity_id` |
+| `SIGNIFICANT_NEWS_UPDATE` (Milestone 15) | same as above | same as above |
+| `PORTFOLIO_INTELLIGENCE_CHANGED` (Milestone 15) | same as above | same as above |
 
 **Known gap:** no REST endpoint anywhere calls
 `RiskAnalyticsService.assess_portfolio()` — Sprint 57 designed
@@ -250,6 +266,15 @@ feature complete") rules out adding a creation endpoint to fix that. The
 both exist and are fully tested
 (`tests/api/ws/test_event_publisher.py::test_publish_risk_assessment_completed`)
 — ready for whichever future sprint adds that REST capability.
+
+**`PORTFOLIO_INTELLIGENCE_UPDATED` vs `PORTFOLIO_INTELLIGENCE_CHANGED`**:
+the first fires synchronously whenever a client *requests* a report (a
+fetch echo); the second fires *proactively*, with no request involved,
+when Continuous Intelligence (Milestone 15) detects a meaningful Risk/
+Recommendation/Strategy/Signal state transition. They are never the same
+occurrence — see `docs/architecture/CONTINUOUS_INTELLIGENCE.md` §9 for
+why a new type was introduced instead of reusing `RECOMMENDATION_
+GENERATED`/`RISK_ASSESSMENT_COMPLETED` for the proactive case.
 
 `BACKTEST_STARTED`'s payload is a `BacktestRun` the router constructs
 itself (`request_id`, current timestamp, `status=PENDING`) — the real

@@ -93,4 +93,35 @@ def test_current_revision_is_the_head_after_upgrade(alembic_config: Config, sqli
         (version,) = connection.execute("SELECT version_num FROM alembic_version").fetchone()
     finally:
         connection.close()
-    assert version == "0003_risk_market_data_coverage"
+    assert version == "0005_ci_persistence"
+
+
+# --- Milestone 16 regression: revision id width vs alembic_version column -----------------------------------------------------------
+
+# Alembic's own `alembic_version.version_num` column is `VARCHAR(32)` by
+# default (not something this codebase configures — Alembic's own
+# built-in default). A revision id longer than this is accepted silently
+# by SQLite (no length enforcement) but fails against a real PostgreSQL
+# database with `StringDataRightTruncationError` — exactly what happened
+# during this milestone's own live Docker acceptance testing with the
+# original `0004_strategy_recommendation_linkage`/
+# `0005_continuous_intelligence_persistence` names (36/40 characters),
+# invisible to every SQLite-backed migration test in this file and
+# `test_continuous_intelligence_persistence_migration.py` until then.
+_ALEMBIC_VERSION_COLUMN_WIDTH = 32
+
+
+def test_every_migration_revision_id_fits_the_alembic_version_column() -> None:
+    from alembic.script import ScriptDirectory
+
+    config = Config(ALEMBIC_INI_PATH)
+    script_directory = ScriptDirectory.from_config(config)
+    revisions = list(script_directory.walk_revisions())
+    assert revisions, "expected at least one migration to be discovered"
+
+    for revision in revisions:
+        assert len(revision.revision) <= _ALEMBIC_VERSION_COLUMN_WIDTH, (
+            f"Revision id {revision.revision!r} is {len(revision.revision)} characters, "
+            f"exceeding alembic_version.version_num's {_ALEMBIC_VERSION_COLUMN_WIDTH}-character "
+            "column width — this upgrades fine against SQLite but fails against real PostgreSQL."
+        )

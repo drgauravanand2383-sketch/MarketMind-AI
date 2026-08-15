@@ -135,6 +135,55 @@ async def test_subscribe_to_market_snapshot_refreshed_needs_no_special_permissio
         assert response["event_types"] == ["MARKET_SNAPSHOT_REFRESHED"]
 
 
+def test_subscribe_to_portfolio_intelligence_changed_with_permission_succeeds(client: TestClient, token: str) -> None:
+    """Milestone 15: PORTFOLIO_INTELLIGENCE_CHANGED requires portfolio:read,
+    matching PORTFOLIO_INTELLIGENCE_UPDATED and its other portfolio-scoped
+    siblings."""
+    with client.websocket_connect(f"/ws?token={token}") as ws:
+        ws.receive_json()
+        ws.send_json({"action": "subscribe", "event_types": ["PORTFOLIO_INTELLIGENCE_CHANGED"]})
+        response = ws.receive_json()
+        assert response["type"] == "subscribed"
+        assert response["event_types"] == ["PORTFOLIO_INTELLIGENCE_CHANGED"]
+
+
+async def test_subscribe_to_portfolio_intelligence_changed_without_permission_is_forbidden(
+    client: TestClient, auth_repository, auth_service
+) -> None:
+    headers = await make_authenticated_headers(auth_repository, auth_service, permissions=())
+    token = headers["Authorization"].removeprefix("Bearer ")
+    with client.websocket_connect(f"/ws?token={token}") as ws:
+        ws.receive_json()
+        ws.send_json({"action": "subscribe", "event_types": ["PORTFOLIO_INTELLIGENCE_CHANGED"]})
+        response = ws.receive_json()
+        assert response["type"] == "error"
+        assert response["code"] == "forbidden"
+
+
+async def test_subscribe_to_significant_market_change_needs_no_special_permission(
+    client: TestClient, auth_repository, auth_service
+) -> None:
+    headers = await make_authenticated_headers(auth_repository, auth_service, permissions=())
+    token = headers["Authorization"].removeprefix("Bearer ")
+    with client.websocket_connect(f"/ws?token={token}") as ws:
+        ws.receive_json()
+        ws.send_json({"action": "subscribe", "event_types": ["SIGNIFICANT_MARKET_CHANGE"]})
+        response = ws.receive_json()
+        assert response["type"] == "subscribed"
+
+
+async def test_subscribe_to_significant_news_update_needs_no_special_permission(
+    client: TestClient, auth_repository, auth_service
+) -> None:
+    headers = await make_authenticated_headers(auth_repository, auth_service, permissions=())
+    token = headers["Authorization"].removeprefix("Bearer ")
+    with client.websocket_connect(f"/ws?token={token}") as ws:
+        ws.receive_json()
+        ws.send_json({"action": "subscribe", "event_types": ["SIGNIFICANT_NEWS_UPDATE"]})
+        response = ws.receive_json()
+        assert response["type"] == "subscribed"
+
+
 def test_duplicate_subscription_is_reported(client: TestClient, token: str) -> None:
     with client.websocket_connect(f"/ws?token={token}") as ws:
         ws.receive_json()

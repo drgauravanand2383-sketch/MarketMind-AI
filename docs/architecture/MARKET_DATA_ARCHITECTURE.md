@@ -204,6 +204,17 @@ any of these — always a `MarketSnapshotResult` with an explicit status.
 (not just the modeled `ProviderError` subclasses) and converts it to
 `UNAVAILABLE`, so one bad symbol can never fail an entire batch (§12).
 
+**Extended post-v1.0 (Milestone 16 §10)**: `YahooFinanceProvider.health()`
+previously always reported `HEALTHY` regardless of actual outcomes. It
+now tracks real, observed consecutive failures (network/rate-limit/5xx,
+after retries are exhausted) and reports `DEGRADED`/`UNAVAILABLE` past
+configurable thresholds (`degraded_after_consecutive_failures`=3,
+`unavailable_after_consecutive_failures`=8 by default), resetting to
+`HEALTHY` on the next success. A ticker-specific "no data" response does
+not count as a provider failure. No new request is made to compute this —
+still as cheap as the health check always was. See
+`docs/architecture/CONTINUOUS_INTELLIGENCE_PERSISTENCE.md` §7.
+
 ## 9. Scheduler
 
 `MarketDataRefreshWorkflow` (`app/workflows/market_data_refresh/`) —
@@ -269,6 +280,13 @@ market data feeds `MARKET_CAP`/`VOLATILITY`/`LIQUIDITY`) — Milestone 14
 added a purely informational `market_data_coverage` field, never a
 formula change. Historical Analysis / Backtesting remain unintegrated —
 still no existing contract there expects market data.
+
+**Extended post-v1.0 (Milestone 15)**: this market-aware data now also
+drives proactive detection — a per-entity price move crossing a
+threshold publishes `SIGNIFICANT_MARKET_CHANGE` (distinct from this
+document's own `MARKET_SNAPSHOT_REFRESHED`, which reports a batch refresh
+ran, not that any one entity moved meaningfully). See
+`docs/architecture/CONTINUOUS_INTELLIGENCE.md`.
 
 ## 12. Security
 

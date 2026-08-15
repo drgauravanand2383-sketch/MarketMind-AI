@@ -51,6 +51,20 @@ describe("preferences-io", () => {
     expect(useDashboardLayoutStore.getState().hiddenCards).toContain("recent-activity");
   });
 
+  it("round-trips the Milestone 15 market/news/decisions notification domains", () => {
+    usePreferencesStore.getState().toggleNotificationCategory("market");
+    const json = JSON.stringify(buildPreferencesExport());
+    usePreferencesStore.getState().resetAll();
+
+    const result = importPreferencesFromJson(json);
+
+    expect(result.success).toBe(true);
+    expect(usePreferencesStore.getState().notifications.enabledCategories).not.toContain("market");
+    expect(usePreferencesStore.getState().notifications.enabledCategories).toEqual(
+      expect.arrayContaining(["news", "decisions"]),
+    );
+  });
+
   it("rejects invalid JSON entirely, writing nothing", () => {
     usePreferencesStore.getState().setAccentColor("green");
 

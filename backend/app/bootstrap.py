@@ -110,6 +110,12 @@ from app.repositories.alerts.postgres.repository import (
 from app.repositories.alerts.repository import BaseAlertRepository, BaseAlertRuleRepository
 from app.repositories.backtesting.postgres.repository import PostgresBacktestingRepository
 from app.repositories.backtesting.repository import BaseBacktestingRepository
+from app.repositories.continuous_intelligence.postgres.repository import (
+    PostgresContinuousIntelligenceStateRepository,
+)
+from app.repositories.continuous_intelligence.repository import (
+    BaseContinuousIntelligenceStateRepository,
+)
 from app.repositories.explainability.postgres.repository import PostgresExplainabilityRepository
 from app.repositories.explainability.repository import BaseExplainabilityRepository
 from app.repositories.knowledge.repository import BaseKnowledgeRepository
@@ -143,12 +149,33 @@ from app.services.llm.service import LLMService
 from app.services.market_intelligence.engine import MarketIntelligenceEngine
 from app.services.market_snapshot.cache import InMemoryMarketSnapshotCache
 from app.services.market_snapshot.service import MarketSnapshotService
+from app.services.continuous_intelligence.config import ContinuousIntelligenceThresholds
+from app.services.continuous_intelligence.locking import (
+    CycleLock,
+    InMemoryCycleLock,
+    PostgresCycleLock,
+)
+from app.services.continuous_intelligence.service import ContinuousIntelligenceService
+from app.services.continuous_intelligence.state import (
+    ContinuousIntelligenceStateStore,
+    InMemoryContinuousIntelligenceStateStore,
+    PostgresContinuousIntelligenceStateStore,
+)
+from app.services.continuous_intelligence.suppression import (
+    PostgresSuppressionService,
+    Suppression,
+    SuppressionService,
+)
+from app.services.entity_resolution.reference_overlay import (
+    apply_canonical_entity_overlay_from_path,
+)
 from app.services.portfolio_market_snapshot.service import PortfolioMarketSnapshotService
 from app.services.relationship_engine.engine import RelationshipEngine
 from app.signals.engine import SignalDetectionService
 from app.strategy.engine import StrategyEvaluationService
 from app.watchlist.service import WatchlistService
 from app.workflows.engine import WorkflowEngine
+from app.workflows.continuous_intelligence.workflow import ContinuousIntelligenceWorkflow
 from app.workflows.market_data_refresh.workflow import MarketDataRefreshWorkflow
 from app.workflows.morning_pipeline.pipeline import MorningPipeline
 
@@ -197,6 +224,14 @@ __all__ = [
     "build_strategy_service",
     "build_risk_repository",
     "build_risk_service",
+    "build_continuous_intelligence_thresholds",
+    "build_continuous_intelligence_repository",
+    "build_continuous_intelligence_state_store",
+    "build_continuous_intelligence_suppression",
+    "build_continuous_intelligence_lock",
+    "build_continuous_intelligence_service",
+    "build_continuous_intelligence_workflow",
+    "register_continuous_intelligence_schedule",
     "build_backtesting_repository",
     "build_backtesting_service",
     "build_explainability_repository",
@@ -281,6 +316,26 @@ class AppSettings(BaseSettings):
     screening_max_filters: int = 100
     signal_max_conditions: int = 100
     alert_max_rules: int = 100
+    # --- Continuous Intelligence & Decision Automation (Milestone 15) ---
+    # Default disabled, like INGESTION_ENABLED/MARKET_DATA_ENABLED: this
+    # cycle calls the real market provider (via MarketSnapshotService) and
+    # publishes real-time notifications on every run, so upgrading an
+    # existing deployment must never silently start doing either.
+    continuous_intelligence_enabled: bool = False
+    continuous_intelligence_interval_seconds: float = 900.0
+    market_change_threshold: float = 3.0
+    news_significance_threshold: int = 2
+    news_high_confidence_threshold: float = 0.75
+    recommendation_score_delta_threshold: float = 10.0
+    strategy_alignment_delta_threshold: float = 10.0
+    continuous_intelligence_suppression_cooldown_minutes: float = 60.0
+    # Milestone 16 §5/§6: how long a PostgresCycleLock claim is honored
+    # before being treated as abandoned and automatically reclaimed.
+    continuous_intelligence_lock_ttl_seconds: float = 300.0
+    # Milestone 16 §8: optional path to a JSON file of additional
+    # canonical entities to merge into COMPANY_KEYWORDS at startup. Unset
+    # by default — no overlay, zero behavior change from Milestone 15.
+    canonical_entities_overlay_path: str | None = None
 
 
 class InProcessMemory:
@@ -1112,6 +1167,196 @@ def build_risk_service(repository: BaseRiskAnalyticsRepository | None) -> RiskAn
     return RiskAnalyticsService(repository)
 
 
+def build_continuous_intelligence_thresholds(settings: AppSettings) -> ContinuousIntelligenceThresholds:
+    """Build the typed, documented significance thresholds (§3) from
+    `AppSettings` — every field here is a named config value, never an
+    unexplained literal inside a detector."""
+    return ContinuousIntelligenceThresholds(
+        market_change_percent_threshold=settings.market_change_threshold,
+        news_significance_threshold=settings.news_significance_threshold,
+        news_high_confidence_threshold=settings.news_high_confidence_threshold,
+        recommendation_score_delta_threshold=settings.recommendation_score_delta_threshold,
+        strategy_alignment_delta_threshold=settings.strategy_alignment_delta_threshold,
+        suppression_cooldown_minutes=settings.continuous_intelligence_suppression_cooldown_minutes,
+        cycle_lock_ttl_seconds=settings.continuous_intelligence_lock_ttl_seconds,
+    )
+
+
+def build_continuous_intelligence_repository(
+    logger: logging.Logger,
+) -> BaseContinuousIntelligenceStateRepository | None:
+    """Construct a PostgreSQL-backed Continuous Intelligence state
+    repository (Milestone 16 §2-§5), or `None` on any infrastructure
+    failure.
+
+    Same reasoning and same graceful-degradation shape as every other
+    `build_*_repository` function in this module. Unlike the hard
+    dependencies `build_continuous_intelligence_service` requires, this
+    one degrades gracefully at the call site: comparison state,
+    suppression, and cycle locking all fall back to their Milestone 15
+    in-memory equivalents when this returns `None` — persistence is a
+    reliability *enhancement*, not a requirement for the feature to
+    function at all (the system already worked, with weaker
+    restart-survival guarantees, before this milestone).
+    """
+    settings = PostgreSQLSettings()
+    database_url = settings.database_url or (
+        f"postgresql+asyncpg://{settings.user}:{settings.password.get_secret_value()}"
+        f"@{settings.host}:{settings.port}/{settings.db}"
+    )
+    try:
+        engine = create_async_engine(database_url)
+        session_factory = async_sessionmaker(engine, expire_on_commit=False)
+        return PostgresContinuousIntelligenceStateRepository(session_factory)
+    except Exception as exc:  # noqa: BLE001 - an infrastructure failure must not crash startup
+        logger.warning("Failed to initialize PostgreSQL continuous intelligence repository: %s", exc)
+        return None
+
+
+def build_continuous_intelligence_state_store(
+    repository: BaseContinuousIntelligenceStateRepository | None,
+) -> ContinuousIntelligenceStateStore:
+    """Postgres-backed when a repository is available (§2, restart-safe),
+    in-memory otherwise (Milestone 15 behavior, unchanged)."""
+    if repository is None:
+        return InMemoryContinuousIntelligenceStateStore()
+    return PostgresContinuousIntelligenceStateStore(repository)
+
+
+def build_continuous_intelligence_suppression(
+    repository: BaseContinuousIntelligenceStateRepository | None,
+    thresholds: ContinuousIntelligenceThresholds,
+) -> Suppression:
+    """Postgres-backed when a repository is available (§3, restart-safe),
+    in-memory otherwise (Milestone 15 behavior, unchanged)."""
+    if repository is None:
+        return SuppressionService(thresholds.suppression_cooldown_minutes)
+    return PostgresSuppressionService(thresholds.suppression_cooldown_minutes, repository)
+
+
+def build_continuous_intelligence_lock(
+    repository: BaseContinuousIntelligenceStateRepository | None,
+    thresholds: ContinuousIntelligenceThresholds,
+) -> CycleLock:
+    """Postgres-backed (cross-process safe, §5) when a repository is
+    available, an in-process `asyncio.Lock` (same-process only) otherwise —
+    still real protection for the one case that can occur without a
+    durable store (manual trigger racing the scheduler on one process)."""
+    if repository is None:
+        return InMemoryCycleLock()
+    return PostgresCycleLock(repository, lock_ttl_seconds=thresholds.cycle_lock_ttl_seconds)
+
+
+def build_continuous_intelligence_service(
+    *,
+    entity_resolution_service: EntityResolutionService | None,
+    market_snapshot_service: MarketSnapshotService,
+    knowledge_hub: KnowledgeHub | None,
+    signal_detection_service: SignalDetectionService | None,
+    alert_service: AlertService | None,
+    risk_service: RiskAnalyticsService | None,
+    recommendation_service: PortfolioRecommendationService | None,
+    watchlist_service: WatchlistService,
+    settings: AppSettings,
+    strategy_service: StrategyEvaluationService | None = None,
+    continuous_intelligence_repository: BaseContinuousIntelligenceStateRepository | None = None,
+    event_publisher: EventPublisher | None = None,
+) -> ContinuousIntelligenceService | None:
+    """Construct the ContinuousIntelligenceService, or None if any hard
+    dependency is unavailable — the same "don't register something with
+    nothing to do" judgment `build_market_data_refresh_workflow` already
+    applies: with no canonical entities to enumerate
+    (`entity_resolution_service`), or no Signal/Alert/Risk/Recommendation
+    service to detect decision-context changes through, this cycle would
+    do nothing meaningful every run. `strategy_service` is a soft
+    dependency (§12): when `None`, Strategy detection is simply skipped,
+    same as when `knowledge_hub` is `None` for News detection.
+    """
+    if (
+        entity_resolution_service is None
+        or signal_detection_service is None
+        or alert_service is None
+        or risk_service is None
+        or recommendation_service is None
+    ):
+        return None
+    thresholds = build_continuous_intelligence_thresholds(settings)
+    return ContinuousIntelligenceService(
+        entity_resolver=entity_resolution_service,
+        market_snapshot_service=market_snapshot_service,
+        knowledge_hub=knowledge_hub,
+        signal_service=signal_detection_service,
+        alert_service=alert_service,
+        risk_service=risk_service,
+        recommendation_service=recommendation_service,
+        watchlist_service=watchlist_service,
+        strategy_service=strategy_service,
+        thresholds=thresholds,
+        state=build_continuous_intelligence_state_store(continuous_intelligence_repository),
+        suppression=build_continuous_intelligence_suppression(continuous_intelligence_repository, thresholds),
+        lock=build_continuous_intelligence_lock(continuous_intelligence_repository, thresholds),
+        event_publisher=event_publisher,
+    )
+
+
+def build_continuous_intelligence_workflow(
+    service: ContinuousIntelligenceService | None,
+) -> ContinuousIntelligenceWorkflow | None:
+    if service is None:
+        return None
+    return ContinuousIntelligenceWorkflow(service)
+
+
+CONTINUOUS_INTELLIGENCE_WORKFLOW_ID = "continuous_intelligence"
+
+
+def register_continuous_intelligence_schedule(
+    workflow_engine: WorkflowEngine,
+    scheduler: Scheduler,
+    continuous_intelligence_workflow: ContinuousIntelligenceWorkflow | None,
+    settings: AppSettings,
+    logger: logging.Logger,
+) -> None:
+    """Register ContinuousIntelligenceWorkflow with WorkflowEngine and
+    schedule it — the same pattern `register_market_data_schedule`
+    (Milestone 13) already established, including always registering both
+    the workflow (so the operational "run now" trigger,
+    `scripts/run_continuous_intelligence.py`, works regardless of the
+    automatic timer) and the Schedule itself, gated by one
+    `enabled=settings.continuous_intelligence_enabled` switch.
+
+    Must be called before `APSchedulerService.start()` — like every other
+    `register_*_schedule` function, and unlike them, this one also depends
+    on `watchlist_service`/`signal_detection_service`/`alert_service`/
+    `risk_service`/`recommendation_service`/`knowledge_hub` — see
+    `bootstrap_application_state`'s own comment at its `ap_scheduler_
+    service.start()` call site for why that call was moved later to
+    accommodate this.
+    """
+    if continuous_intelligence_workflow is None:
+        logger.info(
+            "Continuous Intelligence not registered: entity_resolution_service or a required "
+            "decision-context service (signal/alert/risk/recommendation) is unavailable."
+        )
+        return
+
+    workflow_engine.register_workflow(CONTINUOUS_INTELLIGENCE_WORKFLOW_ID, continuous_intelligence_workflow)
+    scheduler.register_schedule(
+        Schedule(
+            workflow_id=CONTINUOUS_INTELLIGENCE_WORKFLOW_ID,
+            enabled=settings.continuous_intelligence_enabled,
+            trigger_type=ScheduleTriggerType.INTERVAL,
+            interval_seconds=settings.continuous_intelligence_interval_seconds,
+            initiated_by="scheduler",
+        )
+    )
+    logger.info(
+        "Continuous Intelligence registered (enabled=%s, interval_seconds=%s).",
+        settings.continuous_intelligence_enabled,
+        settings.continuous_intelligence_interval_seconds,
+    )
+
+
 def build_backtesting_repository(logger: logging.Logger) -> BaseBacktestingRepository | None:
     """Construct a PostgreSQL-backed Backtesting Repository.
 
@@ -1373,10 +1618,17 @@ async def bootstrap_application_state(app: FastAPI) -> None:
         event_bus=NoOpEventBus(),
     )
 
-    # `ap_scheduler_service.start()` is deferred until after the ingestion
-    # workflow/schedule are registered below (`register_ingestion_schedule`)
-    # — `APSchedulerService.start()` -> `register_all()` only picks up
-    # schedules already present on `scheduler` at the moment it runs.
+    # `ap_scheduler_service.start()` is deferred until every schedule this
+    # application ever registers is present on `scheduler` —
+    # `APSchedulerService.start()` -> `register_all()` only picks up
+    # schedules already present at the moment it runs. Originally deferred
+    # only past `register_ingestion_schedule`/`register_market_data_schedule`;
+    # Milestone 15's `register_continuous_intelligence_schedule` additionally
+    # depends on `watchlist_service`/`signal_detection_service`/
+    # `alert_service`/`risk_service`/`recommendation_service`/`knowledge_hub`,
+    # all built later — so the actual `.start()` call site has moved to the
+    # end of this function's own service construction, right after
+    # `register_continuous_intelligence_schedule` itself.
     workflow_engine, scheduler, ap_scheduler_service = build_scheduler_infrastructure(logger)
 
     watchlist_repository = build_watchlist_repository(logger)
@@ -1390,6 +1642,14 @@ async def bootstrap_application_state(app: FastAPI) -> None:
     backtesting_repository = build_backtesting_repository(logger)
     explainability_repository = build_explainability_repository(logger)
     auth_repository = build_auth_repository(logger)
+
+    # Milestone 16 §8: must run before the first `get_company_reference_data()`
+    # call in the process — that function memoizes its result on first call,
+    # so applying the overlay any later (including after
+    # `build_entity_resolution_service` below) would silently never take
+    # effect. A no-op when `canonical_entities_overlay_path` is unset.
+    if settings.canonical_entities_overlay_path:
+        apply_canonical_entity_overlay_from_path(settings.canonical_entities_overlay_path, logger)
 
     app.state.settings = settings
     app.state.agent_runtime = runtime
@@ -1423,8 +1683,6 @@ async def bootstrap_application_state(app: FastAPI) -> None:
     register_market_data_schedule(
         workflow_engine, scheduler, app.state.market_data_refresh_workflow, settings, logger
     )
-    if ap_scheduler_service is not None:
-        await ap_scheduler_service.start()
     app.state.prompt_registry = build_prompt_registry()
     app.state.knowledge_hub = build_knowledge_hub(app.state.knowledge_repository)
     app.state.llm_service = build_llm_service(logger)
@@ -1462,6 +1720,29 @@ async def bootstrap_application_state(app: FastAPI) -> None:
     app.state.strategy_service = build_strategy_service(strategy_repository)
     app.state.risk_repository = risk_repository
     app.state.risk_service = build_risk_service(risk_repository)
+    app.state.continuous_intelligence_repository = build_continuous_intelligence_repository(logger)
+    app.state.continuous_intelligence_service = build_continuous_intelligence_service(
+        entity_resolution_service=app.state.entity_resolution_service,
+        market_snapshot_service=app.state.market_snapshot_service,
+        knowledge_hub=app.state.knowledge_hub,
+        signal_detection_service=app.state.signal_detection_service,
+        alert_service=app.state.alert_service,
+        risk_service=app.state.risk_service,
+        recommendation_service=app.state.recommendation_service,
+        watchlist_service=app.state.watchlist_service,
+        settings=settings,
+        strategy_service=app.state.strategy_service,
+        continuous_intelligence_repository=app.state.continuous_intelligence_repository,
+        event_publisher=getattr(app.state, "event_publisher", None),
+    )
+    app.state.continuous_intelligence_workflow = build_continuous_intelligence_workflow(
+        app.state.continuous_intelligence_service
+    )
+    register_continuous_intelligence_schedule(
+        workflow_engine, scheduler, app.state.continuous_intelligence_workflow, settings, logger
+    )
+    if ap_scheduler_service is not None:
+        await ap_scheduler_service.start()
     app.state.backtesting_repository = backtesting_repository
     app.state.backtesting_service = build_backtesting_service(
         backtesting_repository,

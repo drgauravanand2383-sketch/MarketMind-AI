@@ -14,6 +14,13 @@ repository.
 `PortfolioIntelligenceAgent`) is reused exactly as it already existed;
 this milestone only adds new composition and additive fields on top.
 
+**Milestone 15 update**: `PortfolioMarketSnapshotService`/`signal_adapter`
+(this document's own §2/§5) are now also reused by `ContinuousIntelligenceService`
+to detect and proactively notify on market/news/decision changes, on a
+schedule — see `docs/architecture/CONTINUOUS_INTELLIGENCE.md` for the full
+design. Nothing documented below changed; Milestone 15 only adds a new
+consumer of these same services.
+
 ## 1. Architecture — what actually connects, and what doesn't
 
 Before writing any integration code, this milestone inspected the real

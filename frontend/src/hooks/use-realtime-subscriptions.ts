@@ -5,18 +5,38 @@ import type { EventType } from "@/types/websocket";
  * its REST equivalent already requires (`app/api/ws/dependencies/
  * permissions.py`, `docs/architecture/WEBSOCKET_FRAMEWORK.md` §3) — a
  * client without it gets a non-fatal `{type:"error",code:"forbidden"}`.
- * `HEALTH_STATUS_CHANGED` needs authentication only. `event_types: []`
- * (server-side shorthand for "every type") is never sent — it would
- * require broad permission across every type at once, which this
- * frontend must not assume a given user has. */
-const EVENT_TYPE_PERMISSIONS: Record<Exclude<EventType, "HEALTH_STATUS_CHANGED" | "RISK_ASSESSMENT_COMPLETED">, string> = {
+ * `event_types: []` (server-side shorthand for "every type") is never
+ * sent — it would require broad permission across every type at once,
+ * which this frontend must not assume a given user has. */
+const EVENT_TYPE_PERMISSIONS: Record<
+  Exclude<
+    EventType,
+    "HEALTH_STATUS_CHANGED" | "RISK_ASSESSMENT_COMPLETED" | "MARKET_SNAPSHOT_REFRESHED" | "SIGNIFICANT_MARKET_CHANGE" | "SIGNIFICANT_NEWS_UPDATE"
+  >,
+  string
+> = {
   ALERT_GENERATED: "alerts:read",
   BACKTEST_STARTED: "backtest:read",
   BACKTEST_COMPLETED: "backtest:read",
   RECOMMENDATION_GENERATED: "portfolio:read",
   STRATEGY_EVALUATION_COMPLETED: "strategy:read",
   EXPLAINABILITY_COMPLETED: "explainability:read",
+  PORTFOLIO_INTELLIGENCE_UPDATED: "portfolio:read",
+  PORTFOLIO_INTELLIGENCE_CHANGED: "portfolio:read",
 };
+
+/** Needs authentication only, no specific permission — mirrors the
+ * backend's own `_EVENT_TYPE_PERMISSIONS` unmapped entries exactly
+ * (`app/api/ws/dependencies/permissions.py`): `HEALTH_STATUS_CHANGED`
+ * (public, like `GET /health`), and Milestone 14/15's `MARKET_SNAPSHOT_
+ * REFRESHED`/`SIGNIFICANT_MARKET_CHANGE`/`SIGNIFICANT_NEWS_UPDATE` (no
+ * per-portfolio scope, no REST source to inherit a permission from). */
+const UNGATED_EVENT_TYPES: EventType[] = [
+  "HEALTH_STATUS_CHANGED",
+  "MARKET_SNAPSHOT_REFRESHED",
+  "SIGNIFICANT_MARKET_CHANGE",
+  "SIGNIFICANT_NEWS_UPDATE",
+];
 
 /** Mirrors `useVisibleFeatureItems` (`src/layouts/sidebar.tsx`) exactly
  * — filters a fixed candidate list by the current user's permissions.
@@ -36,5 +56,5 @@ export function useRealtimeSubscriptions(): EventType[] {
   const gated = (Object.keys(EVENT_TYPE_PERMISSIONS) as (keyof typeof EVENT_TYPE_PERMISSIONS)[]).filter((type) =>
     permissions.includes(EVENT_TYPE_PERMISSIONS[type]),
   );
-  return ["HEALTH_STATUS_CHANGED", ...gated];
+  return [...UNGATED_EVENT_TYPES, ...gated];
 }

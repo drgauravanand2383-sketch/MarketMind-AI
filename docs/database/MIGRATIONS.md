@@ -15,18 +15,38 @@ backend/
     env.py                  Migration environment (async, reuses PostgreSQLSettings)
     script.py.mako           Template for new revisions
     versions/
-      0001_baseline_schema.py   Baseline: every table, as of Sprint 54
-      0002_auth_schema.py       Auth tables (Sprint 56's framework), added
-                                 after `0001` shipped without them — see
-                                 that revision's own docstring
+      0001_baseline_schema.py       Baseline: every table, as of Sprint 54
+      0002_auth_schema.py           Auth tables (Sprint 56's framework), added
+                                     after `0001` shipped without them — see
+                                     that revision's own docstring
+      0003_risk_market_data_coverage.py
+                                     Milestone 14: adds the nullable
+                                     `market_data_coverage` JSON column to
+                                     `risk_assessments`
+      0004_strategy_linkage.py      Milestone 16 §12: adds the nullable
+                                     `recommendation_result_id` column to
+                                     `strategy_evaluation_results`, letting a
+                                     stored strategy evaluation be traced back
+                                     to the portfolio that produced it
+      0005_ci_persistence.py        Milestone 16 §2-§5: creates
+                                     `continuous_intelligence_state` — one
+                                     generic `(domain, key)` table serving
+                                     Continuous Intelligence's durable
+                                     comparison state, suppression records,
+                                     and cycle-lock claims
 ```
+
+Current head: `0005_ci_persistence`. Every migration is column/table-existence-checked (never assumed) and is exercised by a real Alembic upgrade/downgrade cycle in `tests/operations/` — see
+`tests/operations/test_alembic_environment.py` and
+`tests/operations/test_continuous_intelligence_persistence_migration.py`.
 
 ## Why `target_metadata` is a *list*, not one `MetaData`
 
-This codebase has **eleven independent `DeclarativeBase` subclasses** — one
+This codebase has **twelve independent `DeclarativeBase` subclasses** — one
 per repository package (`app.repositories.alerts.postgres.models.Base`,
 `app.repositories.risk.postgres.models.Base`, `app.auth.repositories
-.postgres.models.Base`, and so on) — not a single shared `Base`.
+.postgres.models.Base`, `app.repositories.continuous_intelligence.postgres
+.models.Base` (Milestone 16), and so on) — not a single shared `Base`.
 `app/operations/migrations/discovery.py::collect_metadata()` is the single
 place that list is defined; both `alembic/env.py` and
 `app.operations.validation.startup.StartupValidationService`'s "model
@@ -113,6 +133,33 @@ alembic downgrade base
 # Generate a new revision (after changing a repository's ORM models)
 alembic revision --autogenerate -m "describe the change"
 ```
+
+## Known operational fix from Milestone 16: revision id length
+
+Alembic's own `alembic_version.version_num` tracking column is
+`VARCHAR(32)` by default — not something this codebase configures, an
+Alembic built-in. A revision id longer than 32 characters is accepted
+silently by SQLite (no length enforcement, so every SQLite-backed
+migration test in this codebase's own suite passes regardless) but fails
+against a real PostgreSQL database with `StringDataRightTruncationError`
+the moment Alembic tries to record the new revision.
+
+This actually happened during Milestone 16's live Docker acceptance
+testing: the two new migrations were first authored as
+`0004_strategy_recommendation_linkage` (36 characters) and
+`0005_continuous_intelligence_persistence` (40 characters), both over the
+limit, and both passed every local test before failing on the first real
+`alembic upgrade head` against Postgres. They were renamed to
+`0004_strategy_linkage` and `0005_ci_persistence` (21 and 19 characters).
+
+A permanent regression guard now exists for this:
+`tests/operations/test_alembic_environment.py
+::test_every_migration_revision_id_fits_the_alembic_version_column`
+enumerates every migration via `alembic.script.ScriptDirectory` and
+asserts each revision id is ≤32 characters — so a future migration
+authored with a name that's too long fails immediately in the normal
+SQLite-backed test suite, without needing a live Postgres run to
+discover it. **Keep every future revision id at 32 characters or fewer.**
 
 ## Known operational fix from Sprint 54
 

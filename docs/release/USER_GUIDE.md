@@ -106,6 +106,9 @@ rather than silently failing.
 
 ## What this application does not do
 
-This is a market *intelligence* platform, not a trading one — there is
-no live market data feed, no broker integration, and no order
-execution anywhere in the app (`docs/release/KNOWN_LIMITATIONS.md`).
+This is a market *intelligence* platform, not a trading one. Live
+market data (Yahoo Finance, added post-v1.0 in Milestone 13) informs
+prices, risk, and recommendations — but there is no broker integration
+and no order execution anywhere in the app: nothing in MarketMind AI
+ever places, modifies, or cancels a real trade
+(`docs/release/KNOWN_LIMITATIONS.md`).

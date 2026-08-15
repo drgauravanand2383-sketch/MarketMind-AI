@@ -282,3 +282,100 @@ for the full design. Its own known limitations:
 - Every Milestone 13 market-data limitation above (single provider,
   in-memory cache, no persisted history) applies unchanged — this
   milestone adds no new provider or cache.
+
+## Continuous Intelligence & Decision Automation (Milestone 15, post-v1.0)
+
+Not part of v1.0.0 — see `docs/architecture/CONTINUOUS_INTELLIGENCE.md`
+for the full design. Its own known limitations (several resolved by
+Milestone 16 — see that section below):
+
+- ~~Strategy state transitions are not detected automatically.~~
+  **Resolved in Milestone 16** — see below.
+- **Risk/Recommendation changes require something else to have already
+  recomputed them.** This milestone never calls `assess_portfolio()`/
+  `generate_recommendations()` itself — no automatic evidence-sourcing
+  pipeline exists anywhere in this codebase to feed them. A portfolio
+  whose risk/recommendations are never recomputed by any existing
+  pathway (user action or otherwise) will never produce a decision-context
+  notification, no matter how long the scheduled cycle runs. **Still true
+  in Milestone 16** — out of scope for a reliability-hardening milestone.
+- **No per-user watchlist ownership, still.** Same pre-existing
+  characteristic Milestone 14 already documented — scope is enforced by
+  permission + `correlation_id` only, not a new ownership model (adding
+  one would be an architecture redesign, out of scope for this milestone).
+- ~~In-memory previous-state and suppression tracking, lost on restart.~~
+  **Resolved when PostgreSQL is reachable, in Milestone 16** — see below;
+  remains true only when no durable repository is configured.
+- **Multi-replica event fan-out remains per-process.** Milestone 16 adds
+  cross-process cycle locking and durable suppression (below), so two
+  replicas no longer both run a cycle or both emit the same duplicate —
+  but WebSocket delivery itself is still per-process: a notification
+  published by the replica that ran the cycle only reaches clients
+  connected to *that* replica, not clients connected to a different one.
+  No distributed event bus was introduced (explicitly out of scope).
+
+## Continuous Intelligence — Persistence & Reliability (Milestone 16, post-v1.0)
+
+Not part of v1.0.0 — see
+`docs/architecture/CONTINUOUS_INTELLIGENCE_PERSISTENCE.md` for the full
+design. Hardens Milestone 15 against restart, duplicate execution, and
+scheduler/process overlap. Its own known limitations:
+
+- **State/suppression/locking are in-memory-only, and thus restart-unsafe
+  and single-process-only, whenever no PostgreSQL repository is reachable
+  at startup.** This is a graceful degradation (the system still
+  functions, exactly as it did in Milestone 15), not a silent failure —
+  `scripts/inspect_continuous_intelligence.py` reports
+  `"status": "in_memory_only"` explicitly in this configuration.
+- **Risk/Recommendation/Strategy changes still require something else to
+  have already recomputed them** — unchanged from Milestone 15, this
+  milestone hardens reliability, not evidence-sourcing.
+- **No distributed event bus / multi-region infrastructure** — explicitly
+  out of scope (§24). Cross-process *coordination* (locking, durable
+  suppression) is now provided; cross-process *event delivery* to
+  clients connected to a different replica is not — see the Milestone 15
+  entry above.
+- **No per-user watchlist ownership was introduced** — same as Milestone
+  15's entry; the strategy-linkage fix (§12) traces a stored evaluation
+  back to `RecommendationRequest.watchlist_ids` via existing references,
+  never a new ownership model.
+- **The canonical-entity overlay mechanism (§8) does not fetch from any
+  external company/security master** — it only validates and merges
+  operator-supplied, already-real company data from a local JSON file. A
+  future external reference source (e.g. a real security master API)
+  would need its own, separate milestone; this one only builds the
+  configuration seam, not an integration.
+
+## Production Hardening & v1.1 Release Candidate (Milestone 17, post-v1.0)
+
+Not part of v1.0.0 — see `docs/release/RELEASE_CHECKLIST_V1_1.md` for the
+full verification record. This is explicitly the final planned
+engineering milestone for the v1.1 line — no new feature milestone is
+planned after it. Its own known limitations:
+
+- **A fresh/recreated container's first embedding-dependent operation is
+  slow.** The local embedding provider's ONNX model
+  (`all-MiniLM-L6-v2`, ~79MB) caches to `~/.cache/chroma/onnx_models/`
+  inside the container, which is **not** part of the persistent
+  `backend_chroma_cache` named volume (that volume only mounts
+  `/app/data/cache`) — so every freshly-recreated container (not just
+  every image rebuild) re-downloads the model on first use, observed
+  live this milestone to extend one Continuous Intelligence cycle from
+  the usual ~90-100s to several minutes. Not a functional defect (the
+  cycle still completed correctly, zero failures); fixing it would mean
+  changing the Docker volume/cache layout, judged out of scope for this
+  release-hardening pass (no speculative rewrites, per this milestone's
+  own instruction) — a real, evidence-backed candidate for a future
+  Docker-layer improvement, not a code change.
+- **Research and Portfolio Intelligence require a real `ANTHROPIC_API_KEY`
+  to function past authentication/routing** — unchanged, pre-existing
+  behavior (documented since v1.0.0), reconfirmed this milestone: with
+  the placeholder key, the LLM call fails with a clean `401`, never a
+  crash, and every other endpoint remains unaffected.
+- **Version strings** (`backend/pyproject.toml`, `frontend/package.json`,
+  the FastAPI app's own `version="1.0.0"`) were deliberately **not**
+  bumped this milestone — a genuine release decision left to whoever
+  performs the actual v1.1 tagging step, not a verification gap.
+- Every Milestone 15/16 limitation listed above remains true and
+  unchanged — this milestone is verification and hardening, not new
+  capability.

@@ -31,7 +31,9 @@ const DEFAULT_CHARTS: ChartPreferences = {
   showDataLabels: false,
 };
 
-const ALL_NOTIFICATION_DOMAINS: NotificationDomain[] = ["alerts", "backtests", "recommendations", "strategy", "explainability", "health"];
+const ALL_NOTIFICATION_DOMAINS: NotificationDomain[] = [
+  "alerts", "backtests", "recommendations", "strategy", "explainability", "health", "market", "news", "decisions",
+];
 
 const DEFAULT_NOTIFICATIONS: NotificationPreferences = {
   toastDurationMs: 6_000,

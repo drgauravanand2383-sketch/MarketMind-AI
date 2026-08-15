@@ -1,8 +1,9 @@
 import type { Alert } from "@/types/alerts";
 import type { BacktestResult, BacktestRun } from "@/types/backtesting";
+import type { DetectedChange } from "@/types/continuous-intelligence";
 import type { ExplainabilityResult } from "@/types/explainability";
 import type { ApplicationHealth } from "@/types/health";
-import type { RecommendationResult, RiskAssessment } from "@/types/portfolio";
+import type { MarketDataRefreshResult, PortfolioIntelligenceReport, RecommendationResult, RiskAssessment } from "@/types/portfolio";
 import type { StrategyEvaluationResult } from "@/types/strategy";
 
 /**
@@ -20,7 +21,12 @@ export type EventType =
   | "STRATEGY_EVALUATION_COMPLETED"
   | "RISK_ASSESSMENT_COMPLETED"
   | "EXPLAINABILITY_COMPLETED"
-  | "HEALTH_STATUS_CHANGED";
+  | "HEALTH_STATUS_CHANGED"
+  | "MARKET_SNAPSHOT_REFRESHED"
+  | "PORTFOLIO_INTELLIGENCE_UPDATED"
+  | "SIGNIFICANT_MARKET_CHANGE"
+  | "SIGNIFICANT_NEWS_UPDATE"
+  | "PORTFOLIO_INTELLIGENCE_CHANGED";
 
 export interface EventMetadata {
   connection_id: string;
@@ -52,6 +58,11 @@ export interface BaseEvent<TPayload = unknown> {
  * (confirmed gap, `docs/architecture/WEBSOCKET_FRAMEWORK.md` §8). It is
  * never subscribed to (`hooks/use-realtime-subscriptions.ts`) and never
  * surfaces in the Notification Center.
+ *
+ * Milestone 14 added `MARKET_SNAPSHOT_REFRESHED`/`PORTFOLIO_INTELLIGENCE_
+ * UPDATED`; Milestone 15 added `SIGNIFICANT_MARKET_CHANGE`/
+ * `SIGNIFICANT_NEWS_UPDATE`/`PORTFOLIO_INTELLIGENCE_CHANGED` — all five
+ * are real, published events (unlike `RISK_ASSESSMENT_COMPLETED` above).
  */
 export type DomainEvent =
   | (BaseEvent<Alert> & { event_type: "ALERT_GENERATED" })
@@ -61,7 +72,12 @@ export type DomainEvent =
   | (BaseEvent<StrategyEvaluationResult> & { event_type: "STRATEGY_EVALUATION_COMPLETED" })
   | (BaseEvent<RiskAssessment> & { event_type: "RISK_ASSESSMENT_COMPLETED" })
   | (BaseEvent<ExplainabilityResult> & { event_type: "EXPLAINABILITY_COMPLETED" })
-  | (BaseEvent<ApplicationHealth> & { event_type: "HEALTH_STATUS_CHANGED" });
+  | (BaseEvent<ApplicationHealth> & { event_type: "HEALTH_STATUS_CHANGED" })
+  | (BaseEvent<MarketDataRefreshResult> & { event_type: "MARKET_SNAPSHOT_REFRESHED" })
+  | (BaseEvent<PortfolioIntelligenceReport> & { event_type: "PORTFOLIO_INTELLIGENCE_UPDATED" })
+  | (BaseEvent<DetectedChange> & { event_type: "SIGNIFICANT_MARKET_CHANGE" })
+  | (BaseEvent<DetectedChange> & { event_type: "SIGNIFICANT_NEWS_UPDATE" })
+  | (BaseEvent<DetectedChange> & { event_type: "PORTFOLIO_INTELLIGENCE_CHANGED" });
 
 // --- Outbound (server -> client) -----------------------------------------------------------
 

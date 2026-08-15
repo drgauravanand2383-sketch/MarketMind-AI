@@ -248,6 +248,50 @@ async def test_market_data_schedule_reflects_market_data_enabled_setting(monkeyp
         await shutdown_application_state(app)
 
 
+async def test_bootstrap_registers_the_continuous_intelligence_workflow_and_schedule() -> None:
+    from app.bootstrap import CONTINUOUS_INTELLIGENCE_WORKFLOW_ID
+
+    app = FastAPI()
+    await bootstrap_application_state(app)
+
+    try:
+        assert CONTINUOUS_INTELLIGENCE_WORKFLOW_ID in app.state.workflow_engine.list_workflows()
+        schedules = {s.workflow_id: s for s in app.state.scheduler.list_schedules()}
+        assert CONTINUOUS_INTELLIGENCE_WORKFLOW_ID in schedules
+        # CONTINUOUS_INTELLIGENCE_ENABLED defaults to False, same rationale
+        # as INGESTION_ENABLED/MARKET_DATA_ENABLED.
+        assert schedules[CONTINUOUS_INTELLIGENCE_WORKFLOW_ID].enabled is app.state.settings.continuous_intelligence_enabled
+        assert schedules[CONTINUOUS_INTELLIGENCE_WORKFLOW_ID].enabled is False
+    finally:
+        await shutdown_application_state(app)
+
+
+async def test_continuous_intelligence_schedule_reflects_enabled_setting(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setenv("CONTINUOUS_INTELLIGENCE_ENABLED", "true")
+    app = FastAPI()
+    await bootstrap_application_state(app)
+
+    try:
+        from app.bootstrap import CONTINUOUS_INTELLIGENCE_WORKFLOW_ID
+
+        schedules = {s.workflow_id: s for s in app.state.scheduler.list_schedules()}
+        assert schedules[CONTINUOUS_INTELLIGENCE_WORKFLOW_ID].enabled is True
+    finally:
+        await shutdown_application_state(app)
+
+
+async def test_bootstrap_wires_continuous_intelligence_service() -> None:
+    from app.services.continuous_intelligence.service import ContinuousIntelligenceService
+
+    app = FastAPI()
+    await bootstrap_application_state(app)
+
+    try:
+        assert isinstance(app.state.continuous_intelligence_service, ContinuousIntelligenceService)
+    finally:
+        await shutdown_application_state(app)
+
+
 async def test_bootstrap_wires_market_data_provider_and_snapshot_service() -> None:
     from app.providers.market_data.mock import MockMarketDataProvider
     from app.services.market_snapshot.service import MarketSnapshotService

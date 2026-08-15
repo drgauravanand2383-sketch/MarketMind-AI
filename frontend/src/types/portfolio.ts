@@ -108,6 +108,19 @@ export interface MarketSnapshotResult {
   reason: string;
 }
 
+/** Mirrors `app.workflows.market_data_refresh.models.MarketDataRefreshResult`
+ * — the `MARKET_SNAPSHOT_REFRESHED` WS event payload (Milestone 14). */
+export interface MarketDataRefreshResult {
+  execution_id: string;
+  started_at: string;
+  completed_at: string;
+  entities_requested: number;
+  fresh_count: number;
+  stale_count: number;
+  unavailable_count: number;
+  results: MarketSnapshotResult[];
+}
+
 /** Mirrors `app.risk.models.MarketDataCoverageStatus`. */
 export type MarketDataCoverageStatus = "NOT_EVALUATED" | "NONE" | "PARTIAL" | "FULL";
 

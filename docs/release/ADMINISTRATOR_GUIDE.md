@@ -75,10 +75,68 @@ backend/ops task, not a self-service one.
 - Backups: standard PostgreSQL backup/restore practice (`pg_dump`/
   `pg_restore`, or your managed database provider's own snapshot
   mechanism) — this application does not provide its own backup
-  tooling.
+  tooling, and Milestone 17 does not introduce any managed backup
+  infrastructure. The procedure below is the exact sequence verified
+  live during Milestone 17's own release-hardening pass (real dump,
+  real restore into a separate database, real application startup
+  against the restored copy — not a syntax check).
+
+  **Create a backup** (custom format, compressed, portable across
+  PostgreSQL versions via `pg_restore`):
+  ```bash
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+      exec postgres pg_dump -U marketmind -d marketmind -Fc \
+      -f /tmp/marketmind_backup.dump
+  docker cp marketmind-postgres:/tmp/marketmind_backup.dump ./marketmind_backup.dump
+  ```
+  Store `marketmind_backup.dump` somewhere durable *outside* the Docker
+  host (the named `postgres_data` volume and the host filesystem can
+  fail together) — this application does not do that for you.
+
+  **Restore to a clean instance** (verify a backup is actually usable
+  *before* you need it — restoring to a scratch database, never
+  directly overwriting a live one):
+  ```bash
+  # Against a fresh/scratch PostgreSQL instance:
+  createdb -U marketmind marketmind_restore_check
+  pg_restore -U marketmind -d marketmind_restore_check --no-owner --no-privileges \
+      ./marketmind_backup.dump
+  ```
+  Then confirm two things before trusting the backup:
+  1. **Alembic state is correct**: `SELECT version_num FROM alembic_version;`
+     must show your expected head revision (`0005_ci_persistence` as of
+     Milestone 16) — a dump taken mid-migration or from an
+     inconsistent snapshot would show something else or fail to restore
+     at all.
+  2. **The application actually starts against it**: point `DATABASE_URL`
+     at the restored database and run any read-only operational script,
+     e.g. `DATABASE_URL=postgresql+asyncpg://... python
+     scripts/inspect_continuous_intelligence.py` — a clean JSON report
+     (not a bootstrap traceback) confirms every repository/service
+     constructs correctly against the restored schema and data, not just
+     that the SQL replayed without error.
+
+  **Recovery** (restoring a live deployment after real data loss): stop
+  the backend (so nothing writes during restore), restore the dump into
+  the real `postgres_data`-backed database exactly as above but pointed
+  at the live instance, run `alembic current` to confirm the head
+  matches what the running application code expects, then start the
+  backend. If the backup predates the current application version's
+  migrations, run `alembic upgrade head` before starting the backend —
+  never after.
 - `alembic downgrade <revision>` is supported for every revision but is
   destructive to any data added since — a last resort, not routine
   rollback (`docs/release/UPGRADE_POLICY.md`).
+
+## Scheduled workflows & operational scripts
+
+Post-v1.0.0 (Milestones 11-16) added background schedules (Ingestion,
+Market Data Refresh, Continuous Intelligence, ...) and matching
+container-exec-only manual-trigger/diagnostic scripts, including
+`scripts/inspect_continuous_intelligence.py` (read-only — safe to run
+any time). See `docs/release/OPERATIONAL_RUNBOOK.md`'s "Scheduled
+workflows & operational scripts" section for the full list, settings,
+and usage.
 
 ## Restarting / scaling
 

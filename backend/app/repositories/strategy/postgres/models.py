@@ -53,3 +53,7 @@ class StrategyEvaluationResultModel(Base):
     best_strategy: Mapped[str | None] = mapped_column(String, nullable=True)
     strategy_matches: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
     summary: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    # Milestone 16 §12: nullable/additive, same shape and rationale as
+    # `RiskAssessmentModel.market_data_coverage` (Milestone 14 §5) — see
+    # `app.strategy.models.StrategyEvaluationResult.recommendation_result_id`.
+    recommendation_result_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)

@@ -1,8 +1,9 @@
 import type { MetadataResponse, SuccessResponse } from "@/types/api";
 import type { AuthenticationResponse, User } from "@/types/auth";
+import type { DetectedChange } from "@/types/continuous-intelligence";
 import type { ApplicationHealth, ReadinessStatus, VersionResponse } from "@/types/health";
 import type { Watchlist, WatchlistItem, WatchlistStatistics } from "@/types/watchlist";
-import type { PortfolioIntelligenceReport, RecommendationCandidate, RecommendationResult, RiskAssessment } from "@/types/portfolio";
+import type { MarketDataRefreshResult, PortfolioIntelligenceReport, RecommendationCandidate, RecommendationResult, RiskAssessment } from "@/types/portfolio";
 import type { CompanyResearchReport } from "@/types/research";
 import type { ScreenFilter, ScreeningProfile, ScreenResult } from "@/types/screening";
 import type { Alert } from "@/types/alerts";
@@ -283,6 +284,36 @@ export function buildRecommendationResult(overrides: Partial<RecommendationResul
 
 export function buildRiskAssessment(overrides: Partial<RiskAssessment> = {}): RiskAssessment {
   return { ...testRiskAssessment, ...overrides };
+}
+
+export function buildDetectedChange(overrides: Partial<DetectedChange> = {}): DetectedChange {
+  return {
+    fingerprint: "MARKET:dell:price",
+    domain: "MARKET",
+    entity_id: "dell",
+    label: "Dell",
+    priority: "HIGH",
+    summary: "Dell moved up 5.2% to $500.00.",
+    previous_value: "475.00",
+    current_value: "500.00",
+    portfolio_id: null,
+    detected_at: "2026-08-15T00:00:00Z",
+    ...overrides,
+  };
+}
+
+export function buildMarketDataRefreshResult(overrides: Partial<MarketDataRefreshResult> = {}): MarketDataRefreshResult {
+  return {
+    execution_id: "exec-1",
+    started_at: "2026-08-15T00:00:00Z",
+    completed_at: "2026-08-15T00:00:05Z",
+    entities_requested: 12,
+    fresh_count: 12,
+    stale_count: 0,
+    unavailable_count: 0,
+    results: [],
+    ...overrides,
+  };
 }
 
 export function buildStrategyEvaluationResult(overrides: Partial<StrategyEvaluationResult> = {}): StrategyEvaluationResult {

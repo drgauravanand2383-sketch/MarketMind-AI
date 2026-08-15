@@ -183,6 +183,26 @@ or above `medium_threshold`, capped at `ENTITY_MAX_CANDIDATES`). The
 knowledge record is never duplicated per company — `secondary_entity_ids`
 is stored as one comma-joined string field on the same record.
 
+**Extended post-v1.0 (Milestone 16 §8/§9)**: the canonical company set
+(`COMPANY_KEYWORDS` + `_ADDITIONAL_FACTS`) was, until now, only
+extensible by editing those two source files directly. An optional,
+operator-supplied JSON overlay file (`CANONICAL_ENTITIES_OVERLAY_PATH`,
+`app/services/entity_resolution/reference_overlay.py`) can add
+*additional real companies* at startup, merged into the same
+`COMPANY_KEYWORDS` dict every consumer here already reads — never a
+second, parallel entity model, and no default overlay ships (the base 12
+companies remain the only ones present unless configured). Every entry is
+validated: collision with an existing `entity_id`/`ticker`/`canonical_name`
+is rejected outright, and any alias/canonical name under 3 characters or
+matching a small generic-business-word stoplist (`"group"`, `"corp"`,
+`"holdings"`, ...) is rejected — the alias-governance concern §4/§5's
+own case-sensitive-ticker-matching safeguard already exists to avoid,
+enforced here at configuration-load time instead. A malformed or invalid
+overlay is logged and skipped, never crashes startup. See
+`docs/architecture/CONTINUOUS_INTELLIGENCE_PERSISTENCE.md` §8 for the
+full design. `EntityResolutionService`'s own scoring algorithm is
+unchanged — deterministic, no ML model.
+
 ## 7. Knowledge Hub enrichment
 
 `KnowledgeIngestionService` gained an optional `entity_resolver`

@@ -23,6 +23,9 @@ from sqlalchemy import MetaData
 from app.auth.repositories.postgres.models import Base as AuthBase
 from app.repositories.alerts.postgres.models import Base as AlertsBase
 from app.repositories.backtesting.postgres.models import Base as BacktestingBase
+from app.repositories.continuous_intelligence.postgres.models import (
+    Base as ContinuousIntelligenceBase,
+)
 from app.repositories.explainability.postgres.models import Base as ExplainabilityBase
 from app.repositories.knowledge.postgres.models import Base as KnowledgeBase
 from app.repositories.recommendations.postgres.models import Base as RecommendationsBase
@@ -38,6 +41,7 @@ _BASES: tuple[type, ...] = (
     AlertsBase,
     AuthBase,
     BacktestingBase,
+    ContinuousIntelligenceBase,
     ExplainabilityBase,
     KnowledgeBase,
     RecommendationsBase,

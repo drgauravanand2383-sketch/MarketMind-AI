@@ -47,7 +47,7 @@ actual frontend origin(s), not `localhost`).
 
 ```bash
 alembic upgrade head
-alembic current   # should report 0002_auth_schema (head)
+alembic current   # should report 0005_ci_persistence (head)
 ```
 
 Migrations are async and idempotent — see

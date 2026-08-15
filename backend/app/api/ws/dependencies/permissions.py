@@ -20,6 +20,7 @@ _EVENT_TYPE_PERMISSIONS: dict[EventType, str] = {
     EventType.RISK_ASSESSMENT_COMPLETED: "portfolio:read",
     EventType.EXPLAINABILITY_COMPLETED: "explainability:read",
     EventType.PORTFOLIO_INTELLIGENCE_UPDATED: "portfolio:read",
+    EventType.PORTFOLIO_INTELLIGENCE_CHANGED: "portfolio:read",
     # HEALTH_STATUS_CHANGED intentionally absent: any authenticated
     # connection may subscribe, matching the unauthenticated-but-public
     # posture of GET /health itself (Sprint 55).
@@ -29,6 +30,15 @@ _EVENT_TYPE_PERMISSIONS: dict[EventType, str] = {
     # every canonical entity system-wide (the same set `GET /capabilities`
     # already reports unauthenticated), so any authenticated connection
     # may subscribe.
+    # SIGNIFICANT_MARKET_CHANGE / SIGNIFICANT_NEWS_UPDATE (Milestone 15)
+    # intentionally absent too, for the same reason as MARKET_SNAPSHOT_
+    # REFRESHED: both describe a canonical entity's public price/news
+    # state, not portfolio-specific data — even when Decision Impact (§7)
+    # attaches a portfolio_id for correlation, the payload itself carries
+    # no information a user's own portfolio membership would need to
+    # protect. PORTFOLIO_INTELLIGENCE_CHANGED is different and IS mapped
+    # above: its payload is always about a specific portfolio's Risk/
+    # Recommendation/Strategy/Signal state.
 }
 
 

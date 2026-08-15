@@ -69,6 +69,7 @@ def evaluation_to_model(result: StrategyEvaluationResult) -> StrategyEvaluationR
         best_strategy=result.best_strategy,
         strategy_matches=[m.model_dump(mode="json") for m in result.strategy_matches],
         summary=result.summary.model_dump(mode="json"),
+        recommendation_result_id=result.recommendation_result_id,
     )
 
 
@@ -81,4 +82,5 @@ def model_to_evaluation(model: StrategyEvaluationResultModel) -> StrategyEvaluat
         best_strategy=model.best_strategy,
         strategy_matches=tuple(StrategyMatch.model_validate(m) for m in model.strategy_matches),
         summary=StrategySummary.model_validate(model.summary),
+        recommendation_result_id=model.recommendation_result_id,
     )

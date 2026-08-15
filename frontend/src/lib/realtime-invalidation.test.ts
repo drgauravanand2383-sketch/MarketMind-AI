@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { QueryClient } from "@tanstack/react-query";
 import { invalidateForEvent } from "@/lib/realtime-invalidation";
 import { buildDomainEvent } from "@/test/mock-websocket";
-import { testApplicationHealth, buildAlert, buildBacktestResult, buildBacktestRun, buildExplainabilityResult, buildRecommendationResult, buildRiskAssessment, buildStrategyEvaluationResult } from "@/test/msw/fixtures";
+import { testApplicationHealth, buildAlert, buildBacktestResult, buildBacktestRun, buildDetectedChange, buildExplainabilityResult, buildMarketDataRefreshResult, buildRecommendationResult, buildRiskAssessment, buildStrategyEvaluationResult, testPortfolioIntelligenceReport } from "@/test/msw/fixtures";
 
 function fakeQueryClient(): { invalidateQueries: ReturnType<typeof vi.fn>; asQueryClient: QueryClient } {
   const invalidateQueries = vi.fn();
@@ -57,5 +57,41 @@ describe("invalidateForEvent", () => {
     const { invalidateQueries, asQueryClient } = fakeQueryClient();
     invalidateForEvent(asQueryClient, buildDomainEvent("RISK_ASSESSMENT_COMPLETED", buildRiskAssessment()));
     expect(invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it("is a no-op for MARKET_SNAPSHOT_REFRESHED (portfolio-agnostic, no cache to target)", () => {
+    const { invalidateQueries, asQueryClient } = fakeQueryClient();
+    invalidateForEvent(asQueryClient, buildDomainEvent("MARKET_SNAPSHOT_REFRESHED", buildMarketDataRefreshResult()));
+    expect(invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it("invalidates the portfolio intelligence cache on PORTFOLIO_INTELLIGENCE_UPDATED", () => {
+    const { invalidateQueries, asQueryClient } = fakeQueryClient();
+    invalidateForEvent(asQueryClient, buildDomainEvent("PORTFOLIO_INTELLIGENCE_UPDATED", testPortfolioIntelligenceReport, { correlation_id: "wl-1" }));
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["portfolio", "intelligence", "wl-1"] });
+  });
+
+  it("invalidates the portfolio intelligence cache on SIGNIFICANT_MARKET_CHANGE when portfolio-scoped", () => {
+    const { invalidateQueries, asQueryClient } = fakeQueryClient();
+    invalidateForEvent(asQueryClient, buildDomainEvent("SIGNIFICANT_MARKET_CHANGE", buildDetectedChange({ portfolio_id: "wl-1" })));
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["portfolio", "intelligence", "wl-1"] });
+  });
+
+  it("is a no-op for SIGNIFICANT_NEWS_UPDATE when no portfolio is impacted", () => {
+    const { invalidateQueries, asQueryClient } = fakeQueryClient();
+    invalidateForEvent(asQueryClient, buildDomainEvent("SIGNIFICANT_NEWS_UPDATE", buildDetectedChange({ portfolio_id: null })));
+    expect(invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it("invalidates the risk cache on PORTFOLIO_INTELLIGENCE_CHANGED with domain RISK", () => {
+    const { invalidateQueries, asQueryClient } = fakeQueryClient();
+    invalidateForEvent(asQueryClient, buildDomainEvent("PORTFOLIO_INTELLIGENCE_CHANGED", buildDetectedChange({ domain: "RISK", portfolio_id: "wl-1" })));
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["portfolio", "risk", "wl-1"] });
+  });
+
+  it("invalidates the recommendations cache on PORTFOLIO_INTELLIGENCE_CHANGED with domain RECOMMENDATION", () => {
+    const { invalidateQueries, asQueryClient } = fakeQueryClient();
+    invalidateForEvent(asQueryClient, buildDomainEvent("PORTFOLIO_INTELLIGENCE_CHANGED", buildDetectedChange({ domain: "RECOMMENDATION", portfolio_id: "wl-1" })));
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["portfolio", "recommendations", "wl-1"] });
   });
 });

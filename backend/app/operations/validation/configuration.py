@@ -93,6 +93,8 @@ class ConfigurationValidationService:
             self._check_no_duplicates("rss.feed_urls", rss.feed_urls),
             self._check_not_default_secret("postgres.password", postgres.password.get_secret_value()),
             self._check_not_default_secret("auth.secret_key", auth.secret_key.get_secret_value()),
+            self._check_secret_not_default_in_production("postgres.password", postgres.password.get_secret_value(), environment),
+            self._check_secret_not_default_in_production("auth.secret_key", auth.secret_key.get_secret_value(), environment),
             self._check_valid_urls("rss.feed_urls", rss.feed_urls),
             self._check_known_provider("llm.provider", llm.provider, self._known_llm_providers),
         ]
@@ -162,6 +164,38 @@ class ConfigurationValidationService:
             passed=not is_default,
             severity=ValidationSeverity.WARNING,
             message="not a known insecure default" if not is_default else "still set to an insecure default value",
+        )
+
+    def _check_secret_not_default_in_production(self, name: str, value: str, environment: str) -> ValidationCheck:
+        """Milestone 17 §7: `_check_not_default_secret` above is
+        deliberately WARNING-severity (non-blocking) in general — an
+        insecure placeholder secret in local development is normal and
+        must never fail startup there. But that same WARNING would let a
+        real `environment=production` deployment start with a forgeable
+        JWT-signing key or database password undetected — a genuine
+        release-blocking risk this milestone's own "no insecure
+        production secret accepted" requirement calls out explicitly.
+        This is a separate, additive check (not a change to
+        `missing_secret:*`'s existing severity/behavior) scoped to
+        `environment == "production"` only; every other environment
+        always passes here, INFO-severity, not applicable."""
+        if environment != "production":
+            return ValidationCheck(
+                name=f"production_secret:{name}",
+                passed=True,
+                severity=ValidationSeverity.INFO,
+                message="not applicable outside environment=production",
+            )
+        is_default = value.strip().lower() in _INSECURE_DEFAULT_SECRETS
+        return ValidationCheck(
+            name=f"production_secret:{name}",
+            passed=not is_default,
+            severity=ValidationSeverity.ERROR,
+            message=(
+                "not a known insecure default"
+                if not is_default
+                else "BLOCKING: environment=production but still set to a known insecure default value"
+            ),
         )
 
     def _check_valid_urls(

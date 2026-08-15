@@ -2,21 +2,36 @@ import { create } from "zustand";
 import type { PriorityLevel } from "@/components/priority-badge";
 import type { EventType } from "@/types/websocket";
 
-export type NotificationDomain = "alerts" | "backtests" | "recommendations" | "strategy" | "explainability" | "health";
+export type NotificationDomain =
+  | "alerts"
+  | "backtests"
+  | "recommendations"
+  | "strategy"
+  | "explainability"
+  | "health"
+  | "market"
+  | "news"
+  | "decisions";
 
 /** Only `backtest`/`explainability` carry an id their own detail route
  * can be built from (`request_id`/`run_id`) — `Alert`, `RecommendationResult`,
  * and `StrategyEvaluationResult` all carry no portfolio/watchlist id and
  * have no standalone detail route (both live only as tabs inside
  * `/decisions/$portfolioId`), so those three deliberately have no
- * deep-linkable reference. */
+ * deep-linkable reference. Milestone 15's `market`/`news`/`decision` refs
+ * carry a `portfolioId` when Decision Impact attached one (deep-links to
+ * `/decisions/$portfolioId`); `null` when the change was portfolio-agnostic
+ * (no watchlist currently tracks that entity). */
 export type NotificationEntityRef =
   | { kind: "alert" }
   | { kind: "recommendation" }
   | { kind: "strategy" }
   | { kind: "backtest"; runId: string }
   | { kind: "explainability"; requestId: string }
-  | { kind: "health" };
+  | { kind: "health" }
+  | { kind: "market"; portfolioId: string | null }
+  | { kind: "news"; portfolioId: string | null }
+  | { kind: "decision"; portfolioId: string | null };
 
 export interface NotificationCenterEntry {
   id: string;

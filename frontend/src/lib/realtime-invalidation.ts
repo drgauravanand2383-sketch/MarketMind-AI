@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { alertsKeys } from "@/hooks/use-alerts";
 import { backtestingKeys } from "@/hooks/use-backtesting";
 import { explainabilityKeys } from "@/hooks/use-explainability";
+import { portfolioKeys } from "@/hooks/use-portfolio";
 import { strategyKeys } from "@/hooks/use-strategy";
 import type { DomainEvent } from "@/types/websocket";
 
@@ -50,6 +51,34 @@ export function invalidateForEvent(queryClient: QueryClient, event: DomainEvent)
     case "RISK_ASSESSMENT_COMPLETED":
       // Never actually published — see docs/architecture/WEBSOCKET_FRAMEWORK.md §8.
       break;
+    case "MARKET_SNAPSHOT_REFRESHED":
+      // Portfolio-agnostic (every canonical entity at once, Milestone 14)
+      // — no single portfolio_id to scope to; the Notification Center is
+      // this event's only surface, no query cache to invalidate.
+      break;
+    case "PORTFOLIO_INTELLIGENCE_UPDATED":
+      void queryClient.invalidateQueries({ queryKey: portfolioKeys.intelligence(event.correlation_id ?? "") });
+      break;
+    case "SIGNIFICANT_MARKET_CHANGE":
+    case "SIGNIFICANT_NEWS_UPDATE":
+      // Both carry a market/news-derived DetectedChange (Milestone 15) —
+      // only invalidate the one portfolio-scoped cache that actually
+      // surfaces this data (the intelligence report's attached market
+      // snapshot) when Decision Impact determined a portfolio to scope to.
+      if (event.payload.portfolio_id) {
+        void queryClient.invalidateQueries({ queryKey: portfolioKeys.intelligence(event.payload.portfolio_id) });
+      }
+      break;
+    case "PORTFOLIO_INTELLIGENCE_CHANGED": {
+      const { portfolio_id, domain } = event.payload;
+      if (!portfolio_id) break;
+      if (domain === "RISK") void queryClient.invalidateQueries({ queryKey: portfolioKeys.risk(portfolio_id) });
+      else if (domain === "RECOMMENDATION") void queryClient.invalidateQueries({ queryKey: portfolioKeys.recommendations(portfolio_id) });
+      // STRATEGY/SIGNAL: no existing portfolio-scoped query cache to target
+      // (`strategyKeys` is keyed by evaluation request_id, not portfolio_id)
+      // — the Notification Center still surfaces the change either way.
+      break;
+    }
     default:
       assertNever(event);
   }
