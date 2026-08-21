@@ -68,9 +68,14 @@ See [`docs/architecture/`](docs/architecture/) for the full architecture overvie
 
 v1.0.0 is released. Post-v1.0 work (Milestones 11–16) added live market
 data, entity resolution, portfolio intelligence, continuous/proactive
-intelligence, and durable persistence for that intelligence layer. A
-v1.1 Release Candidate is in preparation — see
+intelligence, and durable persistence for that intelligence layer.
+**v1.1.1 is released** (tag `v1.1.1`, on top of `v1.1.0`'s application
+code — see
+[`docs/release/RELEASE_NOTES_V1_1.md`](docs/release/RELEASE_NOTES_V1_1.md)
+for what shipped and
+[`docs/release/PRODUCTION_OPERATIONS_RUNBOOK.md`](docs/release/PRODUCTION_OPERATIONS_RUNBOOK.md)
+for day-to-day operation). See
 [`docs/release/KNOWN_LIMITATIONS.md`](docs/release/KNOWN_LIMITATIONS.md)
 for exactly what is and isn't covered, and
 [`docs/release/RELEASE_CHECKLIST_V1_1.md`](docs/release/RELEASE_CHECKLIST_V1_1.md)
-for current RC verification status.
+for the full verification record.

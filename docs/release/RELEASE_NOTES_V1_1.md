@@ -1,4 +1,4 @@
-# MarketMind AI — Version 1.1 Release Candidate Notes
+# MarketMind AI — Version 1.1 Release Notes
 
 This document covers everything since `docs/release/RELEASE_NOTES_V1.md`
 (the frozen v1.0.0 release notes, unchanged and not retroactively
@@ -6,9 +6,16 @@ rewritten). v1.0.0 remains exactly what it was: request-driven market
 intelligence, no live market data, no broker integration. Everything
 below was added **after** that release, across Milestones 11-17.
 
-**Status**: Release Candidate. Not tagged, not pushed, not released —
-see `docs/release/RELEASE_CHECKLIST_V1_1.md` for the full verification
-record and current sign-off status.
+**Status**: Released. Tagged `v1.1.0`, pushed to `origin/main`. A
+follow-up patch, `v1.1.1`, corrects the Release GitHub Actions workflow
+only (it failed on `v1.1.0` because the production-Compose validation
+step had no `.env` on a clean runner — fixed by seeding a CI-only,
+non-secret placeholder `.env`; no application code, compose file, or
+`/api/v1`/`/ws` contract change) — `v1.1.1`'s Release workflow run
+completed green end-to-end. See
+`docs/release/RELEASE_CHECKLIST_V1_1.md` for the full verification
+record and `docs/release/PRODUCTION_OPERATIONS_RUNBOOK.md` for day-to-day
+operation of a deployed instance.
 
 ## What's new since v1.0.0
 
