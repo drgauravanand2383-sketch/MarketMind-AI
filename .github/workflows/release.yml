@@ -74,6 +74,25 @@ jobs:
     needs: [frontend, backend]
     steps:
       - uses: actions/checkout@v4
+      - name: Create CI-only placeholder .env for Compose validation
+        # `docker-compose.prod.yml`'s `backend` service declares
+        # `env_file: - .env` (implicitly required), and Compose also
+        # reads a root `.env` for ${VAR} interpolation in both compose
+        # files. Neither file is committed (see .env.example) or present
+        # on a clean runner, so `docker compose config` fails outright
+        # with "env file .../.env not found" before any of this job's
+        # own port-hardening assertions ever run. These values are
+        # harmless, deterministic CI placeholders — never real secrets,
+        # never committed — that exist only to satisfy Compose's
+        # interpolation/env_file requirements so the merged config below
+        # can be produced and inspected.
+        run: |
+          cat > .env <<'EOF'
+          POSTGRES_USER=ci_placeholder_user
+          POSTGRES_PASSWORD=ci_placeholder_password
+          POSTGRES_DB=ci_placeholder_db
+          REDIS_PASSWORD=ci_placeholder_password
+          EOF
       - name: Verify production compose port hardening
         # Regression check for the docker-compose.prod.yml port-publication
         # bug: `ports: []` in an override does NOT clear ports inherited
@@ -103,6 +122,11 @@ jobs:
             exit 1
           fi
           echo "PASS: production port hardening verified (postgres/redis/chromadb unpublished; backend 8000:8000; frontend 8080:8080)"
+      - name: Remove CI-only placeholder .env
+        # Only needed for the Compose validation above; the image build
+        # steps below use `docker build` directly on ./backend and
+        # ./frontend, which never read this root-level file.
+        run: rm -f .env
       - name: Build backend image
         run: docker build -t marketmind-backend:${{ github.ref_name }} ./backend
       - name: Build frontend image
