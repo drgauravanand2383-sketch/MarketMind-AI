@@ -87,6 +87,55 @@ describe("preferences-io", () => {
     expect(usePreferencesStore.getState().appearance.accentColor).toBe("amber");
   });
 
+  // --- v1.2 Priority 4: Notification & Intelligence Preferences -----------------------------------------------------------
+
+  it("round-trips the v1.2 Priority 4 notification preferences", () => {
+    usePreferencesStore.getState().setGroupCrossPortfolioNotifications(false);
+    usePreferencesStore.getState().setDecisionDigestWindowMinutes(12);
+    usePreferencesStore.getState().setShowRealtimeToasts(false);
+    const json = JSON.stringify(buildPreferencesExport());
+
+    usePreferencesStore.getState().resetAll();
+
+    const result = importPreferencesFromJson(json);
+
+    expect(result.success).toBe(true);
+    expect(usePreferencesStore.getState().notifications.groupCrossPortfolioNotifications).toBe(false);
+    expect(usePreferencesStore.getState().notifications.decisionDigestWindowMinutes).toBe(12);
+    expect(usePreferencesStore.getState().notifications.showRealtimeToasts).toBe(false);
+  });
+
+  it("imports a pre-v1.2-Priority-4 export file (missing the 3 new fields) and fills in their defaults", () => {
+    const legacyExport = buildPreferencesExport();
+    const legacyNotifications = { ...legacyExport.preferences.notifications } as Record<string, unknown>;
+    delete legacyNotifications.groupCrossPortfolioNotifications;
+    delete legacyNotifications.decisionDigestWindowMinutes;
+    delete legacyNotifications.showRealtimeToasts;
+    const legacyJson = JSON.stringify({
+      ...legacyExport,
+      preferences: { ...legacyExport.preferences, notifications: legacyNotifications },
+    });
+
+    const result = importPreferencesFromJson(legacyJson);
+
+    expect(result.success).toBe(true);
+    expect(usePreferencesStore.getState().notifications.groupCrossPortfolioNotifications).toBe(true);
+    expect(usePreferencesStore.getState().notifications.decisionDigestWindowMinutes).toBe(5);
+    expect(usePreferencesStore.getState().notifications.showRealtimeToasts).toBe(true);
+  });
+
+  it("rejects a file with an out-of-range decision digest window", () => {
+    const validExport = buildPreferencesExport();
+    const tampered = {
+      ...validExport,
+      preferences: { ...validExport.preferences, notifications: { ...validExport.preferences.notifications, decisionDigestWindowMinutes: 99 } },
+    };
+
+    const result = importPreferencesFromJson(JSON.stringify(tampered));
+
+    expect(result.success).toBe(false);
+  });
+
   it("rejects a file with an unrecognized enum value inside an otherwise well-formed document", () => {
     const validExport = buildPreferencesExport();
     const tampered = { ...validExport, preferences: { ...validExport.preferences, appearance: { ...validExport.preferences.appearance, accentColor: "ultraviolet" } } };

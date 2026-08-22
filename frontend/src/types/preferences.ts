@@ -52,6 +52,24 @@ export interface NotificationPreferences {
    * `hooks/use-realtime-sync.ts`. */
   desktopNotificationsEnabled: boolean;
   enabledCategories: NotificationDomain[];
+  /** v1.2 Priority 4: presentation-only. `true` (default) collapses
+   * same-`event_fingerprint` arrivals into one Notification Center row
+   * (v1.2 Priority 2's behavior); `false` shows one row per arrival.
+   * Never affects server-side suppression, delivery, or how many WS
+   * frames arrive — see `store/realtime-notification-store.ts`. */
+  groupCrossPortfolioNotifications: boolean;
+  /** v1.2 Priority 4: minutes, 1-30, default 5. How long from a decision
+   * digest's first change a later different-domain change for the same
+   * portfolio still folds into it (v1.2 Priority 3). Locked into each
+   * digest at creation (`NotificationCenterEntry.digest.windowMs`) so a
+   * setting change mid-window never alters an already-open digest — only
+   * digests created after the change use the new value. */
+  decisionDigestWindowMinutes: number;
+  /** v1.2 Priority 4: presentation-only. `true` (default) shows a toast
+   * for real-time events; `false` suppresses only the toast pop-up —
+   * Notification Center entries, unread state, and digest/grouping are
+   * unaffected. See `hooks/use-realtime-sync.ts`. */
+  showRealtimeToasts: boolean;
 }
 
 export interface AccessibilityPreferences {

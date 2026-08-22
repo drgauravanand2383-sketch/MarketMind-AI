@@ -7,6 +7,13 @@ function signed(value: number): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
+/** v1.2 Priority 2: `undefined` unless the event genuinely impacted more
+ * than one portfolio — a single-portfolio (or portfolio-agnostic) change
+ * shows no "Affected" line at all, matching pre-v1.2 behavior exactly. */
+function affectedPortfolioSuffix(count: number | undefined): string {
+  return count !== undefined && count > 1 ? ` Affected: ${String(count)} portfolios.` : "";
+}
+
 /** `ChangePriority` (Milestone 15) has one tier — `INFO` — with no
  * `PriorityLevel` equivalent; every other tier passes through directly. */
 function toPriorityLevel(priority: ChangePriority): PriorityLevel | null {
@@ -31,7 +38,14 @@ export function toNotificationEntry(event: DomainEvent): NotificationCenterEntry
         eventType: event.event_type,
         domain: "alerts",
         priority: event.payload.priority,
-        title: `New ${event.payload.priority} alert — ${event.payload.ticker}`,
+        // v1.2 Priority 1: company name (when known) alongside the
+        // ticker — `event.payload.reason` (the summary below) is now a
+        // real, signal-specific explanation rather than a generic
+        // sentence identical across every alert, so the title only needs
+        // to identify *what*, not restate *why*.
+        title: event.payload.company_name
+          ? `New ${event.payload.priority} alert — ${event.payload.company_name} (${event.payload.ticker})`
+          : `New ${event.payload.priority} alert — ${event.payload.ticker}`,
         summary: event.payload.reason,
         occurredAt: event.timestamp,
         read: false,
@@ -125,41 +139,70 @@ export function toNotificationEntry(event: DomainEvent): NotificationCenterEntry
       // proactive notice. PORTFOLIO_INTELLIGENCE_CHANGED below is the
       // proactive equivalent.
       return null;
-    case "SIGNIFICANT_MARKET_CHANGE":
+    case "SIGNIFICANT_MARKET_CHANGE": {
+      const count = event.payload.impacted_portfolio_ids?.length;
       return {
         id: event.event_id,
         eventType: event.event_type,
         domain: "market",
         priority: toPriorityLevel(event.payload.priority),
         title: `${event.payload.label}: significant market move`,
-        summary: event.payload.summary,
+        summary: event.payload.summary + affectedPortfolioSuffix(count),
         occurredAt: event.timestamp,
         read: false,
         entityRef: { kind: "market", portfolioId: event.payload.portfolio_id },
+        ...(event.payload.event_fingerprint != null && { groupKey: event.payload.event_fingerprint }),
+        ...(count !== undefined && count > 1 && { affectedPortfolioCount: count }),
       };
-    case "SIGNIFICANT_NEWS_UPDATE":
+    }
+    case "SIGNIFICANT_NEWS_UPDATE": {
+      const count = event.payload.impacted_portfolio_ids?.length;
       return {
         id: event.event_id,
         eventType: event.event_type,
         domain: "news",
         priority: toPriorityLevel(event.payload.priority),
         title: `${event.payload.label}: new evidence`,
-        summary: event.payload.summary,
+        summary: event.payload.summary + affectedPortfolioSuffix(count),
         occurredAt: event.timestamp,
         read: false,
         entityRef: { kind: "news", portfolioId: event.payload.portfolio_id },
+        ...(event.payload.event_fingerprint != null && { groupKey: event.payload.event_fingerprint }),
+        ...(count !== undefined && count > 1 && { affectedPortfolioCount: count }),
       };
-    case "PORTFOLIO_INTELLIGENCE_CHANGED":
+    }
+    case "PORTFOLIO_INTELLIGENCE_CHANGED": {
+      const count = event.payload.impacted_portfolio_ids?.length;
+      const priority = toPriorityLevel(event.payload.priority);
       return {
         id: event.event_id,
         eventType: event.event_type,
         domain: "decisions",
-        priority: toPriorityLevel(event.payload.priority),
+        priority,
         title: `${event.payload.label}: ${event.payload.domain.toLowerCase()} changed`,
-        summary: event.payload.summary,
+        summary: event.payload.summary + affectedPortfolioSuffix(count),
         occurredAt: event.timestamp,
         read: false,
         entityRef: { kind: "decision", portfolioId: event.payload.portfolio_id },
+        ...(event.payload.event_fingerprint != null && { groupKey: event.payload.event_fingerprint }),
+        ...(count !== undefined && count > 1 && { affectedPortfolioCount: count }),
+        // v1.2 Priority 3: only RISK/RECOMMENDATION/STRATEGY/SIGNAL ever
+        // reach this event type, and only when a real portfolio is
+        // known - both already guaranteed by the branch this object
+        // literal is in, so this is always safe to build.
+        ...(event.payload.portfolio_id != null && {
+          pendingDigestChange: {
+            eventFingerprint: event.payload.event_fingerprint ?? event.payload.fingerprint,
+            domain: event.payload.domain,
+            label: event.payload.label,
+            previousValue: event.payload.previous_value,
+            currentValue: event.payload.current_value,
+            priority,
+            summary: event.payload.summary,
+            occurredAt: event.timestamp,
+          },
+        }),
       };
+    }
   }
 }

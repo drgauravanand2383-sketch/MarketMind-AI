@@ -31,7 +31,7 @@ each maps 1:1 onto a "Reset one section" scope and a Workspace Settings tab:
 
 | Store | Persists | Covers |
 |---|---|---|
-| `preferences-store.ts` | ✅ (`marketmind-preferences`) | Appearance (accent color, density, default landing page, timezone display, number format), Tables (default page size), Charts (default data-label visibility), Notifications (toast duration, default pinned, sound, desktop, categories), Accessibility (reduced motion, high contrast, larger text, focus highlight) |
+| `preferences-store.ts` | ✅ (`marketmind-preferences`) | Appearance (accent color, density, default landing page, timezone display, number format), Tables (default page size), Charts (default data-label visibility), Notifications (toast duration, default pinned, sound, desktop, categories, and — since v1.2 Priority 4 — cross-portfolio grouping, decision digest window, show-toasts), Accessibility (reduced motion, high contrast, larger text, focus highlight) |
 | `dashboard-layout-store.ts` | ✅ (`marketmind-dashboard-layout`, `isCustomizing` excluded via `partialize`) | Card order, hidden cards, per-card size |
 | `saved-views-store.ts` | ✅ (`marketmind-saved-views`) | Named presets (dashboard-layout / chart-defaults / notification-filter) |
 | `notification-filter-store.ts` | ❌ (session-only, matches `realtime-notification-store.ts`'s own non-persistence) | The Notification Center page's own filter state, lifted out of local `useState` (Milestone 7) so it's a real, capturable Saved-View payload |
@@ -117,6 +117,31 @@ both the enabled-categories filter and a live `Notification.permission === "gran
 revoked from outside the app at any time). Toast duration/pinned defaults and the 6-domain category filter
 (`enabledCategories`) also gate the Notification Center entry and toast — cache invalidation always runs regardless
 (a data-freshness concern, not a noise preference).
+
+**v1.2 Priority 4 addendum (Notification & Intelligence Preferences).** Three more fields were added to this same
+`notifications` preference object — no second settings store, no new persistence mechanism, no new settings page:
+
+- `groupCrossPortfolioNotifications` (default `true`): presentation-only gate on v1.2 Priority 2's cross-portfolio
+  grouping (`realtime-notification-store.ts`'s `addEntry`, mirrored in `use-realtime-sync.ts`'s `alreadyGrouped`
+  check). `false` shows one Notification Center row per portfolio instead of one collapsed row — the backend still
+  sends one WS frame per impacted portfolio either way; nothing server-side changes.
+- `decisionDigestWindowMinutes` (1-30, default 5): configures v1.2 Priority 3's decision-digest fold window. Locked
+  into each digest at creation (`NotificationCenterEntry.digest.windowMs`) from the setting's value at that moment,
+  so a mid-window setting change never alters an already-open digest — only digests created afterward use the new
+  value. Validated end-to-end: the setter clamps to `[1, 30]` and falls back to 5 on a non-numeric input; the
+  `persist` middleware's `merge` option additionally re-sanitizes the whole `notifications` object on every
+  rehydration (`sanitizeNotifications` in `preferences-store.ts`), so a pre-Priority-4 or hand-corrupted
+  `localStorage` blob still yields safe, in-range defaults after a refresh — zustand's default shallow merge would
+  otherwise leave new fields `undefined`.
+- `showRealtimeToasts` (default `true`): gates only the toast pop-up in `use-realtime-sync.ts`. Notification Center
+  insertion, unread state, cache invalidation, and desktop notifications (their own separate
+  `desktopNotificationsEnabled` toggle, unchanged) are all unaffected.
+
+Per-domain notification preferences (market/news/decisions) were already fully supported by the pre-existing
+`enabledCategories` array — no new UI or store shape was needed for that requirement.
+
+All three round-trip through the existing export/import mechanism (`preferences-io.ts`): the zod schema fields are
+`.optional().default(...)`, so an export file from before this milestone still imports cleanly.
 
 ## 9. Profile page
 

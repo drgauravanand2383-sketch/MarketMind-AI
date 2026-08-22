@@ -104,18 +104,40 @@ export function useRealtimeSync(): void {
     // Cache invalidation above always runs (a data-freshness concern);
     // the Notification Center entry, toast, and desktop notification are
     // all gated by the user's own category preference.
-    const { enabledCategories, desktopNotificationsEnabled } = usePreferencesStore.getState().notifications;
+    const { enabledCategories, desktopNotificationsEnabled, groupCrossPortfolioNotifications, showRealtimeToasts } =
+      usePreferencesStore.getState().notifications;
     if (!enabledCategories.includes(entry.domain)) return;
+
+    // v1.2 Priority 2, gated by v1.2 Priority 4's `groupCrossPortfolioNotifications`
+    // (mirrors the same gate in `realtime-notification-store.ts`'s `addEntry`):
+    // a grouped entry (`groupKey` set) that already has a Notification Center
+    // row is a later portfolio's copy of the same underlying event, not a new
+    // one — `addEntry` still upserts it (so `affectedPortfolioCount`/timestamp
+    // stay current), but the toast and desktop notification must not fire
+    // again for it. When grouping is off, every arrival is presentationally
+    // distinct, so nothing is suppressed here either.
+    const alreadyGrouped =
+      groupCrossPortfolioNotifications &&
+      entry.groupKey !== undefined &&
+      useRealtimeNotificationStore.getState().entries.some((existing) => existing.groupKey === entry.groupKey);
 
     useRealtimeNotificationStore.getState().addEntry(entry);
 
-    const toast = toastFor(event);
-    if (toast) {
-      notify(toast.type, toast.message, { ...(toast.pinned !== undefined && { pinned: toast.pinned }) });
-    }
+    if (!alreadyGrouped) {
+      // v1.2 Priority 4: `showRealtimeToasts` gates ONLY the toast
+      // pop-up — the Notification Center entry above already landed
+      // regardless, and desktop notifications keep their own separate
+      // `desktopNotificationsEnabled` toggle below, unaffected by this one.
+      if (showRealtimeToasts) {
+        const toast = toastFor(event);
+        if (toast) {
+          notify(toast.type, toast.message, { ...(toast.pinned !== undefined && { pinned: toast.pinned }) });
+        }
+      }
 
-    if (desktopNotificationsEnabled) {
-      fireDesktopNotification(entry.title, entry.summary);
+      if (desktopNotificationsEnabled) {
+        fireDesktopNotification(entry.title, entry.summary);
+      }
     }
   }, [ws.lastMessage, queryClient]);
 }

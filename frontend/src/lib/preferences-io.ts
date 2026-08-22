@@ -86,6 +86,11 @@ export const preferencesExportSchema = z.object({
       soundEnabled: z.boolean(),
       desktopNotificationsEnabled: z.boolean(),
       enabledCategories: z.array(notificationDomainSchema),
+      // v1.2 Priority 4: optional + defaulted so a pre-Priority-4 export
+      // file (which never had these fields) still imports cleanly.
+      groupCrossPortfolioNotifications: z.boolean().optional().default(true),
+      decisionDigestWindowMinutes: z.number().min(1).max(30).optional().default(5),
+      showRealtimeToasts: z.boolean().optional().default(true),
     }),
     accessibility: z.object({
       reducedMotion: z.boolean(),

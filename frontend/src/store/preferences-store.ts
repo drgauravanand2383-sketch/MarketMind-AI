@@ -41,7 +41,50 @@ const DEFAULT_NOTIFICATIONS: NotificationPreferences = {
   soundEnabled: false,
   desktopNotificationsEnabled: false,
   enabledCategories: ALL_NOTIFICATION_DOMAINS,
+  groupCrossPortfolioNotifications: true,
+  decisionDigestWindowMinutes: 5,
+  showRealtimeToasts: true,
 };
+
+const MIN_DECISION_DIGEST_WINDOW_MINUTES = 1;
+const MAX_DECISION_DIGEST_WINDOW_MINUTES = 30;
+
+/** Bounds an incoming `decisionDigestWindowMinutes` value to [1, 30],
+ * falling back to the default on anything non-finite (`NaN`, `Infinity`,
+ * or a non-numeric value slipping through from persisted/imported JSON). */
+function clampDecisionDigestWindowMinutes(value: unknown): number {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_NOTIFICATIONS.decisionDigestWindowMinutes;
+  return Math.min(MAX_DECISION_DIGEST_WINDOW_MINUTES, Math.max(MIN_DECISION_DIGEST_WINDOW_MINUTES, Math.round(numeric)));
+}
+
+function sanitizeBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+/** Rehydration-time safety net for `localStorage`'s persisted
+ * `notifications` blob: zustand's default `persist` merge shallow-
+ * overwrites nested objects wholesale, so a pre-v1.2-Priority-4 blob
+ * (missing the 3 new fields entirely) or a hand-edited/corrupted one
+ * would otherwise leave those fields `undefined` or out of range after
+ * refresh. Every field falls back to its own default independently. */
+function sanitizeNotifications(raw: unknown): NotificationPreferences {
+  const p = raw !== null && typeof raw === "object" ? (raw as Partial<NotificationPreferences>) : {};
+  const enabledCategories =
+    Array.isArray(p.enabledCategories) && p.enabledCategories.every((d) => ALL_NOTIFICATION_DOMAINS.includes(d))
+      ? p.enabledCategories
+      : DEFAULT_NOTIFICATIONS.enabledCategories;
+  return {
+    toastDurationMs: typeof p.toastDurationMs === "number" && p.toastDurationMs >= 0 ? p.toastDurationMs : DEFAULT_NOTIFICATIONS.toastDurationMs,
+    defaultPinned: sanitizeBoolean(p.defaultPinned, DEFAULT_NOTIFICATIONS.defaultPinned),
+    soundEnabled: sanitizeBoolean(p.soundEnabled, DEFAULT_NOTIFICATIONS.soundEnabled),
+    desktopNotificationsEnabled: sanitizeBoolean(p.desktopNotificationsEnabled, DEFAULT_NOTIFICATIONS.desktopNotificationsEnabled),
+    enabledCategories,
+    groupCrossPortfolioNotifications: sanitizeBoolean(p.groupCrossPortfolioNotifications, DEFAULT_NOTIFICATIONS.groupCrossPortfolioNotifications),
+    decisionDigestWindowMinutes: clampDecisionDigestWindowMinutes(p.decisionDigestWindowMinutes),
+    showRealtimeToasts: sanitizeBoolean(p.showRealtimeToasts, DEFAULT_NOTIFICATIONS.showRealtimeToasts),
+  };
+}
 
 const DEFAULT_ACCESSIBILITY: AccessibilityPreferences = {
   reducedMotion: false,
@@ -72,6 +115,9 @@ interface PreferencesState {
   setSoundEnabled: (enabled: boolean) => void;
   setDesktopNotificationsEnabled: (enabled: boolean) => void;
   toggleNotificationCategory: (domain: NotificationDomain) => void;
+  setGroupCrossPortfolioNotifications: (enabled: boolean) => void;
+  setDecisionDigestWindowMinutes: (minutes: number) => void;
+  setShowRealtimeToasts: (enabled: boolean) => void;
 
   /** Also the "Enable animations" toggle on the Appearance tab, inverse-
    * framed — one canonical field, no duplicate state to drift. */
@@ -147,6 +193,15 @@ export const usePreferencesStore = create<PreferencesState>()(
           return { notifications: { ...state.notifications, enabledCategories } };
         });
       },
+      setGroupCrossPortfolioNotifications: (groupCrossPortfolioNotifications) => {
+        set((state) => ({ notifications: { ...state.notifications, groupCrossPortfolioNotifications } }));
+      },
+      setDecisionDigestWindowMinutes: (minutes) => {
+        set((state) => ({ notifications: { ...state.notifications, decisionDigestWindowMinutes: clampDecisionDigestWindowMinutes(minutes) } }));
+      },
+      setShowRealtimeToasts: (showRealtimeToasts) => {
+        set((state) => ({ notifications: { ...state.notifications, showRealtimeToasts } }));
+      },
 
       setReducedMotion: (reducedMotion) => {
         set((state) => ({ accessibility: { ...state.accessibility, reducedMotion } }));
@@ -190,6 +245,23 @@ export const usePreferencesStore = create<PreferencesState>()(
         });
       },
     }),
-    { name: "marketmind-preferences" },
+    {
+      name: "marketmind-preferences",
+      // Default zustand `persist` merge is a single shallow
+      // `{...current, ...persisted}` — a nested `notifications` object
+      // in localStorage from before v1.2 Priority 4 (or a hand-edited/
+      // corrupted one) would wholesale replace the default notifications
+      // object, leaving new fields `undefined` after refresh. Sanitize
+      // per-field instead so a partial or invalid blob still yields a
+      // fully valid, in-range `NotificationPreferences`.
+      merge: (persisted, current) => {
+        const p = persisted !== null && typeof persisted === "object" ? (persisted as Partial<PreferencesState>) : {};
+        return {
+          ...current,
+          ...p,
+          notifications: sanitizeNotifications(p.notifications),
+        };
+      },
+    },
   ),
 );
