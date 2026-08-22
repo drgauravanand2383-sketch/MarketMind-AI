@@ -81,8 +81,9 @@ class ChangeDetectionService:
             ):
                 return None  # recovered from unavailable -> not alert-worthy on its own
             priority = ChangePriority.MEDIUM if result.status == MarketSnapshotStatus.STALE else ChangePriority.LOW
+            fingerprint = f"MARKET:{entity_id}:status:{result.status.value}"
             return DetectedChange(
-                fingerprint=f"MARKET:{entity_id}:status:{result.status.value}",
+                fingerprint=fingerprint,
                 domain=ChangeDomain.MARKET,
                 entity_id=entity_id,
                 label=label,
@@ -90,6 +91,7 @@ class ChangeDetectionService:
                 summary=f"{label} market data transitioned from {previous_status} to {result.status.value}.",
                 previous_value=previous_status,
                 current_value=result.status.value,
+                event_fingerprint=fingerprint,
                 detected_at=_now(),
             )
 
@@ -105,8 +107,9 @@ class ChangeDetectionService:
             return None
 
         direction = "up" if change_percent > 0 else "down"
+        fingerprint = f"MARKET:{entity_id}:price:{result.snapshot.fetched_at.isoformat()}"
         return DetectedChange(
-            fingerprint=f"MARKET:{entity_id}:price:{result.snapshot.fetched_at.isoformat()}",
+            fingerprint=fingerprint,
             domain=ChangeDomain.MARKET,
             entity_id=entity_id,
             label=label,
@@ -118,6 +121,7 @@ class ChangeDetectionService:
             + ".",
             previous_value=f"{previous_snapshot.price:.2f}",
             current_value=f"{result.snapshot.price:.2f}",
+            event_fingerprint=fingerprint,
             detected_at=_now(),
         )
 
@@ -134,8 +138,9 @@ class ChangeDetectionService:
         if len(new_ids) < self._thresholds.news_significance_threshold:
             return None
 
+        fingerprint = f"NEWS:{entity_id}:count:{len(record_ids)}"
         return DetectedChange(
-            fingerprint=f"NEWS:{entity_id}:count:{len(record_ids)}",
+            fingerprint=fingerprint,
             domain=ChangeDomain.NEWS,
             entity_id=entity_id,
             label=label,
@@ -145,6 +150,7 @@ class ChangeDetectionService:
             summary=f"{len(new_ids)} new knowledge record(s) ingested for {label}.",
             previous_value=str(len(previous_ids)),
             current_value=str(len(record_ids)),
+            event_fingerprint=fingerprint,
             detected_at=_now(),
         )
 
@@ -161,8 +167,9 @@ class ChangeDetectionService:
         threshold = self._thresholds.news_high_confidence_threshold
         if not (confidence >= threshold and previous < threshold):
             return None  # only a *newly*-crossed threshold is news, not "still high"
+        fingerprint = f"NEWS:{entity_id}:high_confidence"
         return DetectedChange(
-            fingerprint=f"NEWS:{entity_id}:high_confidence",
+            fingerprint=fingerprint,
             domain=ChangeDomain.NEWS,
             entity_id=entity_id,
             label=label,
@@ -170,6 +177,7 @@ class ChangeDetectionService:
             summary=f"Evidence for {label} newly reached high confidence ({confidence:.2f}).",
             previous_value=f"{previous:.2f}",
             current_value=f"{confidence:.2f}",
+            event_fingerprint=fingerprint,
             detected_at=_now(),
         )
 
@@ -184,8 +192,9 @@ class ChangeDetectionService:
             return None
         if previous_triggered == result.triggered:
             return None
+        fingerprint = f"SIGNAL:{key}:{result.triggered}"
         return DetectedChange(
-            fingerprint=f"SIGNAL:{key}:{result.triggered}",
+            fingerprint=fingerprint,
             domain=ChangeDomain.SIGNAL,
             entity_id=entity_id,
             label=label,
@@ -193,6 +202,7 @@ class ChangeDetectionService:
             summary=f"Signal {result.signal_name!r} for {label} {'triggered' if result.triggered else 'cleared'}.",
             previous_value=str(previous_triggered),
             current_value=str(result.triggered),
+            event_fingerprint=fingerprint,
             detected_at=_now(),
         )
 
@@ -206,8 +216,9 @@ class ChangeDetectionService:
             return None
         if previous_severity == assessment.overall_severity:
             return None
+        fingerprint = f"RISK:{portfolio_id}:{assessment.overall_severity.value}"
         return DetectedChange(
-            fingerprint=f"RISK:{portfolio_id}:{assessment.overall_severity.value}",
+            fingerprint=fingerprint,
             domain=ChangeDomain.RISK,
             entity_id=portfolio_id,
             label=label,
@@ -216,6 +227,7 @@ class ChangeDetectionService:
             previous_value=previous_severity.value,
             current_value=assessment.overall_severity.value,
             portfolio_id=portfolio_id,
+            event_fingerprint=fingerprint,
             detected_at=_now(),
         )
 
@@ -246,8 +258,9 @@ class ChangeDetectionService:
             if type_changed
             else f"{candidate.ticker} recommendation score moved {score_delta:.1f} points to {candidate.overall_score:.1f}."
         )
+        fingerprint = f"RECOMMENDATION:{key}:{candidate.recommendation.value}:{candidate.overall_score:.0f}"
         return DetectedChange(
-            fingerprint=f"RECOMMENDATION:{key}:{candidate.recommendation.value}:{candidate.overall_score:.0f}",
+            fingerprint=fingerprint,
             domain=ChangeDomain.RECOMMENDATION,
             entity_id=candidate.ticker,
             label=candidate.company_name or candidate.ticker,
@@ -256,6 +269,7 @@ class ChangeDetectionService:
             previous_value=f"{previous_type.value} ({previous_score:.1f})",
             current_value=f"{candidate.recommendation.value} ({candidate.overall_score:.1f})",
             portfolio_id=portfolio_id,
+            event_fingerprint=fingerprint,
             detected_at=_now(),
         )
 
@@ -270,8 +284,9 @@ class ChangeDetectionService:
         delta = abs(result.overall_alignment - previous_alignment)
         if delta < self._thresholds.strategy_alignment_delta_threshold:
             return None
+        fingerprint = f"STRATEGY:{portfolio_id}:{result.overall_alignment:.0f}"
         return DetectedChange(
-            fingerprint=f"STRATEGY:{portfolio_id}:{result.overall_alignment:.0f}",
+            fingerprint=fingerprint,
             domain=ChangeDomain.STRATEGY,
             entity_id=portfolio_id,
             label=label,
@@ -280,6 +295,7 @@ class ChangeDetectionService:
             previous_value=f"{previous_alignment:.1f}",
             current_value=f"{result.overall_alignment:.1f}",
             portfolio_id=portfolio_id,
+            event_fingerprint=fingerprint,
             detected_at=_now(),
         )
 

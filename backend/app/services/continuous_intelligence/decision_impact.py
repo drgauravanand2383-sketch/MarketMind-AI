@@ -53,7 +53,14 @@ class DecisionImpactService:
         user in Portfolio A and a user in Portfolio B both genuinely need
         their own notification of the same underlying price move), never
         collapsed into "the first portfolio suppresses every other one"
-        by sharing one fingerprint across all of them."""
+        by sharing one fingerprint across all of them.
+
+        `event_fingerprint` (v1.2 Priority 1, §7) is deliberately *not*
+        touched by this `model_copy` — it stays the portfolio-agnostic
+        value the detector set at construction time on every expanded
+        copy, so a future cross-portfolio-grouping task can still tell
+        "these N copies are the same underlying event" even though their
+        `fingerprint`s (correctly) differ."""
         if change.portfolio_id is not None or not portfolio_ids:
             return (change,)
         return tuple(

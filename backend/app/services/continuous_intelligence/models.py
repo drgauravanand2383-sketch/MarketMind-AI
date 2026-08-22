@@ -148,6 +148,36 @@ class DetectedChange(BaseModel):
     """Decision-context linkage (§7) — set when this change was
     determined to matter to a specific portfolio; `None` for a market/news
     change with no portfolio impact determined yet."""
+    event_fingerprint: str | None = None
+    """v1.2 Priority 1 (§7): the portfolio-agnostic identity of the
+    underlying real-world event — set once at detection time to the same
+    value `fingerprint` originally had, and never rewritten afterward.
+    `DecisionImpactService.attach_portfolio_context` appends `:{portfolio_id}`
+    to `fingerprint` itself (deliberately — see that module's own
+    docstring: two portfolios tracking the same ticker must each
+    independently pass suppression) — which means `fingerprint` alone can
+    no longer answer "is this the same underlying event as that other
+    one, just routed to a different portfolio?" `event_fingerprint`
+    answers exactly that, without changing any existing suppression/
+    routing behavior. A future task can group `DetectedChange`s sharing
+    one `event_fingerprint` across portfolios; this task only ensures the
+    identity survives portfolio expansion. `None` only for a
+    `DetectedChange` constructed before this field existed (never emitted
+    by this codebase after v1.2)."""
+    impacted_portfolio_ids: tuple[str, ...] = Field(default_factory=tuple)
+    """v1.2 Priority 2 (cross-portfolio notification grouping): the
+    complete list of every portfolio this underlying event was found
+    impacted for *and* which independently survived its own per-portfolio
+    suppression check — attached identically to every published copy of
+    one `event_fingerprint` group by `ContinuousIntelligenceService._route`
+    (see that method's own docstring). Never used for routing/delivery or
+    suppression (`fingerprint`/`portfolio_id` remain the source of truth
+    for both, unchanged) — purely presentation metadata so a single
+    received WS frame is self-sufficient to render "Affected: N
+    portfolios" without needing every other frame in the group to have
+    arrived first. Empty for a change with no portfolio impact, or for
+    Risk/Recommendation/Strategy changes (already inherently
+    single-portfolio, never fanned out)."""
     detected_at: datetime
 
 

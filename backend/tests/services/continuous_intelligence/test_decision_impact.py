@@ -28,9 +28,11 @@ def _watchlist(watchlist_id: str, tickers: list[str]) -> Watchlist:
 
 
 def _change(entity_id: str = "dell", portfolio_id: str | None = None) -> DetectedChange:
+    fingerprint = f"MARKET:{entity_id}:price"
     return DetectedChange(
-        fingerprint=f"MARKET:{entity_id}:price", domain=ChangeDomain.MARKET, entity_id=entity_id,
-        label="Dell", priority=ChangePriority.MEDIUM, summary="x", portfolio_id=portfolio_id, detected_at=NOW,
+        fingerprint=fingerprint, domain=ChangeDomain.MARKET, entity_id=entity_id,
+        label="Dell", priority=ChangePriority.MEDIUM, summary="x", portfolio_id=portfolio_id,
+        event_fingerprint=fingerprint, detected_at=NOW,
     )
 
 
@@ -94,3 +96,23 @@ def test_attach_portfolio_context_leaves_already_scoped_change_untouched() -> No
     expanded = service.attach_portfolio_context(change, ("wl-2", "wl-3"))
 
     assert expanded == (change,)
+
+
+def test_attach_portfolio_context_preserves_event_fingerprint_across_expansion() -> None:
+    """v1.2 Priority 1 (§7): each per-portfolio copy's `fingerprint`
+    correctly differs (see the test above), but `event_fingerprint` — the
+    stable, portfolio-agnostic identity of the underlying real-world
+    event — must be identical across every copy, so a future
+    cross-portfolio-grouping task can recognize "these are the same
+    event, routed to different portfolios" even though today's
+    suppression still treats them independently."""
+    service = DecisionImpactService(_FakeWatchlistService([]))
+    change = _change()
+    assert change.event_fingerprint == change.fingerprint  # sanity: set at construction, matches the pilot's real detector behavior
+
+    expanded = service.attach_portfolio_context(change, ("wl-1", "wl-2", "wl-3"))
+
+    event_fingerprints = {c.event_fingerprint for c in expanded}
+    assert event_fingerprints == {change.event_fingerprint}
+    fingerprints = {c.fingerprint for c in expanded}
+    assert len(fingerprints) == 3  # per-portfolio fingerprints still all distinct (unchanged behavior)

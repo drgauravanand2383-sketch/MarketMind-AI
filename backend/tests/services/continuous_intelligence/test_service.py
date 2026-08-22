@@ -839,3 +839,283 @@ async def test_strategy_evaluation_without_recommendation_linkage_is_never_attri
 
     assert not any(c.domain.value == "STRATEGY" for c in result_1.changes)
     assert not any(c.domain.value == "STRATEGY" for c in result_2.changes)
+
+
+# --- v1.2 Priority 2: cross-portfolio notification grouping (§_route) -----------------------------------------------------------
+
+
+class _SelectiveFakeSuppression:
+    """Treats a fingerprint as already-duplicate iff it was scoped to
+    `blocked_portfolio_id` — lets a test force exactly one portfolio's
+    copy of an otherwise-identical event to be independently suppressed,
+    without needing to predict the real fingerprint's exact string
+    (which embeds a fetch timestamp)."""
+
+    def __init__(self, blocked_portfolio_id: str) -> None:
+        self._blocked_suffix = f":{blocked_portfolio_id}"
+        self.recorded: list[str] = []
+
+    async def is_duplicate(self, fingerprint: str) -> bool:
+        return fingerprint.endswith(self._blocked_suffix)
+
+    async def record_emitted(self, fingerprint: str) -> None:
+        self.recorded.append(fingerprint)
+
+
+async def test_three_watching_portfolios_are_all_present_in_the_grouped_impacted_list(
+    service: ContinuousIntelligenceService, market_provider: _FakeMarketDataProvider, watchlist_service: WatchlistService
+) -> None:
+    """§2 item 1: same event_fingerprint, 3 impacted portfolios -> every
+    emitted copy carries all 3 in impacted_portfolio_ids (the grouping
+    key a client uses to collapse them into one notification)."""
+    from app.watchlist.models import WatchlistItem
+
+    ids = []
+    for name in ("Portfolio A", "Portfolio B", "Portfolio C"):
+        wl = await watchlist_service.create_watchlist(name)
+        await watchlist_service.add_company(wl.id, WatchlistItem(ticker="DELL", company_name="Dell", added_at=NOW))
+        ids.append(wl.id)
+
+    await service.run_cycle("exec-1")
+    market_provider.prices["DELL"] = 110.0
+    result = await service.run_cycle("exec-2")
+
+    market_changes = [c for c in result.changes if c.domain.value == "MARKET"]
+    assert len(market_changes) == 3
+    assert {c.portfolio_id for c in market_changes} == set(ids)
+    for change in market_changes:
+        assert set(change.impacted_portfolio_ids) == set(ids)
+        assert len(change.impacted_portfolio_ids) == 3
+
+
+async def test_single_watching_portfolio_reports_an_impacted_list_of_one(
+    service: ContinuousIntelligenceService, market_provider: _FakeMarketDataProvider, watchlist_service: WatchlistService
+) -> None:
+    """§2 item 2: exactly one impacted portfolio -> a 1-tuple, not empty
+    and not padded with anything else."""
+    from app.watchlist.models import WatchlistItem
+
+    watchlist = await watchlist_service.create_watchlist("Solo Portfolio")
+    await watchlist_service.add_company(watchlist.id, WatchlistItem(ticker="DELL", company_name="Dell", added_at=NOW))
+
+    await service.run_cycle("exec-1")
+    market_provider.prices["DELL"] = 110.0
+    result = await service.run_cycle("exec-2")
+
+    market_changes = [c for c in result.changes if c.domain.value == "MARKET"]
+    assert len(market_changes) == 1
+    assert market_changes[0].impacted_portfolio_ids == (watchlist.id,)
+
+
+async def test_market_and_news_changes_for_the_same_entity_are_never_grouped_together(
+    service: ContinuousIntelligenceService, market_provider: _FakeMarketDataProvider,
+    knowledge_hub: _FakeKnowledgeHub, watchlist_service: WatchlistService,
+) -> None:
+    """§2 item 3/5: different event_fingerprints (here, different
+    domains for the same entity) must never share one impacted-portfolio
+    group, even though both originate from the same underlying entity in
+    the same cycle."""
+    from app.repositories.knowledge.models import KnowledgeRecord
+    from app.watchlist.models import WatchlistItem
+
+    watchlist = await watchlist_service.create_watchlist("My Portfolio")
+    await watchlist_service.add_company(watchlist.id, WatchlistItem(ticker="DELL", company_name="Dell", added_at=NOW))
+
+    await service.run_cycle("exec-1")
+    market_provider.prices["DELL"] = 110.0
+    knowledge_hub.records = [KnowledgeRecord(id="r1", title="Dell news", text="Dell Technologies Inc. announced X.")]
+
+    result = await service.run_cycle("exec-2")
+
+    market_change = next(c for c in result.changes if c.domain.value == "MARKET")
+    news_change = next(c for c in result.changes if c.domain.value == "NEWS")
+    assert market_change.event_fingerprint != news_change.event_fingerprint
+    assert market_change.fingerprint != news_change.fingerprint
+    # Both independently impact the one real watching portfolio - grouping
+    # is per-fingerprint, not "everything for this entity in this cycle".
+    assert market_change.impacted_portfolio_ids == (watchlist.id,)
+    assert news_change.impacted_portfolio_ids == (watchlist.id,)
+
+
+async def test_two_different_companies_produce_independent_impacted_groups(
+    market_provider: _FakeMarketDataProvider, knowledge_hub: _FakeKnowledgeHub,
+    signal_service: SignalDetectionService, alert_service: AlertService, risk_service: RiskAnalyticsService,
+    recommendation_service: PortfolioRecommendationService, watchlist_service: WatchlistService,
+) -> None:
+    """§2 item 4: two different real companies, each tracked by its own
+    portfolio -> each change's impacted_portfolio_ids must reference only
+    its own company's portfolio, never the other's."""
+    from app.watchlist.models import WatchlistItem
+
+    aapl_reference = CompanyReference(
+        entity_id="aapl", canonical_name="Apple Inc.", ticker="AAPL",
+        exchange="NASDAQ", country="United States", sector="Technology",
+        industry="Consumer Electronics", aliases=("Apple",),
+    )
+    resolver = EntityResolutionService((DELL_REFERENCE, aapl_reference))
+    market_provider.prices["AAPL"] = 100.0
+
+    dell_watchlist = await watchlist_service.create_watchlist("Dell Holders")
+    await watchlist_service.add_company(dell_watchlist.id, WatchlistItem(ticker="DELL", company_name="Dell", added_at=NOW))
+    aapl_watchlist = await watchlist_service.create_watchlist("Apple Holders")
+    await watchlist_service.add_company(aapl_watchlist.id, WatchlistItem(ticker="AAPL", company_name="Apple", added_at=NOW))
+
+    market_snapshot_service = MarketSnapshotService(market_provider, resolver, InMemoryMarketSnapshotCache(60.0))
+    service = ContinuousIntelligenceService(
+        entity_resolver=resolver, market_snapshot_service=market_snapshot_service, knowledge_hub=knowledge_hub,
+        signal_service=signal_service, alert_service=alert_service, risk_service=risk_service,
+        recommendation_service=recommendation_service, watchlist_service=watchlist_service,
+        thresholds=ContinuousIntelligenceThresholds(market_change_percent_threshold=3.0, news_significance_threshold=1),
+        now_fn=lambda: NOW,
+    )
+
+    await service.run_cycle("exec-1")
+    market_provider.prices["DELL"] = 110.0
+    market_provider.prices["AAPL"] = 110.0
+    result = await service.run_cycle("exec-2")
+
+    dell_change = next(c for c in result.changes if c.entity_id == "dell")
+    aapl_change = next(c for c in result.changes if c.entity_id == "aapl")
+    assert dell_change.impacted_portfolio_ids == (dell_watchlist.id,)
+    assert aapl_change.impacted_portfolio_ids == (aapl_watchlist.id,)
+
+
+async def test_portfolio_tracking_a_different_ticker_never_appears_in_the_impacted_list(
+    service: ContinuousIntelligenceService, market_provider: _FakeMarketDataProvider, watchlist_service: WatchlistService
+) -> None:
+    """§2 item 6: a portfolio that does not actually track the changed
+    entity must never appear in impacted_portfolio_ids - not "excluded by
+    permission" (this codebase has no per-user ownership model, §10 of
+    the architecture doc), but genuinely never a candidate in the first
+    place. Regression-guards find_impacted_portfolios' own ticker match
+    against accidentally widening to "every portfolio"."""
+    from app.watchlist.models import WatchlistItem
+
+    tracking = await watchlist_service.create_watchlist("Tracks Dell")
+    await watchlist_service.add_company(tracking.id, WatchlistItem(ticker="DELL", company_name="Dell", added_at=NOW))
+    unrelated = await watchlist_service.create_watchlist("Tracks Something Else")
+    await watchlist_service.add_company(unrelated.id, WatchlistItem(ticker="MSFT", company_name="Microsoft", added_at=NOW))
+
+    await service.run_cycle("exec-1")
+    market_provider.prices["DELL"] = 110.0
+    result = await service.run_cycle("exec-2")
+
+    market_changes = [c for c in result.changes if c.domain.value == "MARKET"]
+    assert len(market_changes) == 1
+    assert market_changes[0].impacted_portfolio_ids == (tracking.id,)
+    assert unrelated.id not in market_changes[0].impacted_portfolio_ids
+
+
+async def test_per_portfolio_suppression_remains_independent_after_grouping(
+    market_provider: _FakeMarketDataProvider, resolver: EntityResolutionService, knowledge_hub: _FakeKnowledgeHub,
+    signal_service: SignalDetectionService, alert_service: AlertService, risk_service: RiskAnalyticsService,
+    recommendation_service: PortfolioRecommendationService, watchlist_service: WatchlistService,
+) -> None:
+    """§4/§2 item 7: grouping must never widen suppression scope - one
+    portfolio being suppressed must not suppress (or get excluded from
+    delivery on behalf of) a sibling portfolio that is not itself
+    suppressed. The suppressed portfolio's copy must still show up in
+    `suppressed`, and the surviving portfolio's impacted_portfolio_ids
+    must reflect only itself (grouping is computed from survivors only)."""
+    from app.watchlist.models import WatchlistItem
+
+    blocked = await watchlist_service.create_watchlist("Blocked Portfolio")
+    await watchlist_service.add_company(blocked.id, WatchlistItem(ticker="DELL", company_name="Dell", added_at=NOW))
+    free = await watchlist_service.create_watchlist("Free Portfolio")
+    await watchlist_service.add_company(free.id, WatchlistItem(ticker="DELL", company_name="Dell", added_at=NOW))
+
+    fake_suppression = _SelectiveFakeSuppression(blocked_portfolio_id=blocked.id)
+    market_snapshot_service = MarketSnapshotService(market_provider, resolver, InMemoryMarketSnapshotCache(60.0))
+    service = ContinuousIntelligenceService(
+        entity_resolver=resolver, market_snapshot_service=market_snapshot_service, knowledge_hub=knowledge_hub,
+        signal_service=signal_service, alert_service=alert_service, risk_service=risk_service,
+        recommendation_service=recommendation_service, watchlist_service=watchlist_service,
+        suppression=fake_suppression,  # type: ignore[arg-type]
+        thresholds=ContinuousIntelligenceThresholds(market_change_percent_threshold=3.0, news_significance_threshold=1),
+        now_fn=lambda: NOW,
+    )
+
+    await service.run_cycle("exec-1")
+    market_provider.prices["DELL"] = 110.0
+    result = await service.run_cycle("exec-2")
+
+    market_changes = [c for c in result.changes if c.domain.value == "MARKET"]
+    market_suppressed = [c for c in result.suppressed if c.domain.value == "MARKET"]
+    assert {c.portfolio_id for c in market_suppressed} == {blocked.id}
+    assert len(market_changes) == 1
+    assert market_changes[0].portfolio_id == free.id
+    assert market_changes[0].impacted_portfolio_ids == (free.id,)  # never includes the suppressed sibling
+
+
+async def test_grouped_change_preserves_summary_priority_and_timestamp(
+    service: ContinuousIntelligenceService, market_provider: _FakeMarketDataProvider, watchlist_service: WatchlistService
+) -> None:
+    """§2 item 11: attaching impacted_portfolio_ids must never clobber
+    any of the change's other real, already-computed fields."""
+    from app.watchlist.models import WatchlistItem
+
+    watchlist_a = await watchlist_service.create_watchlist("Portfolio A")
+    await watchlist_service.add_company(watchlist_a.id, WatchlistItem(ticker="DELL", company_name="Dell", added_at=NOW))
+    watchlist_b = await watchlist_service.create_watchlist("Portfolio B")
+    await watchlist_service.add_company(watchlist_b.id, WatchlistItem(ticker="DELL", company_name="Dell", added_at=NOW))
+
+    await service.run_cycle("exec-1")
+    market_provider.prices["DELL"] = 110.0
+    result = await service.run_cycle("exec-2")
+
+    market_changes = [c for c in result.changes if c.domain.value == "MARKET"]
+    for change in market_changes:
+        assert change.label == "Dell Technologies Inc."
+        assert change.summary.startswith("Dell Technologies Inc. moved up")
+        assert change.previous_value == "100.00"
+        assert change.current_value == "110.00"
+        assert change.detected_at is not None
+        assert len(change.impacted_portfolio_ids) == 2
+
+
+async def test_same_event_after_cooldown_expires_regroups_correctly(
+    market_provider: _FakeMarketDataProvider, resolver: EntityResolutionService, knowledge_hub: _FakeKnowledgeHub,
+    signal_service: SignalDetectionService, alert_service: AlertService, risk_service: RiskAnalyticsService,
+    recommendation_service: PortfolioRecommendationService, watchlist_service: WatchlistService,
+) -> None:
+    """§2 item 8: once a fingerprint's cooldown genuinely expires, the
+    next occurrence of the same underlying event is grouped fresh across
+    every currently-impacted portfolio again - cooldown expiry is not
+    special-cased or weakened by grouping."""
+    from app.services.continuous_intelligence.suppression import SuppressionService
+    from app.watchlist.models import WatchlistItem
+
+    watchlist_a = await watchlist_service.create_watchlist("Portfolio A")
+    await watchlist_service.add_company(watchlist_a.id, WatchlistItem(ticker="DELL", company_name="Dell", added_at=NOW))
+    watchlist_b = await watchlist_service.create_watchlist("Portfolio B")
+    await watchlist_service.add_company(watchlist_b.id, WatchlistItem(ticker="DELL", company_name="Dell", added_at=NOW))
+
+    clock = {"now": NOW}
+    suppression = SuppressionService(cooldown_minutes=10.0, now_fn=lambda: clock["now"])
+    market_snapshot_service = MarketSnapshotService(market_provider, resolver, InMemoryMarketSnapshotCache(60.0))
+    service = ContinuousIntelligenceService(
+        entity_resolver=resolver, market_snapshot_service=market_snapshot_service, knowledge_hub=knowledge_hub,
+        signal_service=signal_service, alert_service=alert_service, risk_service=risk_service,
+        recommendation_service=recommendation_service, watchlist_service=watchlist_service,
+        suppression=suppression,
+        thresholds=ContinuousIntelligenceThresholds(market_change_percent_threshold=3.0, news_significance_threshold=1),
+        now_fn=lambda: clock["now"],
+    )
+
+    await service.run_cycle("exec-1")
+    market_provider.prices["DELL"] = 110.0
+    result_first = await service.run_cycle("exec-2")
+    first_changes = [c for c in result_first.changes if c.domain.value == "MARKET"]
+    assert len(first_changes) == 2
+    assert set(first_changes[0].impacted_portfolio_ids) == {watchlist_a.id, watchlist_b.id}
+
+    # Same price (110 -> 110) is not a new move - advance far past cooldown
+    # and move again to get a genuinely new, independently-detected event.
+    clock["now"] = NOW + timedelta(minutes=15)
+    market_provider.prices["DELL"] = 121.0
+    result_second = await service.run_cycle("exec-3")
+
+    second_changes = [c for c in result_second.changes if c.domain.value == "MARKET"]
+    assert len(second_changes) == 2
+    assert set(second_changes[0].impacted_portfolio_ids) == {watchlist_a.id, watchlist_b.id}
+    assert result_second.events_suppressed == 0

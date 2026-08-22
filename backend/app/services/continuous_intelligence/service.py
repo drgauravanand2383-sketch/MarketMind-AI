@@ -436,8 +436,38 @@ class ContinuousIntelligenceService:
     async def _route(
         self, change: DetectedChange, ticker: str | None
     ) -> tuple[list[DetectedChange], list[DetectedChange]]:
-        """Expands `change` across impacted portfolios (§7), then applies
-        suppression (§8) and publishes (§9) whatever survives."""
+        """Expands `change` across impacted portfolios (§7), applies
+        suppression (§8) **per portfolio, independently and unchanged**,
+        then publishes (§9) whatever survives.
+
+        v1.2 Priority 2 (cross-portfolio notification grouping): every
+        candidate expanded from one `change` shares the same
+        `event_fingerprint` (`attach_portfolio_context` never rewrites
+        it — only `fingerprint`/`portfolio_id` differ per copy), so one
+        `_route()` call is always exactly one underlying event, fanned
+        out to at most `len(portfolio_ids)` per-portfolio candidates.
+        Suppression is evaluated first, per candidate, exactly as before
+        this milestone — grouping never widens or narrows which
+        candidates survive. Only *after* that is decided do the
+        survivors' `portfolio_id`s get collected into
+        `impacted_portfolio_ids` and stamped onto every survivor before
+        publish, so each one is self-describing ("this event also
+        affects N-1 other portfolios") without needing every other frame
+        in the group to have already arrived.
+
+        Deliberately still publishes once per surviving candidate (never
+        collapsed into one broadcast) — `EventPublisher`'s own
+        `correlation_id` (`portfolio_id or entity_id`) is what lets a
+        client subscribe narrowly to one portfolio's events (§10); a
+        single collapsed broadcast could only carry one `correlation_id`
+        and would silently stop reaching a client narrowly subscribed to
+        any of the *other* impacted portfolios. Collapsing three
+        network-visible frames into one user-visible Notification Center
+        entry is therefore a client-side concern
+        (`frontend/src/store/realtime-notification-store.ts`'s
+        `event_fingerprint`-keyed upsert) — not a change to how many
+        times this method calls `_publish`.
+        """
         if change.portfolio_id is None and ticker is not None:
             portfolio_ids = await self._decision_impact.find_impacted_portfolios(ticker)
             candidates = self._decision_impact.attach_portfolio_context(change, portfolio_ids)
@@ -446,6 +476,7 @@ class ContinuousIntelligenceService:
 
         emitted: list[DetectedChange] = []
         suppressed: list[DetectedChange] = []
+        survivors: list[DetectedChange] = []
         for candidate in candidates:
             if await self._suppression.is_duplicate(candidate.fingerprint):
                 suppressed.append(candidate)
@@ -455,8 +486,17 @@ class ContinuousIntelligenceService:
                 )
                 continue
             await self._suppression.record_emitted(candidate.fingerprint)
+            survivors.append(candidate)
+
+        impacted_portfolio_ids = tuple(c.portfolio_id for c in survivors if c.portfolio_id is not None)
+        for candidate in survivors:
+            grouped = (
+                candidate.model_copy(update={"impacted_portfolio_ids": impacted_portfolio_ids})
+                if impacted_portfolio_ids
+                else candidate
+            )
             try:
-                await self._publish(candidate)
+                await self._publish(grouped)
             except Exception as exc:  # noqa: BLE001 - a publish failure must not lose the underlying detected state
                 # The comparison state (detector) and suppression record
                 # (above) are already durably written before this point —
@@ -465,9 +505,9 @@ class ContinuousIntelligenceService:
                 # surfaced, never silently swallowed (§14).
                 _logger.warning(
                     "continuous_intelligence_publish_failed",
-                    extra={"fingerprint": candidate.fingerprint, "domain": candidate.domain.value, "error": str(exc)},
+                    extra={"fingerprint": grouped.fingerprint, "domain": grouped.domain.value, "error": str(exc)},
                 )
-            emitted.append(candidate)
+            emitted.append(grouped)
         return emitted, suppressed
 
     async def _publish(self, change: DetectedChange) -> None:
