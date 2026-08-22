@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from app.alerts.models import Alert, AlertCondition, AlertRule, NotificationChannel
+from app.alerts.models import Alert, AlertCondition, AlertExplanation, AlertRule, NotificationChannel
 from app.repositories.alerts.postgres.models import AlertModel, AlertRuleModel
 
 __all__ = ["rule_to_model", "model_to_rule", "alert_to_model", "model_to_alert"]
@@ -74,6 +74,7 @@ def alert_to_model(alert: Alert) -> AlertModel:
         confidence=alert.confidence,
         score=alert.score,
         eligible_channels=[c.value for c in alert.eligible_channels],
+        explanation=alert.explanation.model_dump(mode="json") if alert.explanation is not None else None,
         created_at=alert.created_at,
     )
 
@@ -93,5 +94,6 @@ def model_to_alert(model: AlertModel) -> Alert:
         confidence=model.confidence,
         score=model.score,
         eligible_channels=tuple(NotificationChannel(c) for c in model.eligible_channels),
+        explanation=AlertExplanation.model_validate(model.explanation) if model.explanation is not None else None,
         created_at=_ensure_aware(model.created_at),
     )

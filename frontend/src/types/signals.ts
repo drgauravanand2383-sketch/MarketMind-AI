@@ -209,6 +209,12 @@ export interface ConditionEvaluation {
   weight: number;
   passed: boolean;
   reason: string | null;
+  /** v1.2 Priority 1: the real value read from the market data snapshot,
+   * and the literal it was compared against — additive, so a `Alert`
+   * shown for older data (persisted before this field existed) reads as
+   * `null`, not missing/absent. */
+  actual_value?: unknown;
+  expected_value?: unknown;
 }
 
 export interface SignalResult {

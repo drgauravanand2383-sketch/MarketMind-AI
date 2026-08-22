@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.alerts.models import AlertCondition, AlertOperator, AlertRule
-from app.signals.models import SignalCategory, SignalPriority, SignalResult
+from app.signals.models import ConditionEvaluation, SignalCategory, SignalPriority, SignalResult
 
 NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
 
@@ -48,9 +48,12 @@ def make_signal(
     priority: SignalPriority = SignalPriority.HIGH,
     reason: str = "matched",
     timestamp: datetime = NOW,
+    matched_conditions: tuple[ConditionEvaluation, ...] = (),
+    failed_conditions: tuple[ConditionEvaluation, ...] = (),
 ) -> SignalResult:
     return SignalResult(
         ticker=ticker, company_name=company_name, signal_name=signal_name, category=category,
         triggered=triggered, confidence=confidence, score=score, priority=priority,
         reason=reason, timestamp=timestamp,
+        matched_conditions=matched_conditions, failed_conditions=failed_conditions,
     )

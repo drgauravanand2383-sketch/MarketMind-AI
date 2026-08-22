@@ -17,7 +17,7 @@ from app.alerts.engine import AlertService
 from app.alerts.models import AlertOperator, AlertPriority, AlertStatus, NotificationChannel
 from app.repositories.alerts.postgres.models import Base
 from app.repositories.alerts.postgres.repository import PostgresAlertRepository, PostgresAlertRuleRepository
-from app.signals.models import SignalCategory, SignalPriority
+from app.signals.models import ConditionEvaluation, SignalCategory, SignalOperator, SignalPriority
 from tests.alerts.conftest import NOW, make_condition, make_rule, make_signal
 
 
@@ -406,6 +406,80 @@ async def test_alert_carries_confidence_and_score_from_signal(service: AlertServ
     alert = await service.evaluate_signal(make_signal(score=80, confidence=95), rule)
     assert alert.score == 80
     assert alert.confidence == 95
+
+
+# --- Structured explanation (v1.2 Priority 1, §4) -----------------------------------------------------------
+
+
+async def test_alert_reason_uses_the_signals_own_weighted_match_description(service: AlertService) -> None:
+    """Regression guard for the pilot's own P1 finding: pre-v1.2, every
+    alert's `reason` was the identical generic sentence
+    ("Rule X matched signal Y for TICKER.") regardless of what actually
+    happened — this proves the real, signal-specific weighted-match
+    description is now present instead."""
+    rule = await service.create_rule("My Rule", conditions=(make_condition(operator=AlertOperator.GREATER_THAN, value=50),))
+    signal = make_signal(score=80, reason="Triggered: 2 of 3 conditions matched (weighted score 80.0%).")
+
+    alert = await service.evaluate_signal(signal, rule)
+
+    assert "2 of 3 conditions matched" in alert.reason
+    assert "weighted score 80.0%" in alert.reason
+
+
+async def test_alert_explanation_carries_real_condition_evidence(service: AlertService) -> None:
+    """§4/§6: an alert's explanation must expose the actual conditions
+    that fired, with their real field/threshold/actual-value data — never
+    invented, always read from the triggering SignalResult."""
+    matched = (
+        ConditionEvaluation(
+            condition_id="c1", field="quote.change_percent", operator=SignalOperator.GREATER_EQUAL,
+            weight=3.0, passed=True, actual_value=-11.42, expected_value=-5.0,
+        ),
+    )
+    failed = (
+        ConditionEvaluation(
+            condition_id="c2", field="quote.change_percent", operator=SignalOperator.LESS_EQUAL,
+            weight=3.0, passed=False, reason="quote.change_percent (-11.42) is not less than -5.0.",
+            actual_value=-11.42, expected_value=5.0,
+        ),
+    )
+    signal = make_signal(
+        score=57.14, matched_conditions=matched, failed_conditions=failed,
+        reason="Triggered: 1 of 2 conditions matched (weighted score 57.14%).",
+        category=SignalCategory.MOMENTUM,
+    )
+    rule = await service.create_rule(
+        "Breakout Alert", conditions=(make_condition(field="triggered", operator=AlertOperator.EQUALS, value=True),)
+    )
+
+    alert = await service.evaluate_signal(signal, rule)
+
+    assert alert is not None
+    assert alert.explanation is not None
+    assert alert.explanation.signal_category == SignalCategory.MOMENTUM
+    assert alert.explanation.matched_condition_count == 1
+    assert alert.explanation.failed_condition_count == 1
+    assert alert.explanation.matched_conditions[0].actual_value == -11.42
+    assert alert.explanation.matched_conditions[0].expected_value == -5.0
+    assert alert.explanation.matched_conditions[0].field == "quote.change_percent"
+    assert alert.explanation.weighted_score == 57.14
+    assert "57.14%" in alert.explanation.signal_reason
+
+
+async def test_notification_payload_is_complete(service: AlertService) -> None:
+    """§8/§10: everything the frontend Notification Center needs (title
+    inputs: priority + ticker; summary input: reason; plus company and
+    timestamp) must be present on the persisted `Alert` a caller reads
+    back — nothing missing, nothing requiring a second lookup."""
+    rule = await service.create_rule("My Rule", conditions=(make_condition(operator=AlertOperator.GREATER_THAN, value=50),))
+    alert = await service.evaluate_signal(make_signal(score=80, company_name="Apple"), rule)
+
+    assert alert.ticker
+    assert alert.company_name == "Apple"
+    assert alert.priority is not None
+    assert alert.reason
+    assert alert.created_at is not None
+    assert alert.explanation is not None
 
 
 # --- Batch evaluation -----------------------------------------------------------

@@ -29,6 +29,7 @@ from app.alerts.models import (
     Alert,
     AlertBatch,
     AlertCondition,
+    AlertExplanation,
     AlertOperator,
     AlertPriority,
     AlertRule,
@@ -269,7 +270,8 @@ class AlertService:
 
         is_duplicate = await self._is_duplicate(signal, rule, priority)
         status = AlertStatus.SUPPRESSED if is_duplicate else AlertStatus.GENERATED
-        reason = f"Rule {rule.name!r} matched signal {signal.signal_name!r} for {signal.ticker}."
+        explanation = _build_explanation(signal)
+        reason = _build_reason(rule, signal, explanation)
         if is_duplicate:
             reason += " Suppressed: duplicate alert within cooldown/repeat policy."
 
@@ -286,6 +288,7 @@ class AlertService:
             confidence=signal.confidence,
             score=signal.score,
             eligible_channels=eligible_channels,
+            explanation=explanation,
             created_at=self._now_fn(),
         )
         return await self._alert_repository.create_alert(alert)
@@ -374,6 +377,40 @@ def _apply_operator(operator: AlertOperator, actual: Any, expected: Any) -> bool
     if operator == AlertOperator.IN:
         return actual in expected
     return actual not in expected  # AlertOperator.NOT_IN
+
+
+def _build_explanation(signal: SignalResult) -> AlertExplanation:
+    """v1.2 Priority 1 (§4): a structured, evidence-based explanation of
+    why this alert exists — every field read directly from the already-
+    computed `SignalResult`, nothing recomputed or invented here."""
+    return AlertExplanation(
+        signal_category=signal.category,
+        weighted_score=signal.score,
+        matched_condition_count=len(signal.matched_conditions),
+        failed_condition_count=len(signal.failed_conditions),
+        matched_conditions=signal.matched_conditions,
+        failed_conditions=signal.failed_conditions,
+        signal_reason=signal.reason,
+    )
+
+
+def _build_reason(rule: AlertRule, signal: SignalResult, explanation: AlertExplanation) -> str:
+    """v1.2 Priority 1 (§4): replaces the pre-v1.2 boilerplate
+    (`"Rule {rule.name!r} matched signal {signal.signal_name!r} for
+    {signal.ticker}."`, identical for every alert regardless of what
+    actually happened) with a sentence grounded in the signal's own real,
+    already-computed evidence (`signal.reason` — the engine's own
+    weighted-match description, e.g. "Triggered: 2 of 2 conditions
+    matched (weighted score 100.0%)."), so `reason` alone (as shown in
+    the frontend Notification Center's summary, and in
+    `GET /alerts/{id}`) is no longer indistinguishable across every alert
+    this rule has ever produced."""
+    subject = f"{signal.company_name} ({signal.ticker})" if signal.company_name else signal.ticker
+    return (
+        f"{subject}: signal {signal.signal_name!r} {'triggered' if signal.triggered else 'did not trigger'} "
+        f"under rule {rule.name!r} — {signal.reason} "
+        f"({explanation.matched_condition_count} matched / {explanation.failed_condition_count} failed condition(s))."
+    )
 
 
 def _combine_priority(rule_priority: AlertPriority, signal_priority: SignalPriority) -> AlertPriority:

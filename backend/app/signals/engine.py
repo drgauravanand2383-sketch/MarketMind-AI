@@ -255,6 +255,8 @@ def _evaluate_condition(condition: SignalCondition, snapshot: MarketDataSnapshot
         weight=condition.weight,
         passed=passed,
         reason=None if passed else reason,
+        actual_value=actual,
+        expected_value=condition.value,
     )
 
 

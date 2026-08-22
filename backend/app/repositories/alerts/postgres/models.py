@@ -57,4 +57,8 @@ class AlertModel(Base):
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
     score: Mapped[float] = mapped_column(Float, nullable=False)
     eligible_channels: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    explanation: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    """v1.2 Priority 1: structured `AlertExplanation`, stored as JSON —
+    additive, nullable (see `alembic/versions/0006_alert_explanation.py`).
+    `None` for any alert persisted before this column existed."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)

@@ -264,7 +264,16 @@ class MarketDataSnapshot(BaseModel):
 
 class ConditionEvaluation(BaseModel):
     """The outcome of evaluating one `SignalCondition` against one
-    company's `MarketDataSnapshot`."""
+    company's `MarketDataSnapshot`.
+
+    `actual_value`/`expected_value` (v1.2, Priority 1): the same values
+    `app.signals.engine._apply_operator` already computes locally to build
+    `reason`'s formatted string — surfaced here as structured fields too,
+    additive and backward compatible, so a downstream consumer (e.g.
+    `AlertExplanation`) can show "current value / threshold" without
+    re-parsing a human-readable sentence. `None` for a condition that
+    failed on missing data (no `actual_value` was ever read).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -274,6 +283,8 @@ class ConditionEvaluation(BaseModel):
     weight: float
     passed: bool
     reason: str | None = None
+    actual_value: Any | None = None
+    expected_value: Any | None = None
 
 
 class SignalResult(BaseModel):

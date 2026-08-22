@@ -26,6 +26,7 @@ from app.services.market_snapshot.models import MarketSnapshot, MarketSnapshotRe
 from app.services.portfolio_market_snapshot.signal_adapter import build_market_data_snapshot
 from app.signals.engine import SignalDetectionService
 from app.signals.models import SignalCondition, SignalDefinition, SignalOperator, SignalPriority
+from app.signals.reference_definitions import build_price_breakout_signal_definition
 from tests.alerts.conftest import make_condition, make_rule
 
 NOW = datetime(2026, 8, 14, tzinfo=timezone.utc)
@@ -144,3 +145,88 @@ async def test_market_driven_alert_cooldown_and_dedup_behave_normally(
     clock.advance(minutes=30)
     third = await alert_service.evaluate_signal(signal_result, rule)
     assert third is not None and third.status == AlertStatus.GENERATED
+
+
+# --- v1.2 Priority 1: graduated signal + selectivity, end-to-end -----------------------------------------------------------
+
+
+def _snapshot_result_with_change(price: float, change_percent: float | None, status: MarketSnapshotStatus = MarketSnapshotStatus.FRESH) -> MarketSnapshotResult:
+    snapshot = None
+    if status in (MarketSnapshotStatus.FRESH, MarketSnapshotStatus.STALE):
+        snapshot = MarketSnapshot(
+            entity_id="dell", canonical_name="Dell Technologies Inc.", ticker="DELL",
+            price=price, change_percent=change_percent, quoted_at=NOW, fetched_at=NOW, provider="Yahoo Finance",
+        )
+    return MarketSnapshotResult(entity_id="dell", status=status, snapshot=snapshot, reason="test")
+
+
+def _breakout_definition() -> SignalDefinition:
+    return build_price_breakout_signal_definition(definition_id="d-breakout", created_at=NOW, updated_at=NOW)
+
+
+async def test_stale_market_data_never_produces_a_signal_or_alert(alert_service: AlertService) -> None:
+    """§5/§6 end-to-end: STALE market data must never generate a
+    significant market alert. The signal_adapter's FRESH-only guard
+    (already unit-tested in test_signal_adapter.py) means `quote` is
+    `None` for STALE data — this proves that consequence carries all the
+    way through to "no alert candidate exists at all", not just "no
+    quote"."""
+    stale_result = _snapshot_result_with_change(price=434.78, change_percent=-11.42, status=MarketSnapshotStatus.STALE)
+    market_data_snapshot = build_market_data_snapshot("DELL", "Dell Technologies Inc.", stale_result)
+    signal_engine = SignalDetectionService.__new__(SignalDetectionService)
+
+    signal_result = signal_engine.evaluate_company(market_data_snapshot, _breakout_definition())
+    assert signal_result.triggered is False  # missing quote -> every condition fails as missing data
+
+    rule = await alert_service.create_rule(
+        "Breakout Alert", conditions=(make_condition(field="triggered", operator=AlertOperator.EQUALS, value=True),)
+    )
+    alert = await alert_service.evaluate_signal(signal_result, rule)
+
+    assert alert is None  # no alert candidate at all, not even a suppressed one
+
+
+async def test_significant_real_move_generates_an_alert_with_a_graduated_non_hardcoded_score(
+    alert_service: AlertService,
+) -> None:
+    """§3/§4: the concrete fix for the pilot's own P1 finding — a real,
+    significant move produces a real alert whose score/confidence are
+    genuinely computed (not 100.0/100.0) and whose explanation carries
+    the actual evidence."""
+    fresh_result = _snapshot_result_with_change(price=434.78, change_percent=-11.42)
+    market_data_snapshot = build_market_data_snapshot("DELL", "Dell Technologies Inc.", fresh_result)
+    signal_engine = SignalDetectionService.__new__(SignalDetectionService)
+    signal_result = signal_engine.evaluate_company(market_data_snapshot, _breakout_definition())
+    assert signal_result.triggered is True
+    assert signal_result.score != 100.0
+
+    rule = await alert_service.create_rule(
+        "Breakout Alert", conditions=(make_condition(field="triggered", operator=AlertOperator.EQUALS, value=True),)
+    )
+    alert = await alert_service.evaluate_signal(signal_result, rule)
+
+    assert alert is not None
+    assert alert.status == AlertStatus.GENERATED
+    assert alert.score != 100.0
+    assert alert.confidence != 100.0
+    assert alert.explanation is not None
+    assert alert.explanation.matched_condition_count >= 1
+    assert any(c.field == "quote.change_percent" for c in alert.explanation.matched_conditions)
+
+
+async def test_insignificant_real_move_produces_no_alert_candidate(alert_service: AlertService) -> None:
+    """§5: below the breakout signal's own move threshold -> not
+    triggered -> no alert candidate, mirroring the pilot's own observed
+    CRM +4.70% case (below 5%)."""
+    fresh_result = _snapshot_result_with_change(price=205.43, change_percent=4.70)
+    market_data_snapshot = build_market_data_snapshot("CRM", "Salesforce Inc.", fresh_result)
+    signal_engine = SignalDetectionService.__new__(SignalDetectionService)
+    signal_result = signal_engine.evaluate_company(market_data_snapshot, _breakout_definition())
+    assert signal_result.triggered is False
+
+    rule = await alert_service.create_rule(
+        "Breakout Alert", conditions=(make_condition(field="triggered", operator=AlertOperator.EQUALS, value=True),)
+    )
+    alert = await alert_service.evaluate_signal(signal_result, rule)
+
+    assert alert is None

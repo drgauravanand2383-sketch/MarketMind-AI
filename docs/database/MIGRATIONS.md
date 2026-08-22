@@ -34,9 +34,16 @@ backend/
                                      Continuous Intelligence's durable
                                      comparison state, suppression records,
                                      and cycle-lock claims
+      0006_alert_explanation.py     v1.2 Priority 1: adds the nullable
+                                     `explanation` JSON column to `alerts`
+                                     — a structured, evidence-based
+                                     breakdown of the SignalResult that
+                                     produced each alert (see
+                                     docs/architecture/CONTINUOUS_INTELLIGENCE.md
+                                     §18)
 ```
 
-Current head: `0005_ci_persistence`. Every migration is column/table-existence-checked (never assumed) and is exercised by a real Alembic upgrade/downgrade cycle in `tests/operations/` — see
+Current head: `0006_alert_explanation`. Every migration is column/table-existence-checked (never assumed) and is exercised by a real Alembic upgrade/downgrade cycle in `tests/operations/` — see
 `tests/operations/test_alembic_environment.py` and
 `tests/operations/test_continuous_intelligence_persistence_migration.py`.
 

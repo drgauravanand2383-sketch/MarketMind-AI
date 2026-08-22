@@ -1,4 +1,4 @@
-import type { SignalResult } from "@/types/signals";
+import type { ConditionEvaluation, SignalCategory, SignalResult } from "@/types/signals";
 
 /**
  * Mirrors `app.alerts.models` field-for-field (verified against the
@@ -47,6 +47,22 @@ export interface AlertRule {
   updated_at: string;
 }
 
+/** v1.2 Priority 1: a structured "what/why/how confident" breakdown of
+ * the `SignalResult` that produced an `Alert` — every field read
+ * directly from that already-computed evidence, never invented. */
+export interface AlertExplanation {
+  signal_category: SignalCategory;
+  weighted_score: number;
+  matched_condition_count: number;
+  failed_condition_count: number;
+  matched_conditions: ConditionEvaluation[];
+  failed_conditions: ConditionEvaluation[];
+  /** `SignalResult.reason` verbatim — the engine's own weighted-match
+   * description, distinct from `Alert.reason` (which additionally names
+   * the rule/ticker). */
+  signal_reason: string;
+}
+
 export interface Alert {
   id: string;
   rule_id: string;
@@ -60,6 +76,9 @@ export interface Alert {
   confidence: number;
   score: number;
   eligible_channels: NotificationChannel[];
+  /** v1.2 Priority 1: `null` only for an alert persisted before this
+   * field existed. */
+  explanation?: AlertExplanation | null;
   created_at: string;
 }
 
