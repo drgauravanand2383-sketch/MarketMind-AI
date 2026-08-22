@@ -12,9 +12,10 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.config.models import RSSFeedSource
 from app.providers.models import ProviderConfig
 
-__all__ = ["RSSProviderConfig", "RSSFeedEntry", "RSSFeedData"]
+__all__ = ["RSSFeedSource", "RSSProviderConfig", "RSSFeedEntry", "RSSFeedData", "RSSFeedHealth"]
 
 
 class RSSProviderConfig(ProviderConfig):
@@ -24,7 +25,7 @@ class RSSProviderConfig(ProviderConfig):
     (`timeout`, `retry_attempts`, etc. are inherited unchanged).
     """
 
-    feed_urls: list[str] = Field(default_factory=list)
+    feed_urls: list[RSSFeedSource] = Field(default_factory=list)
     user_agent: str = "MarketMind-AI/1.0"
     retry_backoff_seconds: float = Field(default=1.0, ge=0)
 
@@ -50,6 +51,15 @@ class RSSFeedData(BaseModel):
     connection error, error status) — in that case `entries` is empty.
     `bozo`/`bozo_exception` reflect feedparser's own parse-error signaling
     for a response that was fetched successfully but was not well-formed.
+
+    `source_name`/`category`/`tag` (v1.2 Priority 6) are the configured
+    `RSSFeedSource`'s own declared metadata, echoed back here — not
+    derived from the fetched content — so every downstream consumer
+    (normalizer, health reporting) can identify which configured source
+    this result came from without a second URL->metadata lookup.
+    `fetch_duration_seconds` is this one feed's own fetch+parse latency,
+    for per-feed health reporting (§10) — independent of every other
+    configured feed's own latency.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -57,7 +67,33 @@ class RSSFeedData(BaseModel):
     feed_url: str
     feed_title: str | None = None
     feed_link: str | None = None
+    source_name: str | None = None
+    category: str | None = None
+    tag: str | None = None
+    fetch_duration_seconds: float | None = None
     bozo: bool = False
     bozo_exception: str | None = None
     entries: list[RSSFeedEntry] = Field(default_factory=list)
     fetch_error: str | None = None
+
+
+class RSSFeedHealth(BaseModel):
+    """One feed's health snapshot for a single fetch run (v1.2 Priority 6
+    §10) — derived purely from that run's own `RSSFeedData`, never
+    persisted separately. Cross-run history (last success/failure over
+    time, a rolling failure rate) is intentionally read from the existing
+    `rss_feed_fetched`/`rss_feed_fetch_failed` structured log lines
+    (`app.providers.rss.provider`) rather than a new stateful store — see
+    `docs/architecture/MARKET_INTELLIGENCE_INGESTION.md`'s "Source health"
+    section for the reasoning and the log-based query pattern.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    feed_url: str
+    source_name: str | None = None
+    category: str | None = None
+    success: bool
+    item_count: int
+    fetch_duration_seconds: float | None = None
+    error: str | None = None

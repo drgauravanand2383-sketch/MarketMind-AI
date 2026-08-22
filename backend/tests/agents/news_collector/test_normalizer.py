@@ -140,6 +140,40 @@ def test_normalize_returns_none_id_when_neither_guid_nor_link_present() -> None:
     assert items[0].id is None
 
 
+def test_normalize_threads_configured_source_name_and_category() -> None:
+    """v1.2 Priority 6: the configured RSSFeedSource's own name/category/
+    tag (echoed onto RSSFeedData by the provider) must reach every
+    NewsItem normalized from that feed."""
+    entry = RSSFeedEntry(title="Dell Q2 earnings beat estimates")
+    feed = RSSFeedData(
+        feed_url="https://www.nasdaq.com/feed/rssoutbound?category=Earnings",
+        feed_title="Earnings Feed",
+        source_name="Nasdaq Earnings",
+        category="Earnings",
+        tag="general-market",
+        entries=[entry],
+    )
+    result = ProviderResult(
+        provider_id="rss", fetched_at=datetime.now(timezone.utc), success=True, data=[feed]
+    )
+
+    items = normalize_provider_result(result)
+
+    assert items[0].source_metadata["source_name"] == "Nasdaq Earnings"
+    assert items[0].source_metadata["category"] == "Earnings"
+    assert items[0].source_metadata["tag"] == "general-market"
+
+
+def test_normalize_source_name_and_category_are_none_for_pre_priority_6_feed() -> None:
+    entry = RSSFeedEntry(title="General market update")
+    result = _rss_result([entry])  # _rss_result never sets source_name/category
+
+    items = normalize_provider_result(result)
+
+    assert items[0].source_metadata["source_name"] is None
+    assert items[0].source_metadata["category"] is None
+
+
 def test_normalize_handles_no_data() -> None:
     result = ProviderResult(
         provider_id="rss", fetched_at=datetime.now(timezone.utc), success=True, data=None

@@ -19,9 +19,9 @@ import httpx
 
 from app.providers.base import BaseProvider
 from app.providers.models import ProviderResult
-from app.providers.rss.models import RSSFeedData, RSSFeedEntry, RSSProviderConfig
+from app.providers.rss.models import RSSFeedData, RSSFeedEntry, RSSFeedHealth, RSSFeedSource, RSSProviderConfig
 
-__all__ = ["RSSProvider"]
+__all__ = ["RSSProvider", "summarize_feed_health"]
 
 PROVIDER_ID = "rss"
 PROVIDER_NAME = "RSS/Atom Feed Provider"
@@ -70,7 +70,7 @@ class RSSProvider(BaseProvider):
             without error.
         """
         feed_results = await asyncio.gather(
-            *(self._fetch_one(feed_url) for feed_url in self.config.feed_urls)
+            *(self._fetch_one(source) for source in self.config.feed_urls)
         )
 
         return ProviderResult(
@@ -81,14 +81,16 @@ class RSSProvider(BaseProvider):
             metadata={"feed_count": len(feed_results)},
         )
 
-    async def _fetch_one(self, feed_url: str) -> RSSFeedData:
+    async def _fetch_one(self, source: RSSFeedSource) -> RSSFeedData:
         """Fetch and parse a single feed URL, retrying transient failures
         up to `config.retry_attempts` times (default 0 — no retry) before
         recording `fetch_error`, isolating this one feed's failure from
         every other configured feed either way."""
+        feed_url = source.url
         response: httpx.Response | None = None
         last_error: httpx.HTTPError | None = None
         attempts = max(self.config.retry_attempts, 0) + 1
+        fetch_started = datetime.now(UTC)
 
         for attempt in range(attempts):
             try:
@@ -113,11 +115,26 @@ class RSSProvider(BaseProvider):
                 if attempt < attempts - 1:
                     await asyncio.sleep(self.config.retry_backoff_seconds)
 
+        fetch_duration_seconds = (datetime.now(UTC) - fetch_started).total_seconds()
+
         if last_error is not None or response is None:
             _logger.warning(
-                "rss_feed_fetch_failed", extra={"feed_url": feed_url, "error": str(last_error)}
+                "rss_feed_fetch_failed",
+                extra={
+                    "feed_url": feed_url,
+                    "source_name": source.name,
+                    "error": str(last_error),
+                    "fetch_duration_seconds": fetch_duration_seconds,
+                },
             )
-            return RSSFeedData(feed_url=feed_url, fetch_error=str(last_error))
+            return RSSFeedData(
+                feed_url=feed_url,
+                source_name=source.name,
+                category=source.category,
+                tag=source.tag,
+                fetch_duration_seconds=fetch_duration_seconds,
+                fetch_error=str(last_error),
+            )
 
         parsed = feedparser.parse(response.content)
 
@@ -135,12 +152,23 @@ class RSSProvider(BaseProvider):
         ]
 
         _logger.info(
-            "rss_feed_fetched", extra={"feed_url": feed_url, "entry_count": len(entries)}
+            "rss_feed_fetched",
+            extra={
+                "feed_url": feed_url,
+                "source_name": source.name,
+                "category": source.category,
+                "entry_count": len(entries),
+                "fetch_duration_seconds": fetch_duration_seconds,
+            },
         )
         return RSSFeedData(
             feed_url=feed_url,
             feed_title=parsed.feed.get("title"),
             feed_link=parsed.feed.get("link"),
+            source_name=source.name,
+            category=source.category,
+            tag=source.tag,
+            fetch_duration_seconds=fetch_duration_seconds,
             bozo=bool(parsed.bozo),
             bozo_exception=str(parsed.bozo_exception) if parsed.bozo else None,
             entries=entries,
@@ -149,3 +177,24 @@ class RSSProvider(BaseProvider):
     async def health_check(self) -> bool:
         """Report whether this provider is configured with at least one feed URL."""
         return len(self.config.feed_urls) > 0
+
+
+def summarize_feed_health(feed_results: list[RSSFeedData]) -> list[RSSFeedHealth]:
+    """Reduce one fetch run's `RSSFeedData` list into a per-feed health
+    snapshot (v1.2 Priority 6 §10) — pure, no I/O. One dead feed's
+    `fetch_error` is isolated to its own entry; every other feed's health
+    is reported independently, matching `RSSProvider.fetch()`'s own
+    per-feed failure isolation (a fetch failure here was never allowed to
+    abort the batch in the first place)."""
+    return [
+        RSSFeedHealth(
+            feed_url=feed.feed_url,
+            source_name=feed.source_name,
+            category=feed.category,
+            success=feed.fetch_error is None,
+            item_count=len(feed.entries),
+            fetch_duration_seconds=feed.fetch_duration_seconds,
+            error=feed.fetch_error,
+        )
+        for feed in feed_results
+    ]

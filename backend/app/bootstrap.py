@@ -72,6 +72,7 @@ from app.config.models import (
     LLMSettings,
     LoggingSettings,
     PostgreSQLSettings,
+    RSSFeedSource,
     RSSSettings,
     SchedulerSettings,
 )
@@ -264,7 +265,12 @@ class AppSettings(BaseSettings):
     log_level: str = "INFO"
     chroma_persist_directory: str = "./data/cache/chroma"
     chroma_collection_name: str = "marketmind_knowledge"
-    rss_feed_urls: list[str] = []
+    # v1.2 Priority 6: each element may be a bare URL string (pre-Priority-6
+    # shape) or an object carrying url/name/category/tag — see
+    # `RSSFeedSource`'s own docstring for the backward-compatibility
+    # reasoning. Still one JSON array under one env var, no second config
+    # mechanism.
+    rss_feed_urls: list[RSSFeedSource] = []
     rss_user_agent: str = "MarketMind-AI/1.0"
     rss_feed_timeout_seconds: float = 10.0
     rss_retry_attempts: int = 1

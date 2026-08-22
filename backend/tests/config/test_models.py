@@ -193,7 +193,27 @@ def test_rss_feed_urls_loads_json_list(monkeypatch: pytest.MonkeyPatch) -> None:
 
     settings = RSSSettings(_env_file=None)
 
-    assert settings.feed_urls == ["https://a.example.com/feed", "https://b.example.com/feed"]
+    assert [source.url for source in settings.feed_urls] == ["https://a.example.com/feed", "https://b.example.com/feed"]
+    assert all(source.name is None and source.category is None for source in settings.feed_urls)
+
+
+def test_rss_feed_urls_loads_json_list_with_source_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    """v1.2 Priority 6: a mixed array (bare URL string alongside a rich
+    object) is valid — the pre-Priority-6 shape and the new shape can
+    coexist in the same `RSS_FEED_URLS` value."""
+    monkeypatch.setenv(
+        "RSS_FEED_URLS",
+        '["https://a.example.com/feed", {"url": "https://b.example.com/feed", "name": "B News", "category": "Markets"}]',
+    )
+
+    settings = RSSSettings(_env_file=None)
+
+    assert len(settings.feed_urls) == 2
+    assert settings.feed_urls[0].url == "https://a.example.com/feed"
+    assert settings.feed_urls[0].name is None
+    assert settings.feed_urls[1].url == "https://b.example.com/feed"
+    assert settings.feed_urls[1].name == "B News"
+    assert settings.feed_urls[1].category == "Markets"
 
 
 # --- Missing required values -----------------------------------------------------------

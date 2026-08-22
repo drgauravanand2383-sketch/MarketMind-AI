@@ -29,6 +29,14 @@ class RejectionReason(str, Enum):
     MISSING_ID = "missing_id"
     NO_CONTENT = "no_content"
     DUPLICATE_ID = "duplicate_id"
+    DUPLICATE_URL = "duplicate_url"
+    """v1.2 Priority 6: the same article reachable via two different
+    configured feeds (e.g. one Nasdaq category feed and a company IR feed
+    both syndicating the same press release) commonly carries two
+    different `<guid>` values, so `DUPLICATE_ID`'s exact-id check alone
+    does not catch it — this reason is used when a later item's
+    normalized URL matches an already-accepted item's, even though its id
+    differs. See `KnowledgeIngestionService._normalized_url`."""
 
 
 class RejectedItem(BaseModel):

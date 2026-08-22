@@ -98,7 +98,9 @@ def test_relational_record_preserves_raw_payload_for_traceability() -> None:
 
 def test_ingestion_metadata_reflects_accepted_count() -> None:
     service = KnowledgeIngestionService()
-    result = _collection_result([_item(id="a"), _item(id="b")])
+    result = _collection_result(
+        [_item(id="a", url="https://example.com/a"), _item(id="b", url="https://example.com/b")]
+    )
 
     batch = service.prepare_batch(result)
 
@@ -199,6 +201,122 @@ def test_three_duplicates_keep_only_first() -> None:
     assert len(batch.vector_documents) == 1
     assert batch.ingestion_metadata.accepted_count == 1
     assert len(batch.ingestion_metadata.rejected_items) == 2
+
+
+# --- v1.2 Priority 6 (§9): cross-feed duplicate URL detection ---------------------------
+
+
+def test_same_article_from_two_feeds_with_different_guids_is_rejected_as_duplicate_url() -> None:
+    """A Nasdaq category feed and a company IR feed both syndicating the
+    same press release commonly assign different <guid> values — the
+    exact-id check (DUPLICATE_ID) alone would accept both. The shared
+    article URL is what makes this a genuine duplicate."""
+    service = KnowledgeIngestionService()
+    result = _collection_result(
+        [
+            _item(id="nasdaq-guid-1", url="https://example.com/dell-earnings", source_metadata={"feed_url": "https://nasdaq.com/feed?category=Earnings"}),
+            _item(id="ir-guid-9", url="https://example.com/dell-earnings", source_metadata={"feed_url": "https://investors.delltechnologies.com/rss/news-releases.xml"}),
+        ]
+    )
+
+    batch = service.prepare_batch(result)
+
+    assert len(batch.vector_documents) == 1
+    assert batch.vector_documents[0].id == "nasdaq-guid-1"  # first occurrence kept
+    rejected = batch.ingestion_metadata.rejected_items
+    assert len(rejected) == 1
+    assert rejected[0].reason == RejectionReason.DUPLICATE_URL
+    assert rejected[0].item_index == 1
+
+
+def test_duplicate_url_ignores_query_string_and_trailing_slash() -> None:
+    service = KnowledgeIngestionService()
+    result = _collection_result(
+        [
+            _item(id="a", url="https://example.com/article/"),
+            _item(id="b", url="https://example.com/article?utm_source=nasdaq"),
+        ]
+    )
+
+    batch = service.prepare_batch(result)
+
+    assert len(batch.vector_documents) == 1
+    assert batch.ingestion_metadata.rejected_items[0].reason == RejectionReason.DUPLICATE_URL
+
+
+def test_two_items_with_no_url_never_collide_as_duplicates() -> None:
+    service = KnowledgeIngestionService()
+    result = _collection_result([_item(id="a", url=None), _item(id="b", url=None)])
+
+    batch = service.prepare_batch(result)
+
+    assert len(batch.vector_documents) == 2
+    assert batch.ingestion_metadata.rejected_items == []
+
+
+def test_different_articles_from_different_feeds_are_both_accepted() -> None:
+    service = KnowledgeIngestionService()
+    result = _collection_result(
+        [
+            _item(id="a", url="https://example.com/dell-earnings"),
+            _item(id="b", url="https://example.com/salesforce-earnings"),
+        ]
+    )
+
+    batch = service.prepare_batch(result)
+
+    assert len(batch.vector_documents) == 2
+    assert batch.ingestion_metadata.rejected_items == []
+
+
+# --- v1.2 Priority 6 (§5, §1 finding): source provenance reaches the persisted record ---------------------------
+
+
+def test_vector_document_metadata_carries_source_name_and_category() -> None:
+    """Previously `item.source_metadata` was computed by the normalizer
+    but silently dropped before reaching the persisted VectorDocument's
+    own metadata — only feed_url/title survive now, plus the new
+    source_name/category/tag fields."""
+    service = KnowledgeIngestionService()
+    result = _collection_result(
+        [
+            _item(
+                source_metadata={
+                    "feed_url": "https://www.nasdaq.com/feed/rssoutbound?category=Technology",
+                    "feed_title": "Technology Feed",
+                    "author": "Reuters",
+                    "source_name": "Nasdaq Technology",
+                    "category": "Technology",
+                    "tag": "general-market",
+                }
+            )
+        ]
+    )
+
+    batch = service.prepare_batch(result)
+
+    metadata = batch.vector_documents[0].metadata
+    assert metadata["feed_url"] == "https://www.nasdaq.com/feed/rssoutbound?category=Technology"
+    assert metadata["feed_title"] == "Technology Feed"
+    assert metadata["author"] == "Reuters"
+    assert metadata["source_name"] == "Nasdaq Technology"
+    assert metadata["category"] == "Technology"
+    assert metadata["tag"] == "general-market"
+
+
+def test_vector_document_metadata_omits_absent_source_fields() -> None:
+    """A pre-Priority-6 item with only feed_url in source_metadata (no
+    source_name/category/tag) must not gain fabricated None-valued keys."""
+    service = KnowledgeIngestionService()
+    result = _collection_result([_item(source_metadata={"feed_url": "https://feeds.marketwatch.com/marketwatch/topstories/"})])
+
+    batch = service.prepare_batch(result)
+
+    metadata = batch.vector_documents[0].metadata
+    assert metadata["feed_url"] == "https://feeds.marketwatch.com/marketwatch/topstories/"
+    assert "source_name" not in metadata
+    assert "category" not in metadata
+    assert "tag" not in metadata
 
 
 # --- Entity resolution enrichment (Milestone 12) ---------------------------

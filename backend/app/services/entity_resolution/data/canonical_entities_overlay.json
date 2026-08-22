@@ -1,0 +1,13 @@
+[
+  {
+    "entity_id": "wmt",
+    "canonical_name": "Walmart Inc.",
+    "ticker": "WMT",
+    "aliases": ["Walmart", "Wal-Mart"],
+    "legal_name": "Walmart Inc.",
+    "exchange": "NYSE",
+    "country": "US",
+    "sector": "Consumer Staples",
+    "industry": "Discount Stores"
+  }
+]

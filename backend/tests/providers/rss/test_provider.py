@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-from app.providers.rss.models import RSSProviderConfig
-from app.providers.rss.provider import RSSProvider
+from app.providers.rss.models import RSSFeedSource, RSSProviderConfig
+from app.providers.rss.provider import RSSProvider, summarize_feed_health
 
 FEED_URL_A = "https://example.com/feed-a.xml"
 FEED_URL_B = "https://example.com/feed-b.xml"
@@ -322,3 +322,103 @@ async def test_health_check_true_when_feed_urls_configured() -> None:
 async def test_health_check_false_when_no_feed_urls_configured() -> None:
     provider = RSSProvider(_config([]))
     assert await provider.health_check() is False
+
+
+# --- v1.2 Priority 6: RSSFeedSource / source metadata / feed health -----------------------------------------------------------
+
+
+def test_rss_feed_source_accepts_bare_url_string() -> None:
+    source = RSSFeedSource.model_validate(FEED_URL_A)
+    assert source.url == FEED_URL_A
+    assert source.name is None
+    assert source.category is None
+    assert source.tag is None
+
+
+def test_rss_feed_source_accepts_object_with_metadata() -> None:
+    source = RSSFeedSource.model_validate(
+        {"url": FEED_URL_A, "name": "Nasdaq Markets", "category": "Markets", "tag": "general"}
+    )
+    assert source.url == FEED_URL_A
+    assert source.name == "Nasdaq Markets"
+    assert source.category == "Markets"
+    assert source.tag == "general"
+
+
+async def test_fetch_threads_source_name_and_category_into_feed_data() -> None:
+    provider = RSSProvider(
+        RSSProviderConfig(
+            provider_id="rss",
+            feed_urls=[RSSFeedSource(url=FEED_URL_A, name="Nasdaq Markets", category="Markets")],
+        )
+    )
+
+    with patch.object(
+        httpx.AsyncClient, "get", new=AsyncMock(return_value=_mock_response(VALID_RSS, FEED_URL_A))
+    ):
+        result = await provider.fetch()
+
+    feed = result.data[0]
+    assert feed.source_name == "Nasdaq Markets"
+    assert feed.category == "Markets"
+    assert feed.fetch_duration_seconds is not None
+    assert feed.fetch_duration_seconds >= 0.0
+
+
+async def test_fetch_mixed_bare_and_rich_feed_sources() -> None:
+    """A pre-Priority-6 bare URL string and a new rich source object can
+    coexist in the same configured list."""
+    provider = RSSProvider(
+        RSSProviderConfig(
+            provider_id="rss",
+            feed_urls=[FEED_URL_A, {"url": FEED_URL_B, "name": "Company IR", "category": "IR"}],
+        )
+    )
+
+    async def fake_get(url: str, headers: dict[str, str]) -> httpx.Response:
+        return _mock_response(VALID_RSS, url)
+
+    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=fake_get)):
+        result = await provider.fetch()
+
+    by_url = {feed.feed_url: feed for feed in result.data}
+    assert by_url[FEED_URL_A].source_name is None
+    assert by_url[FEED_URL_B].source_name == "Company IR"
+    assert by_url[FEED_URL_B].category == "IR"
+
+
+async def test_summarize_feed_health_reports_success_and_failure_independently() -> None:
+    provider = RSSProvider(
+        RSSProviderConfig(
+            provider_id="rss",
+            feed_urls=[
+                RSSFeedSource(url=FEED_URL_A, name="Feed A", category="Markets"),
+                RSSFeedSource(url=FEED_URL_B, name="Feed B", category="Technology"),
+            ],
+            retry_attempts=0,
+        )
+    )
+
+    async def fake_get(url: str, headers: dict[str, str]) -> httpx.Response:
+        if url == FEED_URL_B:
+            raise httpx.ConnectTimeout("timed out", request=httpx.Request("GET", url))
+        return _mock_response(VALID_RSS, url)
+
+    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=fake_get)):
+        result = await provider.fetch()
+
+    health = summarize_feed_health(result.data)
+    by_url = {h.feed_url: h for h in health}
+
+    assert by_url[FEED_URL_A].success is True
+    assert by_url[FEED_URL_A].item_count == 2
+    assert by_url[FEED_URL_A].source_name == "Feed A"
+    assert by_url[FEED_URL_A].error is None
+
+    assert by_url[FEED_URL_B].success is False
+    assert by_url[FEED_URL_B].item_count == 0
+    assert by_url[FEED_URL_B].source_name == "Feed B"
+    assert by_url[FEED_URL_B].error is not None
+
+    # One dead feed's health entry never suppresses another feed's own entry.
+    assert len(health) == 2

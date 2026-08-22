@@ -403,9 +403,10 @@ Reuses existing structured-logging conventions (stdlib `logging`,
 
 ## 14. Known limitations
 
-- **Static reference set.** Only the companies in `COMPANY_KEYWORDS` (12
-  as of this milestone) can ever resolve — no external company database,
-  no fuzzy/ML-based matching. A real company not yet in the set correctly
+- **Static reference set, now 13 (v1.2 Priority 6).** The base
+  `COMPANY_KEYWORDS` set (12 as of this milestone) plus one overlay
+  addition (Walmart/WMT — see §15) — no external company database, no
+  fuzzy/ML-based matching. A real company not yet in the set correctly
   stays `UNRESOLVED`, not guessed.
 - **No cross-lingual matching.** Company names/aliases are matched as
   literal English-language strings; a company referred to only in another
@@ -424,3 +425,30 @@ Reuses existing structured-logging conventions (stdlib `logging`,
   backfill script from multiple places concurrently is safe (idempotent)
   but redundant — no distributed lock, matching the same characteristic
   already documented for the Milestone 11 scheduler.
+
+## 15. Overlay activation (v1.2 Priority 6)
+
+The overlay mechanism (§2, Milestone 16 §8/§9) shipped opt-in and unused
+— `CANONICAL_ENTITIES_OVERLAY_PATH` was never set in the live `.env`. The
+second real-world pilot's ranked-unresolved-entity analysis (conservative
+capitalized-phrase extraction over every `UNRESOLVED`/`LOW`-tier
+knowledge record's title, canonical names/tokens excluded) found exactly
+one high-confidence, safe candidate — **Walmart (WMT)**, appearing twice
+in the real corpus, unambiguous — among a long tail of macro/policy
+topics (Bitcoin, the Fed, Social Security, Treasury yields — not
+individual equities, wrong category for this overlay) and personal-
+finance advice-column phrasing ("Should I...", "Can I...", "Here's
+how...") that isn't an entity at all. Per this milestone's own "only add
+entities when confidence is high, never automatically resolve ambiguous
+names" instruction, only Walmart was added:
+`app/services/entity_resolution/data/canonical_entities_overlay.json`
+(one entry, validated against §2's own collision/alias-governance rules
+at load time, same as any operator-supplied overlay file), referenced by
+`CANONICAL_ENTITIES_OVERLAY_PATH` in `.env`. Expected coverage gain from
+this one addition is modest (roughly +2 percentage points on the
+resolved-record rate measured before this milestone) — not
+transformative, because most of the previously-unresolved volume isn't
+company news at all (see
+`docs/architecture/MARKET_INTELLIGENCE_INGESTION.md` §13's own root-cause
+finding). The remaining ranked candidates were deliberately left out of
+the overlay; a human should review them before any future addition.

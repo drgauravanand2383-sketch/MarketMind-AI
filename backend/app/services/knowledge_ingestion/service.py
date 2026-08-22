@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from urllib.parse import urlsplit, urlunsplit
 
 from app.agents.news_collector.models import NewsCollectionResult, NewsItem
 from app.services.entity_resolution.metadata import build_entity_metadata
@@ -66,16 +67,20 @@ class KnowledgeIngestionService:
         relational_records: list[RelationalRecord] = []
         rejected_items: list[RejectedItem] = []
         seen_ids: set[str] = set()
+        seen_urls: set[str] = set()
         ingested_at = datetime.now(UTC)
 
         for index, item in enumerate(collection_result.items):
-            rejection = self._validate(item, index, seen_ids)
+            rejection = self._validate(item, index, seen_ids, seen_urls)
             if rejection is not None:
                 rejected_items.append(rejection)
                 continue
 
             assert item.id is not None  # guaranteed by _validate
             seen_ids.add(item.id)
+            normalized_url = self._normalized_url(item.url)
+            if normalized_url is not None:
+                seen_urls.add(normalized_url)
             vector_documents.append(self._to_vector_document(item, ingested_at))
             relational_records.append(self._to_relational_record(item))
 
@@ -93,7 +98,9 @@ class KnowledgeIngestionService:
             ingestion_metadata=metadata,
         )
 
-    def _validate(self, item: NewsItem, index: int, seen_ids: set[str]) -> RejectedItem | None:
+    def _validate(
+        self, item: NewsItem, index: int, seen_ids: set[str], seen_urls: set[str]
+    ) -> RejectedItem | None:
         """Check whether `item` is eligible for ingestion.
 
         Returns:
@@ -106,7 +113,28 @@ class KnowledgeIngestionService:
             return RejectedItem(item_index=index, item_id=item.id, reason=RejectionReason.NO_CONTENT)
         if item.id in seen_ids:
             return RejectedItem(item_index=index, item_id=item.id, reason=RejectionReason.DUPLICATE_ID)
+        # v1.2 Priority 6 (§9): a same-batch duplicate across two different
+        # *configured feeds* commonly carries two different <guid> values
+        # (DUPLICATE_ID above never catches it) but the same underlying
+        # article URL — checked only when the item survived the id check,
+        # so this never fires for two genuinely distinct articles that
+        # merely lack a url.
+        normalized_url = self._normalized_url(item.url)
+        if normalized_url is not None and normalized_url in seen_urls:
+            return RejectedItem(item_index=index, item_id=item.id, reason=RejectionReason.DUPLICATE_URL)
         return None
+
+    @staticmethod
+    def _normalized_url(url: str | None) -> str | None:
+        """Lowercased scheme+host+path, query string and fragment
+        stripped — the same story linked with different tracking
+        parameters (`?utm_source=...`) or a trailing `#section` is still
+        the same article. `None` for a blank/missing url, never treated
+        as a collision with another blank url."""
+        if not url or not url.strip():
+            return None
+        parts = urlsplit(url.strip())
+        return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), parts.path.rstrip("/"), "", ""))
 
     def _to_vector_document(self, item: NewsItem, ingested_at: datetime) -> VectorDocument:
         """Prepare a VectorDocument from a validated NewsItem. No embedding is generated.
@@ -133,6 +161,19 @@ class KnowledgeIngestionService:
             "ingested_at": ingested_at.isoformat(),
             "entity_resolved": False,
         }
+        # v1.2 Priority 6 (§5, §1 finding): `item.source_metadata` (feed
+        # url/title, author, and — since this milestone — source name/
+        # category/tag) was previously computed by the normalizer but
+        # never actually reached the persisted vector document's own
+        # metadata — only `RelationalRecord` (never written anywhere;
+        # see that model's own docstring) carried it. Every Chroma-safe
+        # (string/number/bool) field is copied through here so real
+        # provenance ("which feed, what category") survives into the
+        # record an operator or Research can actually query.
+        for key in ("feed_url", "feed_title", "author", "source_name", "category", "tag"):
+            value = item.source_metadata.get(key)
+            if value is not None:
+                metadata[key] = value
         if self._entity_resolver is not None:
             metadata.update(self._entity_metadata(item))
         return VectorDocument(id=item.id, text=text, metadata=metadata)

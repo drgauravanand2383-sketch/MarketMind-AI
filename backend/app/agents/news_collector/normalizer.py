@@ -66,6 +66,12 @@ def _normalize_rss(result: ProviderResult) -> list[NewsItem]:
                         "feed_url": feed.feed_url,
                         "feed_title": feed.feed_title,
                         "author": entry.author,
+                        # v1.2 Priority 6: the configured RSSFeedSource's own
+                        # declared name/category/tag, echoed through — None
+                        # for a pre-Priority-6 bare-URL feed entry.
+                        "source_name": feed.source_name,
+                        "category": feed.category,
+                        "tag": feed.tag,
                     },
                     raw=entry.raw,
                 )

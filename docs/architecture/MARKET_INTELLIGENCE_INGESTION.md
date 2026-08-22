@@ -319,3 +319,111 @@ upward. Per-individual-feed-URL success/failure is the
   distributed lock. Acceptable for this milestone's scope (idempotent
   upsert makes concurrent/overlapping runs safe, just redundant), not
   fixed here.
+
+## 13. Sources (v1.2 Priority 6 — Company-Focused News Sources & Ingestion Quality)
+
+The second real-world pilot found Research surfacing only ~1-2
+company-matched articles even for the best-covered canonical companies,
+and traced the root cause to ingestion *volume/relevance*, not a
+retrieval cap (`KnowledgeHub`'s own `top_k=50` was nowhere near being
+hit) — the single configured feed (MarketWatch top-stories) is a
+general-audience feed whose content is dominated by personal-finance
+advice ("Should I dip into my 401(k)...") rather than company-specific
+business news.
+
+**Source set, extended from 1 to 10 feeds, `RSS_FEED_URLS` only (no
+second config mechanism)** — every URL below was verified live (HTTP
+200, real recent articles) before being added, never guessed:
+
+| Source | URL | Category | Why |
+|---|---|---|---|
+| MarketWatch Top Stories | `feeds.marketwatch.com/marketwatch/topstories/` | (none — pre-existing) | Kept unchanged; still contributes genuine market context alongside the new sources. |
+| Nasdaq Markets | `nasdaq.com/feed/rssoutbound?category=Markets` | Markets | Official Nasdaq category feed — general market/company news, ticker-tagged. |
+| Nasdaq Stocks | `nasdaq.com/feed/rssoutbound?category=Stocks` | Stocks | Per-company stock analysis and commentary. |
+| Nasdaq Technology | `nasdaq.com/feed/rssoutbound?category=Technology` | Technology | Directly relevant — most canonical companies (AAPL, MSFT, NVDA, DELL, CRM, WDAY, ...) are technology companies. |
+| Nasdaq Earnings | `nasdaq.com/feed/rssoutbound?category=Earnings` | Earnings | Earnings-specific coverage — the single highest-value recurring event type for Risk/Recommendation/Decision quality. |
+| Dell Technologies IR | `investors.delltechnologies.com/rss/news-releases.xml` | Company IR | Official IR feed — ground-truth company announcements, not filtered through general-media pickup. |
+| Salesforce IR | `investor.salesforce.com/rss/pressrelease.aspx` | Company IR | Same reasoning; Q4 Inc.-hosted (a standard, authoritative IR platform). |
+| Workday IR | `investor.workday.com/rss/pressrelease.aspx` | Company IR | Same reasoning; Q4 Inc.-hosted. |
+| Reddit IR | `investor.redditinc.com/rss/pressrelease.aspx` | Company IR | Same reasoning; Q4 Inc.-hosted. |
+| Sandisk IR | `investor.sandisk.com/rss/news-releases.xml` | Company IR | Same reasoning. |
+
+**Why these 5 companies got a dedicated IR feed and the other 7 canonical
+companies (AAPL, TSLA, MSFT, AMZN, GOOGL, META, NVDA) didn't**: the
+mega-cap 7 already receive heavy, constant coverage from the Nasdaq
+category feeds by construction (confirmed live — AMD/NVDA appeared in
+the very first Nasdaq Markets feed sample fetched); Dell, Salesforce,
+Workday, Reddit, and Sandisk are comparatively under-covered by general
+financial media, so a direct IR feed is where the marginal evidence gain
+is largest. Per this milestone's own "do not require a separate feed for
+every company if operationally expensive" instruction, no attempt was
+made to source IR feeds for the other 7.
+
+**Considered and explicitly rejected**: scraping any site without an RSS
+feed, unofficial/aggregator mirrors of the above sources, and any paid
+news API — none were necessary once the official Nasdaq category feeds
+and official company IR feeds were located.
+
+**Feed configuration shape** (`RSSFeedSource`,
+`app/config/models.py` — the canonical definition;
+`app/providers/rss/models.py` re-exports it so both the actual runtime
+wiring (`AppSettings.rss_feed_urls` in `app.bootstrap`) and the
+configuration-validation/inspection endpoints share one shape and can
+never drift apart): each `RSS_FEED_URLS` array element is either a bare
+URL string (the pre-Priority-6 shape, still fully supported — a
+`model_validator(mode="before")` treats a plain string as `{"url":
+string}`) or an object `{"url", "name", "category", "tag"}`. Still one
+JSON array under one env var.
+
+**Provenance now actually reaches the persisted record.** A real gap was
+found and fixed during this milestone: `KnowledgeIngestionService
+._to_vector_document` computed `item.source_metadata` (feed url/title,
+author) but never copied it into the `VectorDocument.metadata` dict that
+`ChromaKnowledgeRepository.save_batch` actually persists — only
+`RelationalRecord` carried it, and `RelationalRecord` is never written
+anywhere (§12's own "not wired into `app/bootstrap.py`" limitation).
+Every real ingested record's metadata now includes `feed_url`,
+`feed_title`, `author`, and — new this milestone — `source_name`,
+`category`, `tag` whenever the configured `RSSFeedSource` declared them.
+
+**Cross-feed duplicate detection.** The same article reachable via two
+different configured feeds (e.g. a Nasdaq category feed and a company IR
+feed both syndicating the same press release) commonly carries two
+different `<guid>` values — the pre-existing exact-id check
+(`RejectionReason.DUPLICATE_ID`) does not catch this. A new
+`RejectionReason.DUPLICATE_URL` check
+(`KnowledgeIngestionService._normalized_url`) compares each item's
+canonical URL (scheme+host+path, query string and trailing slash
+stripped) against every already-accepted item's within the same batch —
+`?utm_source=nasdaq` tracking parameters or a trailing `/` no longer
+produce a second copy of the same story.
+
+**Source health.** `RSSFeedData` (`app/providers/rss/models.py`) gained
+`source_name`/`category`/`tag` (echoed from the configured
+`RSSFeedSource`, not derived from fetched content) and
+`fetch_duration_seconds` (this feed's own fetch+parse latency).
+`summarize_feed_health()` (`app/providers/rss/provider.py`) reduces one
+run's `RSSFeedData` list into a per-feed `success`/`item_count`/
+`fetch_duration_seconds`/`error` snapshot. Cross-run history (last
+success/failure over time, a rolling failure rate) is deliberately *not*
+a new persisted store — it is read from the existing
+`rss_feed_fetched`/`rss_feed_fetch_failed` structured log lines (§9),
+already emitted per feed per run, e.g.:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml logs backend \
+  | grep -E "rss_feed_fetched|rss_feed_fetch_failed"
+```
+
+One dead feed's `fetch_error` was already isolated to its own
+`RSSFeedData` entry before this milestone (`RSSProvider.fetch()`'s own
+per-feed `_fetch_one` isolation, unchanged) — every other configured
+feed's items are still collected and persisted in the same run.
+
+**Licensing/usage considerations.** All 10 sources are publicly
+accessible RSS feeds explicitly published for syndication by their own
+operators (Nasdaq's own "RSS Feeds" page; each company's own official
+investor-relations site) — no authentication, scraping, or terms-of-use
+circumvention involved. Article text is stored and used the same way
+MarketWatch's pre-existing feed already was (§11's existing "untrusted
+content, never rendered as HTML" handling, unchanged).

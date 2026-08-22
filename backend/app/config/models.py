@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 __all__ = [
@@ -28,6 +28,7 @@ __all__ = [
     "ChromaDBSettings",
     "AnthropicSettings",
     "EmbeddingProviderSettings",
+    "RSSFeedSource",
     "RSSSettings",
     "LoggingSettings",
     "LLMSettings",
@@ -118,12 +119,52 @@ class EmbeddingProviderSettings(BaseSettings):
     retry_backoff_seconds: float = Field(default=1.0, ge=0)
 
 
+class RSSFeedSource(BaseModel):
+    """One configured RSS/Atom feed, with optional provenance metadata
+    (v1.2 Priority 6 — Company-Focused News Sources & Ingestion Quality).
+
+    Lives here, not in `app.providers.rss`, because `app.config.models` is
+    this codebase's one leaf configuration-schema module (no imports from
+    elsewhere in the app — see this module's own docstring) and both
+    `RSSSettings` below and `app.providers.rss.models.RSSProviderConfig`
+    need the identical shape; `app.providers.rss.models` imports this
+    class rather than redefining it, so the two settings paths
+    (`AppSettings.rss_feed_urls` in `app.bootstrap`, actually wired to the
+    running `RSSProvider`, and this `RSSSettings.feed_urls`, read by the
+    configuration-validation/inspection endpoints) never drift apart.
+
+    Backward compatible by construction: `RSS_FEED_URLS` stays one JSON
+    array under one env var (no second config mechanism) — each element
+    may be a bare URL string (pre-Priority-6 shape, `name`/`category`
+    left `None`) or an object carrying `url` plus optional `name`/
+    `category`/`tag`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    url: str
+    name: str | None = None
+    category: str | None = None
+    tag: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_bare_url_string(cls, value: object) -> object:
+        """A plain string (the only shape `RSS_FEED_URLS` supported
+        before Priority 6) is treated as `{"url": value}` — every
+        existing `.env` file with a plain URL array keeps working
+        unchanged."""
+        if isinstance(value, str):
+            return {"url": value}
+        return value
+
+
 class RSSSettings(BaseSettings):
     """RSS provider configuration (`RSS_*`)."""
 
     model_config = SettingsConfigDict(env_prefix="RSS_", env_file=".env", extra="ignore", frozen=True)
 
-    feed_urls: list[str] = Field(default_factory=list)
+    feed_urls: list[RSSFeedSource] = Field(default_factory=list)
     user_agent: str = "MarketMind-AI/1.0"
 
 

@@ -90,12 +90,12 @@ class ConfigurationValidationService:
             self._check_supported_value("logging.level", logging_settings.level, None),
             self._check_port_range("postgres.port", postgres.port),
             self._check_port_range("api.port", api.port),
-            self._check_no_duplicates("rss.feed_urls", rss.feed_urls),
+            self._check_no_duplicates("rss.feed_urls", [source.url for source in rss.feed_urls]),
             self._check_not_default_secret("postgres.password", postgres.password.get_secret_value()),
             self._check_not_default_secret("auth.secret_key", auth.secret_key.get_secret_value()),
             self._check_secret_not_default_in_production("postgres.password", postgres.password.get_secret_value(), environment),
             self._check_secret_not_default_in_production("auth.secret_key", auth.secret_key.get_secret_value(), environment),
-            self._check_valid_urls("rss.feed_urls", rss.feed_urls),
+            self._check_valid_urls("rss.feed_urls", [source.url for source in rss.feed_urls]),
             self._check_known_provider("llm.provider", llm.provider, self._known_llm_providers),
         ]
         if anthropic is not None:
