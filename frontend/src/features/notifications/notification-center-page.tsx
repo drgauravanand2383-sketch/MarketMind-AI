@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { PriorityBadge, type PriorityLevel } from "@/components/priority-badge";
 import { EmptyState } from "@/components/states/empty-state";
 import {
+  decisionDomainLabel,
   useRealtimeNotificationStore,
   type NotificationCenterEntry,
   type NotificationDomain,
@@ -79,7 +80,22 @@ function NotificationRow({ entry }: { entry: NotificationCenterEntry }): ReactNo
         {entry.priority && <PriorityBadge level={entry.priority} />}
       </div>
       <p className={`mt-1 text-sm ${entry.read ? "text-slate-600 dark:text-slate-400" : "font-medium text-slate-900 dark:text-slate-100"}`}>{entry.title}</p>
-      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{entry.summary}</p>
+      {/* v1.2 Priority 3: a digest of 2+ decision changes shows each one
+       * on its own line (§6's own "Details:" example) instead of the
+       * single joined-sentence summary every other entry (and a
+       * digest of exactly 1) already uses unchanged. */}
+      {entry.digest !== undefined && entry.digest.changes.length > 1 ? (
+        <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-xs text-slate-500 dark:text-slate-400">
+          {entry.digest.changes.map((change) => (
+            <li key={change.eventFingerprint}>
+              {decisionDomainLabel(change.domain)}:{" "}
+              {change.previousValue !== null && change.currentValue !== null ? `${change.previousValue} → ${change.currentValue}` : change.summary}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{entry.summary}</p>
+      )}
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{new Date(entry.occurredAt).toLocaleString()}</p>
     </>
   );

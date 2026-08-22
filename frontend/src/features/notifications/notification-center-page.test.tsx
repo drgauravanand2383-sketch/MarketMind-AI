@@ -160,6 +160,34 @@ describe("NotificationCenterPage", () => {
     expect(screen.getByRole("button", { name: /New evidence for Dell/ })).toBeInTheDocument();
   });
 
+  it("v1.2 Priority 3: deep-links a digest entry to /decisions/$portfolioId and lists each contained change", () => {
+    useRealtimeNotificationStore.setState({
+      entries: [
+        buildEntry({
+          id: "digest-1", domain: "decisions", eventType: "PORTFOLIO_INTELLIGENCE_CHANGED",
+          title: "2 decision changes affecting Portfolio A",
+          summary: "Risk: LOW → HIGH; Recommendation: HOLD → BUY",
+          entityRef: { kind: "decision", portfolioId: "wl-1" },
+          digest: {
+            portfolioId: "wl-1",
+            windowStart: NOW,
+            windowMs: 5 * 60 * 1000,
+            changes: [
+              { eventFingerprint: "fp1", domain: "RISK", label: "Portfolio A", previousValue: "LOW", currentValue: "HIGH", priority: "HIGH", summary: "x", occurredAt: NOW },
+              { eventFingerprint: "fp2", domain: "RECOMMENDATION", label: "AAPL", previousValue: "HOLD", currentValue: "BUY", priority: "MEDIUM", summary: "y", occurredAt: NOW },
+            ],
+          },
+        }),
+      ],
+    });
+
+    render(<NotificationCenterPage />);
+
+    expect(screen.getByRole("link", { name: /2 decision changes affecting Portfolio A/ })).toHaveAttribute("href", "/decisions/wl-1");
+    expect(screen.getByText("Risk: LOW → HIGH")).toBeInTheDocument();
+    expect(screen.getByText("Recommendation: HOLD → BUY")).toBeInTheDocument();
+  });
+
   it("includes Market/News/Decisions in the domain filter and filters by them", async () => {
     useRealtimeNotificationStore.setState({
       entries: [
