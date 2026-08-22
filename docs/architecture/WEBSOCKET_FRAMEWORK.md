@@ -155,6 +155,33 @@ A **duplicate** `subscribe` (identical `event_types`+`correlation_id`
 already active) is detected and reported as `{"type":
 "duplicate_subscription", ...}` rather than silently accepted twice.
 
+**v1.2 Priority 2 (cross-portfolio notification grouping) deliberately
+does not change this matching model.** `SIGNIFICANT_MARKET_CHANGE`/
+`SIGNIFICANT_NEWS_UPDATE`/`PORTFOLIO_INTELLIGENCE_CHANGED` events for one
+underlying event impacting N portfolios are still broadcast N times —
+once per surviving portfolio, each with its own `correlation_id`
+(`portfolio_id` or `entity_id`) — because `correlation_id` here is a
+single string and `SubscriptionRegistry.matches` is an exact match; a
+single collapsed broadcast could only carry one `correlation_id` and
+would silently stop reaching a client narrowly subscribed to any of the
+*other* impacted portfolios. Each of the N frames additionally carries
+`DetectedChange.impacted_portfolio_ids` (the complete list) and
+`event_fingerprint` (stable across all N), so a client that wants to
+present them as one notification — as this codebase's own frontend does,
+see `docs/architecture/CONTINUOUS_INTELLIGENCE.md` §19 — can do so by
+collapsing on `event_fingerprint` client-side, without any change here.
+
+**v1.2 Priority 3 (Portfolio Decision Digest) also makes no wire-level
+change.** `PORTFOLIO_INTELLIGENCE_CHANGED` (Risk/Recommendation/
+Strategy/Signal) already carried every field a per-portfolio digest
+needs — `domain`, `label`, `previous_value`/`current_value`, `priority`,
+`summary`, `event_fingerprint`, `portfolio_id` — before this milestone;
+folding multiple *different* decision-domain events for one portfolio
+into a single Notification Center entry is a client-store concern
+(`docs/architecture/CONTINUOUS_INTELLIGENCE.md` §20), layered on top of
+Priority 2's own same-event grouping, not a second transport or a new
+event type.
+
 `{"action": "unsubscribe", ...}` removes a matching active subscription
 (`{"type": "unsubscribed", ...}`) or reports `{"type": "not_subscribed",
 ...}` if it wasn't active.

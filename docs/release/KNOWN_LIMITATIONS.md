@@ -379,3 +379,184 @@ planned after it. Its own known limitations:
 - Every Milestone 15/16 limitation listed above remains true and
   unchanged — this milestone is verification and hardening, not new
   capability.
+
+## Selective Signals & High-Quality Alerts (v1.2 Priority 1)
+
+Driven directly by the v1.1.1 real-world pilot's own P1 finding (887
+alerts, one signal, every one scoring exactly `confidence=100.0`/
+`score=100.0`). Full root-cause trace and fix design:
+`docs/architecture/CONTINUOUS_INTELLIGENCE.md` §18. Its own known
+limitations:
+
+- ~~Cross-portfolio notification grouping is still not implemented.~~
+  **Resolved in v1.2 Priority 2** — see the section immediately below
+  and `docs/architecture/CONTINUOUS_INTELLIGENCE.md` §19.
+  `DetectedChange.event_fingerprint`, added here, is exactly what that
+  fix groups on. Recorded here as the historical Priority 1 gap, with a
+  forward pointer to where it was actually closed.
+- **The Signal Detection Engine's `MarketQuote` model has no continuous,
+  magnitude-proportional scoring primitive** — the replacement "Live
+  Price Breakout" signal graduates score via discrete, weighted
+  pass/fail conditions (a 5%+ move, a liquidity floor), not a smooth
+  curve — a -11% move and a -20% move both satisfy the same "did it move
+  at least 5%" condition and therefore score identically. Building a
+  true magnitude-proportional primitive would mean extending
+  `SignalCondition`'s own evaluation semantics, judged out of scope (no
+  new engine capability, per this change's own explicit instruction) —
+  a real, evidence-backed candidate for a future Signal Detection
+  Engine enhancement, not addressed here.
+- **`POST /alerts/evaluate` still accepts any caller-supplied
+  `SignalResult` at face value** — `AlertService` does not itself
+  recompute or validate a `SignalResult`'s claimed `score`/`confidence`
+  against its own `matched_conditions`/`failed_conditions` evidence (or
+  reject one carrying no evidence at all). The concrete, reproducible
+  root cause of the pilot's own finding was fully explained by the
+  degenerate signal *definition* alone (§18) — no evidence of a
+  hand-crafted/fabricated `SignalResult` payload was found — so adding
+  an evidence-validation gate to `AlertService` was judged unnecessary
+  speculative complexity for this change; the API contract itself was
+  also explicitly out of scope (`/api/v1` frozen). A real gap if this
+  endpoint's trust boundary is ever revisited.
+- Every existing Continuous Intelligence / Signal Detection / Alert
+  Engine limitation documented elsewhere in this file remains true and
+  unchanged — this is a signal-quality and explainability fix, not a
+  new capability or an architecture change.
+
+## Cross-Portfolio Notification Grouping (v1.2 Priority 2)
+
+Closes the pilot's own P2 finding using the `event_fingerprint` Priority
+1 (above) introduced. Full design: `docs/architecture/CONTINUOUS_INTELLIGENCE.md`
+§19. Its own known limitations:
+
+- **Grouping is presentation-only — WS network traffic is not reduced.**
+  One broadcast still goes out per surviving impacted portfolio (unchanged
+  from before this milestone), to preserve narrow `correlation_id`
+  subscription delivery (`docs/architecture/WEBSOCKET_FRAMEWORK.md` §4) —
+  a client reading raw WS frames instead of going through this
+  codebase's own Notification Center store would still see N frames for
+  one event. Real traffic reduction would need a multi-value
+  `correlation_id` (a subscription-matching model change) or a
+  distributed fan-out layer, both explicitly out of scope (no WebSocket
+  transport redesign).
+- **No per-portfolio detail inside a grouped notification** — the
+  summary is the underlying event's own description plus an "Affected: N
+  portfolios" count; it does not (and cannot, since no such data exists
+  anywhere in this codebase — Milestone 14's own permanent
+  `VALUATION_UNAVAILABLE` constraint) explain how the event affects each
+  portfolio differently (position size, existing holdings, etc.).
+- **Grouping only ever spans copies produced by one `_route()` call** —
+  by construction, every candidate fanned out from one detected change
+  already shares one `event_fingerprint`, so there is no cross-cycle or
+  cross-entity grouping to implement or reason about; this is not a
+  scope limitation so much as the reason no new durable state was
+  needed, but it does mean a *coincidentally* related pair of events
+  (e.g. two different signals both about to notify the same portfolio
+  seconds apart) are never merged — only truly identical underlying
+  events are.
+- ~~No per-user notification preferences for grouped vs. ungrouped
+  delivery~~ — **superseded by v1.2 Priority 4** (below):
+  `notifications.groupCrossPortfolioNotifications` now offers exactly
+  this opt-out, presentation-only.
+
+## Portfolio Decision Digest (v1.2 Priority 3)
+
+Folds multiple *different* decision-domain changes (Risk/Recommendation/
+Strategy/Signal) for the *same* portfolio, arriving within
+`DECISION_DIGEST_WINDOW_MS` (5 minutes) of one another, into a single
+Notification Center entry. Entirely a frontend/presentation change — no
+backend code was modified, no new WS event type or payload field was
+added; every field the digest needs already existed on
+`PORTFOLIO_INTELLIGENCE_CHANGED`'s `DetectedChange` payload since
+Milestone 15. Full design: `docs/architecture/CONTINUOUS_INTELLIGENCE.md`
+§20. Its own known limitations:
+
+- **Session-only, like every other Notification Center entry** — a
+  digest's window resets on page reload/reconnect (the backend's own WS
+  framework has no message replay at all — §6 — so there is no history
+  to rebuild from regardless). A change that would have extended a
+  pre-reload digest starts a brand-new one afterward.
+- ~~The 5-minute window is not user-configurable~~ — **superseded by
+  v1.2 Priority 4** (below): `notifications.decisionDigestWindowMinutes`
+  (1-30, default 5) is now a Workspace Settings preference.
+- **Only combines changes that already share one `_route()` call's own
+  portfolio scope** — this is not a general "notification batching"
+  feature; two events for genuinely unrelated portfolios, or two events
+  for the same portfolio more than 5 minutes apart, are never combined,
+  by design.
+- **No true per-change action affordance inside a digest** — clicking a
+  digest deep-links to `/decisions/$portfolioId` (the portfolio's own
+  Decision Center), same as a single decision entry always has; there is
+  no way to jump directly to, say, just the Strategy tab from a digest
+  entry listing a Strategy change among others.
+
+## Notification & Intelligence Preferences (v1.2 Priority 4)
+
+Makes the Priority 2 grouping toggle, the Priority 3 digest window, and
+the realtime toast pop-up user-configurable, reusing Milestone 8's
+existing client-side `preferences-store.ts`/`preferences-io.ts`
+architecture unchanged — no new settings store, no new settings page, no
+backend change, no WebSocket protocol change, no PostgreSQL schema. Full
+design: `docs/architecture/CONTINUOUS_INTELLIGENCE.md` §21;
+`docs/frontend/MILESTONE_8.md` §8. Its own known limitations:
+
+- **Presentation-only by construction, same as the features it
+  configures** — none of the 3 new preferences can suppress an alert,
+  change what reaches a portfolio, or reduce WS network traffic; a client
+  reading raw WS frames instead of going through this codebase's own
+  Notification Center store sees the same frames regardless of any of
+  these settings.
+- **`decisionDigestWindowMinutes` is capped at 30 minutes** — a
+  deliberately bounded range (1-30), not the arbitrary window a user
+  might want; matches the milestone's own explicit range instruction, not
+  a technical limit.
+- **A digest's window is locked in at creation, not live-updated** — by
+  design (an already-open digest must not behave erratically if the
+  setting changes mid-window), but it does mean a setting change is never
+  visible on an in-progress digest, only on ones started afterward — a
+  user might reasonably expect an immediate effect and not get one until
+  the next digest.
+- **No per-domain (market/news/decisions) versions of these 3
+  preferences** — grouping, digest window, and toast suppression are each
+  a single global setting, not configurable per notification category.
+  The pre-existing `enabledCategories` array remains the only per-domain
+  control, and it is a full on/off, not a presentation nuance.
+- **Desktop notifications remain their own separate, pre-existing
+  preference** (`desktopNotificationsEnabled`, Milestone 8) — `showRealtimeToasts`
+  intentionally does not gate them; no new browser-permission
+  infrastructure was added or needed here.
+
+## Company-Focused News Sources & Ingestion Quality (v1.2 Priority 6)
+
+Extends `RSS_FEED_URLS` from 1 general feed to 10 (4 official Nasdaq
+category feeds + 5 official company IR feeds), fixes a real provenance
+gap (`item.source_metadata` was computed but never reached the persisted
+record), adds cross-feed duplicate-URL detection, and adds per-feed
+source health reporting. Full design:
+`docs/architecture/MARKET_INTELLIGENCE_INGESTION.md` §13;
+`docs/architecture/ENTITY_RESOLUTION.md` §15. Its own known limitations:
+
+- **Only 5 of 12 canonical companies have a dedicated IR feed** (Dell,
+  Salesforce, Workday, Reddit, Sandisk) — the other 7 rely entirely on
+  general-media pickup via the Nasdaq category feeds. This was a
+  deliberate scope decision (the mega-cap 7 are already well-covered by
+  general media; a feed-per-company for all 12 was judged operationally
+  unnecessary), not a coverage guarantee.
+- **Cross-run source health history is log-based, not a persisted
+  store** — "last successful fetch," "last failure," and "failure rate
+  over time" require reading the existing `rss_feed_fetched`/
+  `rss_feed_fetch_failed` structured logs (§13's own documented `grep`
+  pattern); there is no queryable API/dashboard for this in this release.
+- **The entity overlay gained exactly one entry (Walmart/WMT)** — the
+  ranked-unresolved-entity analysis found a long tail of macro/policy
+  topics and personal-finance advice phrasing that is not a company at
+  all, not a large pool of safe additions. Expanding company-specific
+  evidence further requires more company-focused sources (this
+  milestone's own §13), not more overlay entries.
+- **Alert priority is still a fixed constant, not derived from signal
+  score/confidence** — identified in v1.2 Priority 5 (§6 of that
+  session's own report) and deliberately not addressed here; remains a
+  separate, focused future task.
+- Every existing Market Intelligence Ingestion / Entity Resolution
+  limitation documented elsewhere in this file remains true and unchanged
+  — this is a source-quality and provenance fix, not an architecture
+  change.

@@ -185,6 +185,24 @@ during this milestone's own test-writing and fixed before release; see
 `tests/services/continuous_intelligence/test_service.py
 ::test_market_change_notifies_every_watching_portfolio_independently`.
 
+**`DetectedChange.event_fingerprint` (v1.2 Priority 1).** The
+per-portfolio scoping above is deliberate and correct for suppression,
+but it means `fingerprint` alone can no longer answer "are these two
+`DetectedChange`s the same real-world event, just routed to different
+portfolios?" — a real, evidence-backed gap: the v1.1.1 pilot observed a
+single Dell price move surface as three visually-identical
+`DetectedChange`s in one cycle (one per watching portfolio), with no
+field connecting them back to "one underlying event." `event_fingerprint`
+is set once, at detection time, to the same value `fingerprint` would
+have had before any portfolio expansion — `attach_portfolio_context`
+copies `portfolio_id` and rewrites `fingerprint`, but never touches
+`event_fingerprint`. This is deliberately *not* a cross-portfolio
+grouping/deduplication mechanism — the pilot's redundant-notification
+finding was logged as a separate, deferred P2, and grouping still isn't
+implemented — it only guarantees the stable identity survives portfolio
+expansion so a future task can group on it without a further schema
+change. See `test_attach_portfolio_context_preserves_event_fingerprint_across_expansion`.
+
 Because the detector layer already blocks re-detecting an unchanged
 value (§2 — same value in, `None` out), the same fingerprint recurring
 within a cooldown window mainly happens when a value **oscillates**
@@ -430,6 +448,280 @@ detection, never guessed at — verified by
 Only enabled when a `strategy_service` is injected (a soft dependency,
 like `knowledge_hub` for News).
 
+## 18. v1.2 Priority 1 — Selective Signals & High-Quality Alerts
+
+The v1.1.1 real-world pilot found every alert this deployment had ever
+generated (887 of them) scored exactly `confidence=100.0`/`score=100.0`,
+with a generic, identical `reason` string regardless of what actually
+happened. Root cause, traced end to end (not guessed): the live
+`SignalDefinition` in production ("M14 Live Price Breakout") had exactly
+**one** condition, `quote.price GREATER_THAN 100.0`, weight 1.0 — a
+Milestone-14 live-acceptance-test fixture (see
+`tests/services/portfolio_market_snapshot/test_market_data_to_alert_pipeline.py`'s
+own `_price_signal_definition()`, an almost-identical pattern) that was
+never replaced with a real production signal. With one condition,
+`app.signals.engine._weighted_score` can only ever output 0.0 or 100.0 —
+there is no weight to distribute. Every one of the 12 canonical entities
+trades above $100, so the condition was, in effect, always true. This
+was **not** hardcoded confidence in code — `SignalDetectionService`'s
+weighted engine was, and remains, a correct, deterministic, evidence-
+based calculator; it was simply fed a degenerate, single-condition
+signal definition.
+
+**Fix — genuinely graduated scoring, same engine, no new capability.**
+`app/signals/reference_definitions.py` (new) assembles a replacement
+"Live Price Breakout" definition from the *existing* `SignalCondition`/
+`SignalConditionGroup` primitives: a same-day move of at least 5% in
+either direction (`quote.change_percent`, two directional conditions
+under one OR group — the engine has no "absolute value >=" operator) at
+weight 3 each, AND a liquidity floor (`quote.price > 5.0`) at weight 1.
+Because a real move can only ever satisfy one side of the OR group, a
+genuine triggered breakout scores at most (3 + 1) / 7 ≈ 57.1%, never
+100% — see the module's own docstring for the exact arithmetic, and
+`tests/signals/test_reference_definitions.py` for the regression proof
+across the pilot's own five real observed price moves (Dell, Salesforce,
+Workday, Reddit, SanDisk).
+
+**Fix — structured, evidence-based explanation (§4).**
+`ConditionEvaluation` gained `actual_value`/`expected_value` (additive —
+the same values `_apply_operator` already computed locally to build its
+string `reason`, now also surfaced structurally). `app.alerts.models`
+gained `AlertExplanation` — `signal_category`, `weighted_score`,
+matched/failed condition counts, the real `ConditionEvaluation`s, and
+`signal.reason` verbatim — attached to every new `Alert` via
+`Alert.explanation` (nullable, additive; migration
+`0006_alert_explanation`). `AlertService.evaluate_signal`'s `reason` no
+longer reads `"Rule X matched signal Y for TICKER."` (identical for
+every alert, regardless of outcome) — it now incorporates the signal's
+own real weighted-match description.
+
+**Selectivity — verified already correct, not re-architected.** Every
+literal requirement this milestone's own brief listed
+("a scheduled refresh alone must never produce an alert", "an unchanged
+state must never produce an alert", "stale market data must not
+generate a significant market alert", "a news ingestion event must not
+automatically become an alert unless it meets significance criteria")
+was checked against the actual code and found **already true**, with
+existing test coverage (§2's own first-observation/threshold tests;
+`signal_adapter.build_market_data_snapshot`'s FRESH-only guard, unit-
+tested in `test_signal_adapter.py`) — nothing here needed a behavior
+change, only an explicit end-to-end regression test
+(`test_stale_market_data_never_produces_a_signal_or_alert`) proving the
+consequence carries all the way through to "no alert candidate", not
+just "no quote". Suppression/cooldown (§6) is unchanged — the fix is a
+better-designed signal producing fewer, more meaningful alert
+*candidates* in the first place, not a more aggressive suppression
+policy compensating for a noisy one.
+
+**`event_fingerprint`** — see §5 above.
+
+## 19. v1.2 Priority 2 — Cross-Portfolio Notification Grouping
+
+The v1.1.1 pilot's own separately-tracked P2 finding: the same
+underlying event fans out to one WS broadcast **and one Notification
+Center entry** per impacted portfolio — a real Dell price move surfaced
+as 3 visually-identical notifications because 3 real watchlists tracked
+Dell. v1.2 Priority 1 (§18) already gave every fanned-out copy a stable
+`event_fingerprint`; this milestone uses it to collapse the *user-visible*
+duplication without touching delivery, suppression, or portfolio scoping.
+
+**Grouping key.** `event_fingerprint` only — never `fingerprint` (per-
+portfolio, deliberately unique — §5), never `portfolio_id`, never a
+notification UUID, never a timestamp alone. Two `DetectedChange`s group
+together iff they share one `event_fingerprint`; a different entity, a
+different domain (market vs. news for the *same* entity), or a
+genuinely later occurrence of the same event (a new `fingerprint` once
+the prior one's cooldown has expired and a fresh comparison baseline is
+established) are never conflated.
+
+**Where grouping happens, and where it deliberately does not.**
+`ContinuousIntelligenceService._route()` (already the single place
+portfolio fan-out and suppression both happen — §5/§8) computes the
+group: it fans out (unchanged), applies suppression **per candidate,
+independently, first** (unchanged — this is the load-bearing ordering
+requirement, see below), and only *after* deciding which candidates
+survive does it collect their `portfolio_id`s into
+`impacted_portfolio_ids` and stamp that list onto every survivor before
+publishing. One `_route()` call is always exactly one underlying event
+(every candidate it fans out shares one `event_fingerprint` by
+construction), so this is a same-call aggregation, not a new
+cross-call/cross-cycle grouping mechanism — no new state, no new table
+(§11's own instruction: prefer no schema change if the existing models
+suffice; here they do).
+
+```
+domain change
+  -> portfolio fan-out (attach_portfolio_context, unchanged)
+  -> per-portfolio suppression (is_duplicate/record_emitted, unchanged, first)
+  -> impacted_portfolio_ids computed from survivors only
+  -> publish once per survivor (unchanged count/delivery)
+  -> frontend collapses same-event_fingerprint arrivals into one entry
+```
+
+**Suppression ordering is the one genuine invariant this milestone
+depends on and must never invert.** Suppression runs before grouping is
+computed — a portfolio whose copy is suppressed contributes nothing to
+`impacted_portfolio_ids` and never appears in it, exactly as if it were
+never a candidate. Grouping a suppressed candidate in *anyway* (e.g. by
+computing the group from all fan-out candidates instead of only
+survivors) would leak a suppressed portfolio's identity into a
+notification it was never supposed to produce one for, and would let
+grouping silently widen what suppression already correctly narrowed.
+Verified: `test_per_portfolio_suppression_remains_independent_after_grouping`.
+
+**Delivery is unchanged — still one broadcast per surviving portfolio.**
+`EventPublisher`'s `correlation_id` (`portfolio_id or entity_id`) is what
+lets a client subscribe narrowly to one portfolio's events
+(`SubscriptionRegistry.matches`, an exact-string match — §10). A single
+collapsed broadcast could only carry one `correlation_id` and would
+silently stop reaching a client narrowly subscribed to any of the
+*other* impacted portfolios — this codebase's frontend never actually
+uses narrow correlation-id subscriptions today, but the backend
+capability is real, tested infrastructure that a future client could,
+and this milestone does not regress it. Collapsing three network-visible
+frames into one visible notification is therefore done client-side.
+
+**Authorization.** This codebase has no per-user watchlist ownership
+model (§10, unchanged, not introduced here) — "authorized" for the
+grouped payload means two things, both already true by construction,
+neither a new access-control mechanism: (1) the existing WS event-type
+permission gate, unchanged; (2) a portfolio only ever appears in
+`impacted_portfolio_ids` if it was genuinely found impacted
+(`find_impacted_portfolios`) *and* independently survived its own
+suppression check — never "every portfolio in the system." Verified:
+`test_portfolio_tracking_a_different_ticker_never_appears_in_the_impacted_list`.
+
+**Frontend.** `DetectedChange.impacted_portfolio_ids` (additive) travels
+identically on every frame in a group. `realtime-notification-store.ts`'s
+`addEntry` became a group-aware upsert: an incoming entry carrying a
+`groupKey` (`event_fingerprint`, when present) replaces any existing
+entry with the same key — moved to the top, `affectedPortfolioCount`
+refreshed, prior `read` state preserved — instead of appending a new
+row; an entry with no `groupKey` (every non-grouped domain — alerts,
+backtests, ...) keeps the exact pre-v1.2 unconditional-prepend behavior.
+`use-realtime-sync.ts` checks whether a `groupKey` was already present
+*before* upserting, and skips the toast/desktop-notification side
+channels (not the Notification Center upsert itself) for a later arrival
+in an already-seen group — the three per-portfolio WS frames a real Dell
+event produces still arrive, but only the first produces a toast/desktop
+notification, and the Notification Center always shows exactly one row
+reading e.g. "Dell Technologies Inc.: significant market move · ...
+Affected: 3 portfolios."
+
+**Live-verified** (2026-08-21, real data, no fabrication): this
+deployment's own live watchlists already had Dell tracked by 3 real
+portfolios (`M14 Live Acceptance`, `M15 Live Risk Test`, `M16 Live CI
+Test`) — no synthetic scenario needed. A real `scripts/run_ingestion.py`
+run fetched 5 genuinely new Dell articles from the live RSS feed; the
+next cycle's `NEWS:dell:count:25` event correctly fanned out to exactly
+those 3 real portfolio ids (3 WS-level frames, all sharing one
+`event_fingerprint`/one `impacted_portfolio_ids` list) — collapsing to
+one Notification Center entry client-side. `SanDisk` (2 real tracking
+watchlists) produced a second, independent 2-portfolio group in the same
+cycle, confirming distinct entities never conflate. `events_suppressed:
+2` in the same cycle confirms suppression remained fully active
+alongside grouping.
+
+## 20. v1.2 Priority 3 — Portfolio Decision Digest
+
+Multiple *different* decision-domain changes (Risk/Recommendation/
+Strategy/Signal) for the *same* portfolio, arriving close together, used
+to surface as separate Notification Center entries — e.g. a real Risk
+severity change followed a minute later by a real Recommendation change
+for the same portfolio produced two rows with no indication they were
+related. This milestone folds them into one digest entry, entirely
+client-side — **no backend change was required or made**: every field a
+digest needs (`domain`, `label`, `previous_value`, `current_value`,
+`priority`, `summary`, `event_fingerprint`, `portfolio_id`) already
+exists on `PORTFOLIO_INTELLIGENCE_CHANGED`'s own `DetectedChange`
+payload (§9), unchanged since Milestone 15.
+
+**Digest key: `portfolio_id` + a time window, never `event_fingerprint`
+alone.** §19's own grouping key (`event_fingerprint`) answers "is this
+the same underlying event, routed to a different portfolio?" — a
+different axis entirely from this milestone's "are these different
+events, for the same portfolio, close together in time?" Two different
+domains (Risk, Recommendation) for one portfolio have two different
+`event_fingerprint`s and must never be conflated by §19's own mechanism
+— they only ever combine here, one layer up.
+
+**Window: `DECISION_DIGEST_WINDOW_MS` (5 minutes), explicit and named**
+(`frontend/src/store/realtime-notification-store.ts`) — not a hardcoded
+magic number scattered through the logic. Anchored to the digest's
+*first* contained change (`digest.windowStart`, fixed for the digest's
+lifetime) — a later change extends the digest's visible content but
+never resets the window clock, so a digest cannot grow forever by
+perpetually deferring its own expiry.
+
+**Interaction with §19 — the required ordering, not undone:**
+
+```
+domain event
+  -> per-portfolio authorization/suppression (§8, backend, unchanged)
+  -> Priority-2 same-event_fingerprint grouping (§19, backend + client, unchanged)
+  -> per-portfolio decision digest (this section, client-only, new)
+  -> Notification Center
+```
+
+By the time an event reaches `addEntry`, §19's own server-side fan-out
+and per-candidate suppression have already happened, and the client has
+already received one broadcast per surviving portfolio — this section
+never touches that. What it adds is purely at the *store* layer: a
+`"decisions"`-domain entry for a known portfolio (`entry.pendingDigestChange`,
+built once in `toNotificationEntry`) folds into an existing same-portfolio
+digest still inside its window, or starts a new one-change digest
+otherwise. A redelivery of the exact same `event_fingerprint` (the same
+scenario §19 already handles for cross-portfolio fan-out) replaces its
+own entry within the digest's `changes` array rather than duplicating.
+Every non-`"decisions"` domain (alerts, backtests, market, news,
+health, ...) is entirely unaffected — `addEntry` only takes the digest
+path when `pendingDigestChange` is present.
+
+**Priority**: the highest tier among the digest's own contained changes
+(`LOW < MEDIUM < HIGH < CRITICAL` — the same ordering `PriorityBadge`'s
+own styling table already implies, not a new hierarchy). Recomputed on
+every fold-in, never frozen at the digest's creation.
+
+**Preserved detail, never a lossy merge.** Each contained change keeps
+its own `domain`/`label`/`previous_value`/`current_value`/`priority`/
+`summary`/`occurredAt`/`event_fingerprint` inside `digest.changes` — the
+digest's own `title`/`summary` are a compact roll-up ("N decision
+changes affecting {portfolio}", "Risk: LOW → HIGH; Recommendation: HOLD
+→ BUY") for the collapsed list view, but nothing is discarded: the
+Notification Center card lists each change on its own line once a
+digest holds more than one (`notification-center-page.tsx`, additive —
+the card itself was not redesigned). A digest of exactly one change
+looks identical to a pre-v1.2 single decision entry — no visible change
+for the common case.
+
+**Restart semantics.** Digest state lives only in `realtime-notification-store.ts`
+— the same session-only, never-persisted design every Notification
+Center entry already has (§11, unchanged since Milestone 15: no WS
+message replay exists either, so a reconnect after a reload has no
+history to rebuild from regardless). An active digest's window resets
+along with the rest of the browser session on reload — a change that
+would have folded into the pre-reload digest instead starts a fresh one
+post-reload. No PostgreSQL schema was added; genuinely not required —
+one `_route()`-call's worth of data already carries everything, and
+digesting spans only a live client session, not something a restart
+needs to recover.
+
+**Live-verified** (2026-08-21, real data, no fabrication): this
+deployment's own portfolio `M14 Live Acceptance` already had two real,
+different-domain, already-stored results 36 seconds apart — a real Risk
+assessment (`HIGH` severity, generated 2026-08-14T18:54:11Z) and a real
+Recommendation result (`DELL`, `AVOID`, score `0.0`, generated
+2026-08-14T18:53:35Z), both read directly from the live database. Fed
+through the real, unmodified `toNotificationEntry`/`addEntry` code (no
+synthetic evidence generated — a live-generated third Strategy change
+was considered and deliberately not created, since doing so would have
+required injecting synthetic screening evidence into the production
+database, itself a form of fabrication this milestone's own instruction
+prohibits): the result was exactly one digest entry, `digest.changes`
+length 2, title `"2 decision changes affecting M14 Live Acceptance"`,
+priority `HIGH` (correctly the max of `HIGH`/`MEDIUM`), and
+`entityRef.portfolioId` correctly pointing at the real portfolio.
+
 ## 17. Known limitations
 
 - **Risk/Recommendation changes require something else to have already
@@ -449,3 +741,66 @@ like `knowledge_hub` for News).
   fundamentals, in-memory snapshot cache, no persisted history) applies
   unchanged — this milestone adds no new provider, only real-history-driven
   health reporting on the existing one (Milestone 16 §10).
+- **Cross-portfolio notification grouping (v1.2 Priority 2, §19) is
+  client-side presentation only, not a reduction in WS network traffic.**
+  One broadcast per surviving portfolio still goes out — deliberately,
+  to preserve narrow `correlation_id` subscription delivery (§19's own
+  reasoning) — a client that skipped the Notification Center layer
+  entirely and read raw WS frames directly would still see N frames for
+  one event, not one. True server-side traffic reduction would require
+  either a multi-value `correlation_id` (a `Subscription`/matching-model
+  change) or a distributed fan-out layer, both out of scope (no
+  WebSocket transport redesign, per this milestone's own instruction).
+- **No true magnitude-proportional grouping summary** — a grouped
+  notification's `summary` is the underlying `DetectedChange.summary`
+  verbatim (e.g. "Dell moved down 11.42%..."), with "Affected: N
+  portfolios" appended; it does not attempt to summarize *how* the event
+  affects each portfolio differently (e.g. position size, existing
+  holdings) — no such per-portfolio detail exists anywhere in this
+  codebase to summarize (`docs/release/KNOWN_LIMITATIONS.md`'s own
+  "Valuation is permanently VALUATION_UNAVAILABLE" — Milestone 14).
+- **Portfolio Decision Digest (v1.2 Priority 3, §20) state is
+  session-only, like every other Notification Center entry** — an active
+  digest's window resets on reload/reconnect; a change that would have
+  extended a pre-reload digest instead starts a new one after. No
+  PostgreSQL schema was added for it, deliberately (§20's own reasoning).
+- ~~The digest window (5 minutes, `DECISION_DIGEST_WINDOW_MS`) is not
+  user-configurable~~ — **superseded by v1.2 Priority 4 (§21)**: the
+  window is now configurable, 1-30 minutes, via Workspace Settings.
+  `DECISION_DIGEST_WINDOW_MS` remains as the literal default value.
+- **Cross-portfolio grouping and the toast pop-up are each individually
+  presentation-only user preferences as of v1.2 Priority 4 (§21)** —
+  neither preference can be used to infer anything about server-side
+  suppression, authorization, or delivery; both default to the §19/§16
+  behavior this document already describes.
+
+## 21. v1.2 Priority 4: Notification & Intelligence Preferences
+
+Makes 3 presentation behaviors already described in this document
+user-configurable, entirely client-side, reusing Milestone 8's existing
+`preferences-store.ts`/`preferences-io.ts` machinery — **no backend
+change, no WebSocket protocol change, no new persistence mechanism, no
+new settings page.** See `docs/frontend/MILESTONE_8.md` §8 for the full
+field list and UI. In terms of this document's own sections:
+
+- **§19 (cross-portfolio grouping)** is now gated by
+  `notifications.groupCrossPortfolioNotifications` (default `true`).
+  `false` makes `addEntry` treat every arrival as ungrouped (one
+  Notification Center row per portfolio, mirroring pre-§19 behavior) —
+  the backend's one-broadcast-per-surviving-portfolio behavior (§19's own
+  "not a reduction in WS network traffic" limitation, still true) is
+  entirely unchanged either way.
+- **§20 (decision digest)** now reads its fold window from
+  `notifications.decisionDigestWindowMinutes` (1-30, default 5) instead
+  of the fixed `DECISION_DIGEST_WINDOW_MS`. Locked into each digest's own
+  `windowMs` field at creation (its first change) — §20's own "anchored
+  to the digest's first contained change" invariant is preserved exactly,
+  now extended to cover the window's *length* as well as its *start*: a
+  setting change mid-digest affects only digests created after the
+  change, never a digest already open.
+- **The realtime toast** (not part of this document's own domain, but
+  fired from the same `use-realtime-sync.ts` dispatch point §19/§20
+  describe) is now gated by `notifications.showRealtimeToasts` (default
+  `true`) — gates only the toast; Notification Center insertion, unread
+  state, and cache invalidation are unaffected, and desktop notifications
+  keep their pre-existing, separate `desktopNotificationsEnabled` toggle.
