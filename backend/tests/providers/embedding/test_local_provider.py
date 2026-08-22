@@ -7,9 +7,11 @@ internet access in automated tests" constraint.
 
 from __future__ import annotations
 
+import asyncio
+
 from app.providers.embedding.local import LocalEmbeddingProvider
 from app.providers.embedding.models import EmbeddingProviderConfig
-from app.services.embedding.models import EmbeddingRequest
+from app.services.embedding.models import EmbeddingBatch, EmbeddingBatchMetadata, EmbeddingChunk, EmbeddingRequest
 
 
 def _config(**overrides: object) -> EmbeddingProviderConfig:
@@ -39,7 +41,10 @@ async def test_embed_one_returns_a_vector_from_the_injected_function() -> None:
     vector = await provider.embed_one(EmbeddingRequest(document_id="doc-1", text="Apple Inc. news"))
 
     assert vector == [1.0, 2.0, 3.0]
-    assert calls == [["Apple Inc. news"]]
+    # First call on a cold provider warms the model (see
+    # `_get_embedding_function`'s own docstring) before embedding the
+    # real request — the warmup text precedes the real one, never after.
+    assert calls == [["marketmind embedding provider warmup"], ["Apple Inc. news"]]
 
 
 async def test_embed_one_is_deterministic_for_the_same_input() -> None:
@@ -108,8 +113,6 @@ async def test_generate_integrates_with_the_base_class_batch_orchestration() -> 
     machinery correctly, not just its own embed_one() in isolation."""
     from datetime import datetime, timezone
 
-    from app.services.embedding.models import EmbeddingBatch, EmbeddingBatchMetadata, EmbeddingChunk
-
     factory, _ = _fake_factory([9.0])
     provider = LocalEmbeddingProvider(_config(), embedding_function_factory=factory)
     chunk = EmbeddingChunk(
@@ -136,3 +139,107 @@ async def test_generate_integrates_with_the_base_class_batch_orchestration() -> 
     assert result.success is True
     assert result.total_succeeded == 2
     assert {vector.document_id for vector in result.chunk_results[0].vectors} == {"doc-1", "doc-2"}
+
+
+# --- Concurrent cold-start construction (real bug, live-observed) -----------------------------------------------------------
+#
+# `BaseEmbeddingProvider.generate()` fires every request in a chunk
+# concurrently (`asyncio.gather`, up to `EmbeddingService.DEFAULT_MAX_BATCH_SIZE`
+# = 100 in production). Before `_get_embedding_function`'s lock existed, a
+# cold provider let every one of those concurrent callers race the lazy
+# singleton check-then-set, each independently constructing (and, for the
+# real ChromaDB default, independently triggering the one-time on-disk
+# model download for) its own embedding function. Live-observed: a
+# 130-article ingestion run against a freshly restarted container produced
+# 95/130 embedding failures. These tests reproduce the race with a fake,
+# artificially slow factory and confirm it can no longer happen.
+
+
+def _slow_fake_factory(delay_seconds: float = 0.05) -> tuple[object, list[int]]:
+    """A fake factory that sleeps (a real OS-thread sleep, since
+    `_get_embedding_function` runs it via `asyncio.to_thread`) before
+    "constructing" — simulating a real, slow model load/download and
+    deliberately widening the race window so that, without the fix's
+    lock, many concurrent `embed_one()` callers would reliably all pass
+    the `self._embedding_function is None` check before the first one
+    finishes and assigns it. `construction_count` records one entry per
+    construction, so the test can assert it happened exactly once
+    regardless of how many callers raced for it — with the lock in
+    place, this is deterministic (not a matter of getting lucky with
+    scheduling); without it, this same test would flake or fail.
+    """
+    import time
+
+    construction_count: list[int] = []
+
+    def factory() -> object:
+        time.sleep(delay_seconds)
+        construction_count.append(1)
+
+        def embed(texts: list[str]) -> list[list[float]]:
+            return [[0.0] for _ in texts]
+
+        return embed
+
+    return factory, construction_count
+
+
+async def test_concurrent_embed_one_calls_on_a_cold_provider_construct_exactly_once() -> None:
+    """The exact scenario `BaseEmbeddingProvider.generate()` creates in
+    production: many `embed_one()` calls in flight simultaneously against
+    a provider that has never yet constructed its embedding function."""
+    factory, construction_count = _slow_fake_factory()
+    provider = LocalEmbeddingProvider(_config(), embedding_function_factory=factory)
+
+    requests = [EmbeddingRequest(document_id=f"doc-{i}", text=f"text {i}") for i in range(25)]
+    results = await asyncio.gather(*(provider.embed_one(r) for r in requests))
+
+    assert len(construction_count) == 1  # never raced, never duplicated
+    assert len(results) == 25
+    assert all(vector == [0.0] for vector in results)
+
+
+async def test_concurrent_embed_one_calls_all_still_return_correct_results() -> None:
+    """Not just "constructed once" — every concurrent caller must still
+    get back its own correctly embedded vector, not one that was dropped
+    or overwritten by a losing racer."""
+    factory, _ = _fake_factory([7.0, 8.0])
+    provider = LocalEmbeddingProvider(_config(), embedding_function_factory=factory)
+
+    requests = [EmbeddingRequest(document_id=f"doc-{i}", text=f"text {i}") for i in range(10)]
+    results = await asyncio.gather(*(provider.embed_one(r) for r in requests))
+
+    assert results == [[7.0, 8.0]] * 10
+
+
+async def test_generate_through_a_full_100_request_chunk_constructs_the_function_exactly_once() -> None:
+    """End-to-end through the real `BaseEmbeddingProvider.generate()`
+    orchestration, at production's own real chunk size — not a
+    hand-rolled `asyncio.gather` in the test, the actual code path that
+    produced the live 95/130 failure."""
+    from datetime import datetime, timezone
+
+    factory, construction_count = _slow_fake_factory()
+    provider = LocalEmbeddingProvider(_config(), embedding_function_factory=factory)
+    chunk = EmbeddingChunk(
+        chunk_index=0,
+        requests=[EmbeddingRequest(document_id=f"doc-{i}", text=f"text {i}") for i in range(100)],
+    )
+    batch = EmbeddingBatch(
+        chunks=[chunk],
+        batch_metadata=EmbeddingBatchMetadata(
+            batch_id="batch-cold-start",
+            created_at=datetime.now(timezone.utc),
+            total_documents_received=100,
+            accepted_count=100,
+            max_batch_size=100,
+            chunk_count=1,
+        ),
+    )
+
+    result = await provider.generate(batch)
+
+    assert len(construction_count) == 1
+    assert result.success is True
+    assert result.total_succeeded == 100
+    assert result.total_failed == 0

@@ -87,10 +87,54 @@ class LocalEmbeddingProvider(BaseEmbeddingProvider):
         super().__init__(config)
         self._embedding_function_factory = embedding_function_factory or _default_embedding_function
         self._embedding_function: EmbeddingFunction | None = None
+        # Guards first-time construction/warm-up (see `_get_embedding_function`)
+        # against the concurrent-callers race described there. One provider
+        # instance is shared across a whole ingestion batch, and
+        # `BaseEmbeddingProvider.generate()` fires every request in a chunk
+        # (up to `EmbeddingService.DEFAULT_MAX_BATCH_SIZE` = 100) concurrently
+        # via `asyncio.gather` — without this lock, a cold provider sees all
+        # of them race the lazy singleton check-then-set below.
+        self._init_lock = asyncio.Lock()
 
-    def _get_embedding_function(self) -> EmbeddingFunction:
-        if self._embedding_function is None:
-            self._embedding_function = self._embedding_function_factory()
+    async def _get_embedding_function(self) -> EmbeddingFunction:
+        """Return the shared embedding function, constructing and warming
+        it exactly once even under concurrent callers.
+
+        `DefaultEmbeddingFunction()`'s own construction does not download
+        anything (per this module's docstring) — the ~80MB ONNX model is
+        fetched lazily, on that function's *first actual call*. Before
+        this lock existed, N concurrent `embed_one()` callers on a cold
+        provider (real batches: up to 100, one whole ingestion chunk) each
+        saw `self._embedding_function is None`, each constructed their own
+        function object, and — worse — each could independently trigger
+        that first-call download, multiple processes racing to write the
+        same on-disk cache file. Observed live: a 130-article ingestion
+        run against a freshly restarted container produced 95 embedding
+        failures out of 130 (only the chunk-1 stragglers that raced badly;
+        chunk 2, embedded after chunk 1's race had already corrupted or
+        settled the cache, mostly succeeded) — exactly this bug, not a
+        provider or model defect.
+
+        Fixed with the standard check-lock-check-again pattern: the fast
+        path (already warm) never touches the lock; the slow path
+        (cold) has exactly one caller perform the real
+        construction-and-warm-up while every other concurrent caller
+        awaits the same lock and then reuses what that one caller built —
+        never redoing it, never racing the download.
+        """
+        if self._embedding_function is not None:
+            return self._embedding_function
+        async with self._init_lock:
+            if self._embedding_function is None:
+                function = await asyncio.to_thread(self._embedding_function_factory)
+                # Warm it now, still holding the lock: a real (if trivial)
+                # call is what actually triggers the one-time on-disk
+                # download for the real ChromaDB default — doing it here
+                # means every other concurrent caller waiting on this lock
+                # resumes against an already-fully-cached model, never
+                # racing that download themselves.
+                await asyncio.to_thread(function, ["marketmind embedding provider warmup"])
+                self._embedding_function = function
         return self._embedding_function
 
     async def embed_one(self, request: EmbeddingRequest) -> list[float]:
@@ -100,7 +144,7 @@ class LocalEmbeddingProvider(BaseEmbeddingProvider):
         (ONNX inference) — run via `asyncio.to_thread` so one embedding
         call never blocks the event loop other requests/connections share.
         """
-        embedding_function = self._get_embedding_function()
+        embedding_function = await self._get_embedding_function()
         vectors = await asyncio.to_thread(embedding_function, [request.text])
         return list(vectors[0])
 
@@ -111,9 +155,15 @@ class LocalEmbeddingProvider(BaseEmbeddingProvider):
         the one-time model download) — mirrors this codebase's existing
         convention (`ProviderHealth`'s own docstring) that a health check
         must never require a real, potentially-slow request to produce.
+        Constructs the function directly here (bypassing `_get_embedding_function`'s
+        own warm-up call) for exactly that reason — a health check must
+        stay cheap and side-effect-free, never itself triggering the
+        one-time download.
         """
         try:
-            self._get_embedding_function()
+            if self._embedding_function is not None:
+                return True
+            await asyncio.to_thread(self._embedding_function_factory)
         except Exception as exc:  # noqa: BLE001 - health check must never raise
             _logger.warning("local_embedding_provider_unhealthy", extra={"error": str(exc)})
             return False
