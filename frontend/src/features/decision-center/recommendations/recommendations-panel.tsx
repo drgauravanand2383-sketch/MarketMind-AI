@@ -3,6 +3,7 @@ import { Panel } from "@/components/panel";
 import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
 import { Skeleton, SkeletonList } from "@/components/states/skeleton";
+import { InitialAnalysisEmptyState } from "@/components/portfolio/initial-analysis-empty-state";
 import { GenerateRecommendationsForm } from "@/features/decision-center/recommendations/generate-recommendations-form";
 import { RecommendationDetailPanel } from "@/features/decision-center/recommendations/recommendation-detail-panel";
 import { RecommendationList } from "@/features/decision-center/recommendations/recommendation-list";
@@ -46,13 +47,7 @@ export function RecommendationsPanel({ portfolioId }: { portfolioId: string }): 
 
       {recommendations.isPending && <SkeletonList rows={5} rowClassName="h-10 w-full" />}
 
-      {recommendations.isUnavailable && (
-        <EmptyState
-          icon="💡"
-          title="No recommendations yet"
-          description="Generate recommendations above to see candidates for this portfolio."
-        />
-      )}
+      {recommendations.isUnavailable && <InitialAnalysisEmptyState portfolioId={portfolioId} kind="recommendations" />}
 
       {recommendations.isError && (
         <ErrorState

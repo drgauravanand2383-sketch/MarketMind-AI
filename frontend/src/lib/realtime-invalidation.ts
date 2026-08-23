@@ -37,6 +37,10 @@ export function invalidateForEvent(queryClient: QueryClient, event: DomainEvent)
     }
     case "RECOMMENDATION_GENERATED":
       void queryClient.invalidateQueries({ queryKey: ["portfolio", "recommendations"] });
+      // v1.2 Priority 8: also refresh any open initial-analysis-status
+      // poll — same "no portfolio_id on this payload" reasoning as above,
+      // so the whole analysis-status prefix, not one portfolio's key.
+      void queryClient.invalidateQueries({ queryKey: ["portfolio", "analysis-status"] });
       break;
     case "STRATEGY_EVALUATION_COMPLETED":
       void queryClient.invalidateQueries({ queryKey: strategyKeys.result(event.payload.request_id) });
@@ -49,7 +53,14 @@ export function invalidateForEvent(queryClient: QueryClient, event: DomainEvent)
       void queryClient.invalidateQueries({ queryKey: ["system", "ready"] });
       break;
     case "RISK_ASSESSMENT_COMPLETED":
-      // Never actually published — see docs/architecture/WEBSOCKET_FRAMEWORK.md §8.
+      // v1.2 Priority 8: now genuinely published (InitialPortfolioAnalysisService
+      // and, going forward, any future risk-recomputation path). `RiskAssessment`
+      // carries no `portfolio_id` of its own (only `RiskAssessmentRequest`
+      // does) — same "no id to scope by" situation RECOMMENDATION_GENERATED
+      // above already documents, so the whole domain prefix is invalidated
+      // rather than one portfolio's cache.
+      void queryClient.invalidateQueries({ queryKey: ["portfolio", "risk"] });
+      void queryClient.invalidateQueries({ queryKey: ["portfolio", "analysis-status"] });
       break;
     case "MARKET_SNAPSHOT_REFRESHED":
       // Portfolio-agnostic (every canonical entity at once, Milestone 14)

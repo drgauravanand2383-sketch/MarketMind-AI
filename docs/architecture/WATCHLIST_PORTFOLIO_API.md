@@ -74,6 +74,8 @@ system endpoints, not a duplication of business logic.
 | GET | `/portfolio/risk?portfolio_id=` | `portfolio:read` | Most recent `RiskAssessment` for that `portfolio_id` (read-only) |
 | GET | `/portfolio/recommendations?portfolio_id=` | `portfolio:read` | Most recent `RecommendationResult` for that `portfolio_id` (read-only) |
 | POST | `/portfolio/recommendations` | `portfolio:recommend` | `PortfolioRecommendationService.create_request()` + `.generate_recommendations()` |
+| GET | `/portfolio/{portfolio_id}/analysis-status` | `portfolio:read` | `InitialPortfolioAnalysisService.get_status()` — v1.2 Priority 8, read-only |
+| POST | `/portfolio/{portfolio_id}/analysis` | `portfolio:recommend` | `InitialPortfolioAnalysisService.ensure_initial_analysis()` — v1.2 Priority 8, dispatched via `BackgroundTasks`, returns 202 immediately |
 
 **Route ordering note:** `/summary`, `/intelligence`, `/risk`, and
 `/recommendations` are registered *before* `/{portfolio_id}` in
@@ -88,6 +90,17 @@ rather than ever reaching the summary handler).
 specification defines these as flat paths (`GET /api/v1/portfolio/risk`,
 not `GET /api/v1/portfolio/{portfolio_id}/risk`) — `portfolio_id` is
 therefore accepted as a required query parameter on each.
+
+**`analysis-status`/`analysis` (v1.2 Priority 8) use a path parameter
+instead** (`/portfolio/{portfolio_id}/analysis-status`), matching
+`GET /portfolio/{portfolio_id}` rather than the flat-path convention
+above — no sprint constraint required the flat-path shape for these two
+new endpoints, and a path parameter is the more conventional REST shape
+for a single-resource action/status lookup. Both are two path segments
+deep, so registration order relative to the single-segment `/{portfolio_id}`
+route (and the flat literal routes) never matters — FastAPI resolves by
+segment count/template, not registration order, once shapes actually
+differ.
 
 **"Most recent" for `/portfolio/risk` and `GET /portfolio/recommendations`:**
 neither `RiskAssessment` nor `RecommendationResult` is looked up directly

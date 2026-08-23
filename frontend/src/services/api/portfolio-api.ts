@@ -4,6 +4,7 @@ import type { PaginatedResponse, SuccessResponse } from "@/types/api";
 import type { Watchlist, WatchlistListParams, WatchlistStatistics } from "@/types/watchlist";
 import type {
   GenerateRecommendationsRequest,
+  InitialAnalysisState,
   PortfolioIntelligenceReport,
   RecommendationResult,
   RiskAssessment,
@@ -71,6 +72,27 @@ export const portfolioApi = {
    * own docstring). */
   generateRecommendations: async (body: GenerateRecommendationsRequest): Promise<RecommendationResult> => {
     const response = await apiClient.post<SuccessResponse<RecommendationResult>>("/portfolio/recommendations", body);
+    return response.data;
+  },
+
+  /** v1.2 Priority 8. Never 404s for "not yet analyzed" the way `getRisk`/
+   * `getRecommendations` do — a portfolio that exists always has a status
+   * (ANALYZING/READY/PARTIAL/UNAVAILABLE/ERROR); only a nonexistent
+   * `portfolioId` 404s. */
+  getAnalysisStatus: async (portfolioId: string): Promise<InitialAnalysisState> => {
+    const response = await apiClient.get<SuccessResponse<InitialAnalysisState>>(
+      `/portfolio/${portfolioId}/analysis-status`,
+    );
+    return response.data;
+  },
+
+  /** v1.2 Priority 8. Dispatches (or retries) the initial analysis job and
+   * returns immediately with the status as of *before* that job runs — a
+   * safe no-op if analysis already exists or is already in flight. */
+  triggerAnalysis: async (portfolioId: string): Promise<InitialAnalysisState> => {
+    const response = await apiClient.post<SuccessResponse<InitialAnalysisState>>(
+      `/portfolio/${portfolioId}/analysis`,
+    );
     return response.data;
   },
 };

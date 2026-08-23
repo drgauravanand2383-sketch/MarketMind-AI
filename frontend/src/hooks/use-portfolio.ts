@@ -10,6 +10,7 @@ export const portfolioKeys = {
   intelligence: (portfolioId: string) => ["portfolio", "intelligence", portfolioId] as const,
   risk: (portfolioId: string) => ["portfolio", "risk", portfolioId] as const,
   recommendations: (portfolioId: string) => ["portfolio", "recommendations", portfolioId] as const,
+  analysisStatus: (portfolioId: string) => ["portfolio", "analysis-status", portfolioId] as const,
 };
 
 export function usePortfolioSummary(portfolioId: string) {
@@ -35,10 +36,11 @@ export function usePortfolioIntelligence(portfolioId: string) {
  * portfolio" — a normal, expected state, not a genuine error. Never
  * retried (retrying a 404 can't produce a different answer), and
  * exposed as `isUnavailable` so callers can render an empty state
- * instead of an error state for it. There is no `POST` anywhere to
- * trigger a new risk assessment (`docs/architecture/INTELLIGENCE_API.md`
- * — the REST surface for Risk is GET-only) — this is the only risk hook
- * that will ever exist. */
+ * instead of an error state for it. `GET /portfolio/risk` itself is
+ * still GET-only/read-only (unchanged) — v1.2 Priority 8 added a way to
+ * *trigger* the first assessment (`useTriggerInitialAnalysis` below), not
+ * a way to fetch one differently; this remains the only risk-fetching
+ * hook. */
 export function usePortfolioRisk(portfolioId: string) {
   const query = useQuery({
     queryKey: portfolioKeys.risk(portfolioId),
@@ -69,6 +71,39 @@ export function usePortfolioRecommendations(portfolioId: string) {
   });
   const isUnavailable = query.error instanceof ApiError && query.error.status === 404;
   return { ...query, isUnavailable, isError: query.isError && !isUnavailable };
+}
+
+const ANALYSIS_STATUS_POLL_INTERVAL_MS = 3_000;
+
+/** v1.2 Priority 8. Polls every 3s only while `status === "ANALYZING"` —
+ * the existing RECOMMENDATION_GENERATED/RISK_ASSESSMENT_COMPLETED
+ * real-time events (`@/lib/realtime-invalidation`) already invalidate this
+ * query the moment a job actually finishes, so polling here is only a
+ * fallback for a client that missed the WS event (reconnect gap, tab was
+ * backgrounded) — never the primary update mechanism. */
+export function useInitialAnalysisStatus(portfolioId: string) {
+  return useQuery({
+    queryKey: portfolioKeys.analysisStatus(portfolioId),
+    queryFn: () => portfolioApi.getAnalysisStatus(portfolioId),
+    enabled: portfolioId.length > 0,
+    refetchInterval: (query) => (query.state.data?.status === "ANALYZING" ? ANALYSIS_STATUS_POLL_INTERVAL_MS : false),
+  });
+}
+
+/** v1.2 Priority 8. The one supported way to retry after a prior attempt
+ * ended in `ERROR` — also safe to call when analysis is already
+ * READY/PARTIAL/ANALYZING (the backend job is itself idempotent). */
+export function useTriggerInitialAnalysis() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (portfolioId: string) => portfolioApi.triggerAnalysis(portfolioId),
+    onSuccess: (state, portfolioId) => {
+      queryClient.setQueryData(portfolioKeys.analysisStatus(portfolioId), state);
+    },
+    onSettled: (_state, _error, portfolioId) => {
+      void queryClient.invalidateQueries({ queryKey: portfolioKeys.analysisStatus(portfolioId) });
+    },
+  });
 }
 
 /** Deliberately **not optimistic** (explicit Milestone 5 instruction:

@@ -28,10 +28,11 @@ describe("invalidateForEvent", () => {
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["backtests", "results", "run-42"] });
   });
 
-  it("invalidates the whole portfolio-recommendations prefix on RECOMMENDATION_GENERATED (no portfolio_id on the payload)", () => {
+  it("invalidates the whole portfolio-recommendations and analysis-status prefixes on RECOMMENDATION_GENERATED (no portfolio_id on the payload)", () => {
     const { invalidateQueries, asQueryClient } = fakeQueryClient();
     invalidateForEvent(asQueryClient, buildDomainEvent("RECOMMENDATION_GENERATED", buildRecommendationResult()));
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["portfolio", "recommendations"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["portfolio", "analysis-status"] });
   });
 
   it("surgically invalidates the strategy result on STRATEGY_EVALUATION_COMPLETED", () => {
@@ -53,10 +54,11 @@ describe("invalidateForEvent", () => {
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["system", "ready"] });
   });
 
-  it("is a no-op for RISK_ASSESSMENT_COMPLETED (never actually published)", () => {
+  it("invalidates the whole portfolio-risk and analysis-status prefixes on RISK_ASSESSMENT_COMPLETED (v1.2 Priority 8, no portfolio_id on the payload)", () => {
     const { invalidateQueries, asQueryClient } = fakeQueryClient();
     invalidateForEvent(asQueryClient, buildDomainEvent("RISK_ASSESSMENT_COMPLETED", buildRiskAssessment()));
-    expect(invalidateQueries).not.toHaveBeenCalled();
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["portfolio", "risk"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["portfolio", "analysis-status"] });
   });
 
   it("is a no-op for MARKET_SNAPSHOT_REFRESHED (portfolio-agnostic, no cache to target)", () => {

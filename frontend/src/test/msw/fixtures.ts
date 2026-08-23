@@ -3,7 +3,7 @@ import type { AuthenticationResponse, User } from "@/types/auth";
 import type { DetectedChange } from "@/types/continuous-intelligence";
 import type { ApplicationHealth, ReadinessStatus, VersionResponse } from "@/types/health";
 import type { Watchlist, WatchlistItem, WatchlistStatistics } from "@/types/watchlist";
-import type { MarketDataRefreshResult, PortfolioIntelligenceReport, RecommendationCandidate, RecommendationResult, RiskAssessment } from "@/types/portfolio";
+import type { InitialAnalysisState, MarketDataRefreshResult, PortfolioIntelligenceReport, RecommendationCandidate, RecommendationResult, RiskAssessment } from "@/types/portfolio";
 import type { CompanyResearchReport } from "@/types/research";
 import type { ScreenFilter, ScreeningProfile, ScreenResult } from "@/types/screening";
 import type { Alert } from "@/types/alerts";
@@ -284,6 +284,20 @@ export function buildRecommendationResult(overrides: Partial<RecommendationResul
 
 export function buildRiskAssessment(overrides: Partial<RiskAssessment> = {}): RiskAssessment {
   return { ...testRiskAssessment, ...overrides };
+}
+
+export const testInitialAnalysisState: InitialAnalysisState = {
+  portfolio_id: "wl-1",
+  status: "UNAVAILABLE",
+  detail: "No companies tracked yet.",
+  recommendation_request_id: null,
+  risk_request_id: null,
+  started_at: null,
+  completed_at: null,
+};
+
+export function buildInitialAnalysisState(overrides: Partial<InitialAnalysisState> = {}): InitialAnalysisState {
+  return { ...testInitialAnalysisState, ...overrides };
 }
 
 export function buildDetectedChange(overrides: Partial<DetectedChange> = {}): DetectedChange {

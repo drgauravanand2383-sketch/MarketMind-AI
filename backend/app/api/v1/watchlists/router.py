@@ -19,6 +19,18 @@ addition): `WatchlistService.update_notes()` existed since the service
 was first built but was never reachable over REST — `AddCompanyRequest.
 notes` could only be set once, at add-time. Same "thin wrapper, no new
 logic" shape as every other handler here.
+
+`POST /{watchlist_id}/companies` (v1.2 Priority 8 addition): after a
+company is successfully added, dispatches `InitialPortfolioAnalysisService
+.ensure_initial_analysis()` as a `BackgroundTasks` job — the point at
+which a watchlist first has something to evaluate. Fire-and-forget and
+best-effort only: if the service isn't configured on this instance
+(`app.state.initial_analysis_service is None`), the company is still
+added and the response is still 200 — this is a side effect, never a
+requirement for `add_company` itself to succeed. The job is internally
+idempotent (`app.services.initial_analysis.service`'s own docstring), so
+dispatching it on every add is always safe, never a source of duplicate
+Risk/Recommendation state.
 """
 
 from __future__ import annotations
@@ -26,7 +38,7 @@ from __future__ import annotations
 import uuid as uuid_module
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Path, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Path, Request, status
 
 from app.auth.dependencies.policy_guard import require_policy
 from app.api.v1.schemas.common import PaginatedResponse, SuccessResponse, build_success_response
@@ -153,10 +165,16 @@ async def add_company(
     request: Request,
     watchlist_id: uuid_module.UUID,
     body: AddCompanyRequest,
+    background_tasks: BackgroundTasks,
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> SuccessResponse[Watchlist]:
     item = WatchlistItem(**body.model_dump(), added_at=datetime.now(timezone.utc))
     watchlist = await service.add_company(str(watchlist_id), item)
+
+    initial_analysis_service = getattr(request.app.state, "initial_analysis_service", None)
+    if initial_analysis_service is not None:
+        background_tasks.add_task(initial_analysis_service.ensure_initial_analysis, str(watchlist_id))
+
     return build_success_response(watchlist, request)
 
 

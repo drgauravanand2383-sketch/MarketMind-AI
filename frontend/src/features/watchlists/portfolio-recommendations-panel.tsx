@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
 import { Skeleton } from "@/components/states/skeleton";
+import { InitialAnalysisEmptyState } from "@/components/portfolio/initial-analysis-empty-state";
 import { usePortfolioRecommendations } from "@/hooks/use-portfolio";
 
 /** Only *availability* — this milestone has no UI for generating new
@@ -13,7 +13,7 @@ export function PortfolioRecommendationsPanel({ portfolioId }: { portfolioId: st
   if (recommendations.isPending) return <Skeleton className="h-10 w-full" />;
 
   if (recommendations.isUnavailable) {
-    return <EmptyState title="No recommendations yet" description="Recommendations haven't been generated for this portfolio." />;
+    return <InitialAnalysisEmptyState portfolioId={portfolioId} kind="recommendations" />;
   }
 
   if (recommendations.isError) {

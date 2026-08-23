@@ -3,6 +3,7 @@ import { Panel } from "@/components/panel";
 import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
 import { Skeleton, SkeletonList } from "@/components/states/skeleton";
+import { InitialAnalysisEmptyState } from "@/components/portfolio/initial-analysis-empty-state";
 import { RiskExposurePanel } from "@/features/decision-center/risk/risk-exposure-panel";
 import { RiskMetricsTable } from "@/features/decision-center/risk/risk-metrics-table";
 import { RiskScoreCards } from "@/features/decision-center/risk/risk-score-cards";
@@ -34,13 +35,7 @@ export function RiskPanel({ portfolioId }: { portfolioId: string }): ReactNode {
   }
 
   if (risk.isUnavailable) {
-    return (
-      <EmptyState
-        icon="⚠"
-        title="No risk assessment yet"
-        description="A risk assessment hasn't been generated for this portfolio yet. There is no button to trigger one from here — the backend computes risk assessments on its own schedule, not on demand."
-      />
-    );
+    return <InitialAnalysisEmptyState portfolioId={portfolioId} kind="risk assessment" />;
   }
 
   if (risk.isError) {

@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
-import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
 import { SkeletonList } from "@/components/states/skeleton";
 import { PriorityBadge } from "@/components/priority-badge";
+import { InitialAnalysisEmptyState } from "@/components/portfolio/initial-analysis-empty-state";
 import { usePortfolioRisk } from "@/hooks/use-portfolio";
 
 export function PortfolioRiskPanel({ portfolioId }: { portfolioId: string }): ReactNode {
@@ -11,7 +11,7 @@ export function PortfolioRiskPanel({ portfolioId }: { portfolioId: string }): Re
   if (risk.isPending) return <SkeletonList rows={3} rowClassName="h-10 w-full" />;
 
   if (risk.isUnavailable) {
-    return <EmptyState title="No risk assessment yet" description="A risk assessment hasn't been generated for this portfolio." />;
+    return <InitialAnalysisEmptyState portfolioId={portfolioId} kind="risk assessment" />;
   }
 
   if (risk.isError) {

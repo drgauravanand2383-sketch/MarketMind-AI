@@ -301,6 +301,27 @@ export interface PortfolioMarketSnapshot {
   entity_not_mapped_count: number;
 }
 
+/** Mirrors `app.services.initial_analysis.models.InitialAnalysisStatus`
+ * (v1.2 Priority 8) — the status of a portfolio's one-time initial
+ * Risk/Recommendation bootstrap job. `ANALYZING` is in-progress;
+ * `READY`/`PARTIAL` both mean a real (never fabricated) result now exists,
+ * differing only in market-data coverage; `UNAVAILABLE` means there was
+ * nothing to analyze (zero companies), never "market data was thin" (that
+ * is `PARTIAL`); `ERROR` means the job failed and can be retried via
+ * `POST /portfolio/{portfolio_id}/analysis`. */
+export type InitialAnalysisStatus = "ANALYZING" | "READY" | "PARTIAL" | "UNAVAILABLE" | "ERROR";
+
+/** Mirrors `app.services.initial_analysis.models.InitialAnalysisState`. */
+export interface InitialAnalysisState {
+  portfolio_id: string;
+  status: InitialAnalysisStatus;
+  detail: string;
+  recommendation_request_id: string | null;
+  risk_request_id: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
 export interface PortfolioIntelligenceReport {
   /** The original request that generated this report — not rendered by
    * this milestone, so left unmodeled rather than guessed. */

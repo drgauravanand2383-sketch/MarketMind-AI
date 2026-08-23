@@ -27,14 +27,22 @@ coercion, instead of ever reaching the summary handler).
 
 `create_portfolio_recommendations` (Sprint 59) additionally publishes a
 `RECOMMENDATION_GENERATED` real-time event via `EventPublisher`.
-**Known gap:** `RISK_ASSESSMENT_COMPLETED` has no REST trigger point —
-`GET /portfolio/risk` is a read-only lookup of an already-stored
-`RiskAssessment` (Sprint 57's own design decision); no endpoint anywhere
-calls `RiskAnalyticsService.assess_portfolio()`, and this sprint's own
-constraints ("REST API surface is feature complete") rule out adding one.
-The `RiskEvent` model and `EventPublisher.publish_risk_assessment_completed()`
-exist and are tested directly, ready for whichever future sprint adds
-that capability.
+
+v1.2 Priority 8 closed the long-standing gap this docstring used to
+document here: no endpoint ever called `RiskAnalyticsService
+.assess_portfolio()` for a brand new portfolio, and `POST /portfolio
+/recommendations` required client-supplied evidence, so a newly created
+watchlist's Risk/Recommendation state stayed empty forever unless a
+caller happened to supply its own evidence by hand. `GET /portfolio
+/{portfolio_id}/analysis-status` and `POST /portfolio/{portfolio_id}
+/analysis` below are the new, minimal surface for that — both delegate
+entirely to `InitialPortfolioAnalysisService`
+(`app.services.initial_analysis.service`), which composes already-existing
+services (Signal Detection, Alerts, Market Snapshot) into the evidence
+`generate_recommendations()`/`assess_portfolio()` need; no new scoring or
+evaluation logic lives here or in that service. `GET /portfolio/risk`
+and `GET /portfolio/recommendations` above remain read-only lookups,
+unchanged.
 """
 
 from __future__ import annotations
@@ -42,7 +50,7 @@ from __future__ import annotations
 import uuid as uuid_module
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
 
 from app.agents.portfolio_intelligence.agent import PortfolioIntelligenceAgent
 from app.agents.portfolio_intelligence.models import (
@@ -52,6 +60,7 @@ from app.agents.portfolio_intelligence.models import (
 )
 from app.api.intelligence.dependencies import get_portfolio_intelligence_agent
 from app.api.v1.portfolio.dependencies import (
+    get_initial_analysis_service,
     get_portfolio_market_snapshot_service,
     get_recommendation_service,
     get_risk_service,
@@ -72,6 +81,8 @@ from app.recommendations.models import RecommendationResult
 from app.risk.engine import RiskAnalyticsService
 from app.risk.exceptions import RiskAssessmentRequestNotFoundError
 from app.risk.models import RiskAssessment
+from app.services.initial_analysis.models import InitialAnalysisState
+from app.services.initial_analysis.service import InitialPortfolioAnalysisService
 from app.services.portfolio_market_snapshot.service import PortfolioMarketSnapshotService
 from app.watchlist.models import Watchlist, WatchlistStatistics
 from app.watchlist.service import WatchlistService
@@ -237,6 +248,49 @@ async def create_portfolio_recommendations(
     result = await service.generate_recommendations(recommendation_request, body.evidence)
     await event_publisher.publish_recommendation_generated(result)
     return build_success_response(result, request)
+
+
+@router.get(
+    "/{portfolio_id}/analysis-status",
+    response_model=SuccessResponse[InitialAnalysisState],
+    summary="Get a portfolio's initial-analysis status",
+    description="v1.2 Priority 8: the current status of this portfolio's one-time initial "
+    "Risk/Recommendation bootstrap job (ANALYZING/READY/PARTIAL/UNAVAILABLE/ERROR). Read-only — "
+    "never computes anything; see POST .../analysis to trigger or retry the job itself. Raises "
+    "404 if no watchlist exists for `portfolio_id`.",
+    dependencies=[Depends(require_policy(RequirePermission("portfolio:read")))],
+)
+async def get_portfolio_analysis_status(
+    request: Request,
+    portfolio_id: uuid_module.UUID,
+    service: InitialPortfolioAnalysisService = Depends(get_initial_analysis_service),
+) -> SuccessResponse[InitialAnalysisState]:
+    state = await service.get_status(str(portfolio_id))
+    return build_success_response(state, request)
+
+
+@router.post(
+    "/{portfolio_id}/analysis",
+    response_model=SuccessResponse[InitialAnalysisState],
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger (or retry) a portfolio's initial Risk/Recommendation analysis",
+    description="v1.2 Priority 8: dispatches InitialPortfolioAnalysisService.ensure_initial_analysis() "
+    "as a background job and returns immediately with the status as of *before* that job runs — poll "
+    "GET .../analysis-status, or watch the existing RECOMMENDATION_GENERATED/RISK_ASSESSMENT_COMPLETED "
+    "real-time events, for the outcome. A safe no-op if analysis already exists or is already in "
+    "flight for this portfolio; this is the one supported way to retry after a prior attempt ended "
+    "in ERROR. Raises 404 if no watchlist exists for `portfolio_id`.",
+    dependencies=[Depends(require_policy(RequirePermission("portfolio:recommend")))],
+)
+async def trigger_portfolio_analysis(
+    request: Request,
+    portfolio_id: uuid_module.UUID,
+    background_tasks: BackgroundTasks,
+    service: InitialPortfolioAnalysisService = Depends(get_initial_analysis_service),
+) -> SuccessResponse[InitialAnalysisState]:
+    state = await service.get_status(str(portfolio_id))
+    background_tasks.add_task(service.ensure_initial_analysis, str(portfolio_id))
+    return build_success_response(state, request)
 
 
 @router.get(

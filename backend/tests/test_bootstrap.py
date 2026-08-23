@@ -34,6 +34,8 @@ from app.bootstrap import (
     build_strategy_service,
     build_risk_repository,
     build_risk_service,
+    build_initial_analysis_service,
+    build_portfolio_market_snapshot_service,
     build_backtesting_repository,
     build_backtesting_service,
     build_explainability_repository,
@@ -607,6 +609,76 @@ def test_build_risk_service_returns_a_service_when_repository_is_available() -> 
     repository = build_risk_repository(_LOGGER)
 
     service = build_risk_service(repository)
+
+    assert service is not None
+
+
+# --- build_initial_analysis_service -----------------------------------------------------------
+
+
+def _build_full_initial_analysis_dependencies():
+    settings = AppSettings()
+    watchlist_service = build_watchlist_service(build_watchlist_repository(_LOGGER), settings)
+    signal_detection_service = build_signal_detection_service(build_signal_repository(_LOGGER), settings)
+    alert_service = build_alert_service(build_alert_rule_repository(_LOGGER), build_alert_repository(_LOGGER), settings)
+    recommendation_service = build_recommendation_service(build_recommendation_repository(_LOGGER))
+    risk_service = build_risk_service(build_risk_repository(_LOGGER))
+    market_data_provider, _ = build_market_data_provider(settings, _LOGGER)
+    entity_resolution_service = build_entity_resolution_service(settings, _LOGGER)
+    market_snapshot_service = build_market_snapshot_service(market_data_provider, entity_resolution_service, settings)
+    portfolio_market_snapshot_service = build_portfolio_market_snapshot_service(
+        market_snapshot_service, entity_resolution_service
+    )
+    return (
+        watchlist_service,
+        portfolio_market_snapshot_service,
+        signal_detection_service,
+        alert_service,
+        recommendation_service,
+        risk_service,
+    )
+
+
+def test_build_initial_analysis_service_returns_none_without_watchlist_service() -> None:
+    (
+        _watchlist_service,
+        portfolio_market_snapshot_service,
+        signal_detection_service,
+        alert_service,
+        recommendation_service,
+        risk_service,
+    ) = _build_full_initial_analysis_dependencies()
+
+    result = build_initial_analysis_service(
+        watchlist_service=None,
+        portfolio_market_snapshot_service=portfolio_market_snapshot_service,
+        signal_detection_service=signal_detection_service,
+        alert_service=alert_service,
+        recommendation_service=recommendation_service,
+        risk_service=risk_service,
+    )
+
+    assert result is None
+
+
+def test_build_initial_analysis_service_returns_a_service_when_every_dependency_is_available() -> None:
+    (
+        watchlist_service,
+        portfolio_market_snapshot_service,
+        signal_detection_service,
+        alert_service,
+        recommendation_service,
+        risk_service,
+    ) = _build_full_initial_analysis_dependencies()
+
+    service = build_initial_analysis_service(
+        watchlist_service=watchlist_service,
+        portfolio_market_snapshot_service=portfolio_market_snapshot_service,
+        signal_detection_service=signal_detection_service,
+        alert_service=alert_service,
+        recommendation_service=recommendation_service,
+        risk_service=risk_service,
+    )
 
     assert service is not None
 

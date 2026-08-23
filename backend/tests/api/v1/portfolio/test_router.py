@@ -325,6 +325,84 @@ def test_create_portfolio_recommendations_rejects_unknown_fields(
 
 
 # --------------------------------------------------------------------------
+# Initial analysis (v1.2 Priority 8)
+# --------------------------------------------------------------------------
+
+
+async def test_analysis_status_unavailable_for_empty_watchlist(
+    client: TestClient, auth_headers: dict[str, str], watchlist_service: WatchlistService
+) -> None:
+    watchlist = await watchlist_service.create_watchlist("Empty")
+    response = client.get(f"/api/v1/portfolio/{watchlist.id}/analysis-status", headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json()["data"]["status"] == "UNAVAILABLE"
+
+
+def test_analysis_status_unknown_portfolio_returns_404(client: TestClient, auth_headers: dict[str, str]) -> None:
+    response = client.get(f"/api/v1/portfolio/{uuid.uuid4()}/analysis-status", headers=auth_headers)
+    assert response.status_code == 404
+
+
+async def test_analysis_status_requires_read_permission(
+    client: TestClient, auth_repository: PostgresAuthRepository, auth_service: AuthenticationService
+) -> None:
+    headers = await make_authenticated_headers(auth_repository, auth_service, permissions=())
+    response = client.get(f"/api/v1/portfolio/{uuid.uuid4()}/analysis-status", headers=headers)
+    assert response.status_code == 403
+
+
+async def test_trigger_analysis_runs_the_job_and_populates_risk_and_recommendations(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    watchlist_service: WatchlistService,
+    recommendation_service: PortfolioRecommendationService,
+    risk_service: RiskAnalyticsService,
+) -> None:
+    portfolio_id = await make_watchlist(watchlist_service)
+
+    response = client.post(f"/api/v1/portfolio/{portfolio_id}/analysis", headers=auth_headers)
+    assert response.status_code == 202
+
+    # BackgroundTasks run synchronously, in-process, before TestClient
+    # returns control here (Starlette's own documented test behavior) —
+    # no polling needed.
+    status_response = client.get(f"/api/v1/portfolio/{portfolio_id}/analysis-status", headers=auth_headers)
+    assert status_response.json()["data"]["status"] in ("READY", "PARTIAL")
+
+    recommendation_requests = [r for r in await recommendation_service.list_requests() if portfolio_id in r.watchlist_ids]
+    risk_requests = [r for r in await risk_service.list_requests() if r.portfolio_id == portfolio_id]
+    assert len(recommendation_requests) == 1
+    assert len(risk_requests) == 1
+
+
+async def test_trigger_analysis_is_idempotent_over_repeated_calls(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    watchlist_service: WatchlistService,
+    recommendation_service: PortfolioRecommendationService,
+) -> None:
+    portfolio_id = await make_watchlist(watchlist_service)
+
+    client.post(f"/api/v1/portfolio/{portfolio_id}/analysis", headers=auth_headers)
+    client.post(f"/api/v1/portfolio/{portfolio_id}/analysis", headers=auth_headers)
+
+    assert len([r for r in await recommendation_service.list_requests() if portfolio_id in r.watchlist_ids]) == 1
+
+
+def test_trigger_analysis_unknown_portfolio_returns_404(client: TestClient, auth_headers: dict[str, str]) -> None:
+    response = client.post(f"/api/v1/portfolio/{uuid.uuid4()}/analysis", headers=auth_headers)
+    assert response.status_code == 404
+
+
+async def test_trigger_analysis_requires_recommend_permission(
+    client: TestClient, auth_repository: PostgresAuthRepository, auth_service: AuthenticationService
+) -> None:
+    headers = await make_authenticated_headers(auth_repository, auth_service, permissions=("portfolio:read",))
+    response = client.post(f"/api/v1/portfolio/{uuid.uuid4()}/analysis", headers=headers)
+    assert response.status_code == 403
+
+
+# --------------------------------------------------------------------------
 # Dependency injection / 503
 # --------------------------------------------------------------------------
 

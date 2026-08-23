@@ -154,23 +154,31 @@ def test_operation_ids_are_unique(client: TestClient) -> None:
 
 def test_status_code_conventions_are_consistent(client: TestClient) -> None:
     """GET/PATCH -> 200, create/action POST -> 201, delete DELETE -> 204
-    (with two documented exceptions — see docs/release/API_CONTRACT_V1.md
+    (with three documented exceptions — see docs/release/API_CONTRACT_V1.md
     §3): removing one watchlist company returns the updated watchlist
-    (200, not 204), and logging out revokes a token with no body to
-    return (204, not 201) — the same "still-a-resource-worth-returning" /
-    "genuinely no body" reasoning as the DELETE side, just on a POST."""
+    (200, not 204); logging out revokes a token with no body to return
+    (204, not 201) — the same "still-a-resource-worth-returning" /
+    "genuinely no body" reasoning as the DELETE side, just on a POST; and
+    triggering initial portfolio analysis (v1.2 Priority 8) dispatches a
+    background job and returns before it completes (202, not 201) — a
+    genuinely different, standard HTTP status for "accepted, not yet
+    done", not a violation of the "action POST -> 201" rule so much as a
+    POST that is not synchronously complete at response time."""
     schema = client.get("/openapi.json").json()
     delete_exception_paths = {"/api/v1/watchlists/{watchlist_id}/companies/{ticker}"}
     post_no_content_paths = {"/api/v1/auth/logout"}
+    post_accepted_paths = {"/api/v1/portfolio/{portfolio_id}/analysis"}
     for path, methods in schema["paths"].items():
         if not path.startswith("/api/v1"):
             continue
         for method, operation in methods.items():
             codes = set(operation["responses"].keys())
-            if method.lower() == "post" and path not in post_no_content_paths:
+            if method.lower() == "post" and path not in post_no_content_paths and path not in post_accepted_paths:
                 assert "201" in codes, f"POST {path} does not declare 201"
             if method.lower() == "post" and path in post_no_content_paths:
                 assert "204" in codes, f"POST {path} does not declare 204"
+            if method.lower() == "post" and path in post_accepted_paths:
+                assert "202" in codes, f"POST {path} does not declare 202"
             if method.lower() == "delete" and path not in delete_exception_paths:
                 assert "204" in codes, f"DELETE {path} does not declare 204"
             if method.lower() in ("get", "patch"):

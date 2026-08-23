@@ -8,7 +8,15 @@ import { queryClient } from "@/app/query-client";
 import { API_BASE_URL } from "@/services/api/config";
 import { useDecisionHistoryStore } from "@/store/decision-history-store";
 import { useNotificationStore } from "@/store/notification-store";
-import { useGenerateRecommendations, usePortfolioIntelligence, usePortfolioRecommendations, usePortfolioRisk } from "@/hooks/use-portfolio";
+import { buildInitialAnalysisState } from "@/test/msw/fixtures";
+import {
+  useGenerateRecommendations,
+  useInitialAnalysisStatus,
+  usePortfolioIntelligence,
+  usePortfolioRecommendations,
+  usePortfolioRisk,
+  useTriggerInitialAnalysis,
+} from "@/hooks/use-portfolio";
 
 describe("use-portfolio (Milestone 5 additions)", () => {
   beforeEach(() => {
@@ -76,6 +84,63 @@ describe("use-portfolio (Milestone 5 additions)", () => {
     expect(useDecisionHistoryStore.getState().entries).toHaveLength(1);
     expect(useDecisionHistoryStore.getState().entries[0]?.kind).toBe("recommendations_generated");
     expect(useNotificationStore.getState().notifications.some((n) => /generated/i.test(n.message))).toBe(true);
+  });
+
+  describe("v1.2 Priority 8 — initial analysis status/trigger", () => {
+    it("useInitialAnalysisStatus returns the status for an existing portfolio", async () => {
+      server.use(
+        http.get(`${API_BASE_URL}/portfolio/wl-1/analysis-status`, () =>
+          HttpResponse.json({ data: buildInitialAnalysisState({ status: "PARTIAL" }), meta: buildMeta() }),
+        ),
+      );
+      const { result } = renderHookWithQueryClient(() => useInitialAnalysisStatus("wl-1"));
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+      expect(result.current.data?.status).toBe("PARTIAL");
+    });
+
+    it("useInitialAnalysisStatus polls while ANALYZING and stops once settled", async () => {
+      let callCount = 0;
+      server.use(
+        http.get(`${API_BASE_URL}/portfolio/wl-1/analysis-status`, () => {
+          callCount += 1;
+          const status = callCount < 2 ? "ANALYZING" : "READY";
+          return HttpResponse.json({ data: buildInitialAnalysisState({ status }), meta: buildMeta() });
+        }),
+      );
+      const { result } = renderHookWithQueryClient(() => useInitialAnalysisStatus("wl-1"));
+
+      await waitFor(
+        () => {
+          expect(result.current.data?.status).toBe("READY");
+        },
+        { timeout: 10_000 },
+      );
+      expect(callCount).toBeGreaterThanOrEqual(2);
+    });
+
+    it("useTriggerInitialAnalysis posts to the trigger endpoint and seeds the status cache", async () => {
+      server.use(
+        http.post(`${API_BASE_URL}/portfolio/wl-1/analysis`, () =>
+          HttpResponse.json(
+            { data: buildInitialAnalysisState({ status: "ANALYZING" }), meta: buildMeta() },
+            { status: 202 },
+          ),
+        ),
+      );
+      const { result, queryClient: hookQueryClient } = renderHookWithQueryClient(() => useTriggerInitialAnalysis());
+
+      result.current.mutate("wl-1");
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+      expect(hookQueryClient.getQueryData(["portfolio", "analysis-status", "wl-1"])).toMatchObject({
+        status: "ANALYZING",
+      });
+    });
   });
 
   // These render through the app's real `queryClient` singleton

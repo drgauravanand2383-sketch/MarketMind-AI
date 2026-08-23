@@ -29,6 +29,7 @@ from app.agents.portfolio_intelligence.models import (
     PortfolioIntelligenceRequest,
     PortfolioOverview,
 )
+from app.alerts.engine import AlertService
 from app.api.intelligence.dependencies import get_portfolio_intelligence_agent
 from app.api.v1.exception_handlers import register_exception_handlers
 from app.api.v1.portfolio import router as portfolio_router
@@ -47,16 +48,22 @@ from app.auth.services.authentication import AuthenticationService
 from app.auth.services.authorization import AuthorizationService
 from app.providers.market_data.mock import MockMarketDataProvider
 from app.recommendations.engine import PortfolioRecommendationService
+from app.repositories.alerts.postgres.models import Base as AlertBase
+from app.repositories.alerts.postgres.repository import PostgresAlertRepository, PostgresAlertRuleRepository
 from app.repositories.recommendations.postgres.models import Base as RecommendationBase
 from app.repositories.recommendations.postgres.repository import PostgresRecommendationRepository
 from app.repositories.risk.postgres.models import Base as RiskBase
 from app.repositories.risk.postgres.repository import PostgresRiskAnalyticsRepository
+from app.repositories.signals.postgres.models import Base as SignalBase
+from app.repositories.signals.postgres.repository import PostgresSignalDefinitionRepository
 from app.repositories.watchlist.postgres.models import Base as WatchlistBase
 from app.repositories.watchlist.postgres.repository import PostgresWatchlistRepository
 from app.risk.engine import RiskAnalyticsService
+from app.services.initial_analysis.service import InitialPortfolioAnalysisService
 from app.services.market_snapshot.cache import InMemoryMarketSnapshotCache
 from app.services.market_snapshot.service import MarketSnapshotService
 from app.services.portfolio_market_snapshot.service import PortfolioMarketSnapshotService
+from app.signals.engine import SignalDetectionService
 from app.watchlist.service import WatchlistService
 
 ALL_PORTFOLIO_PERMISSIONS = ("portfolio:read", "portfolio:recommend")
@@ -180,8 +187,75 @@ def portfolio_market_snapshot_service() -> PortfolioMarketSnapshotService:
 
 
 @pytest.fixture
+async def signal_repository() -> AsyncIterator[PostgresSignalDefinitionRepository]:
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as connection:
+        await connection.run_sync(SignalBase.metadata.create_all)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        yield PostgresSignalDefinitionRepository(session_factory)
+    finally:
+        await engine.dispose()
+
+
+@pytest.fixture
+def signal_service(signal_repository: PostgresSignalDefinitionRepository) -> SignalDetectionService:
+    return SignalDetectionService(signal_repository)
+
+
+@pytest.fixture
+async def alert_rule_repository() -> AsyncIterator[PostgresAlertRuleRepository]:
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as connection:
+        await connection.run_sync(AlertBase.metadata.create_all)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        yield PostgresAlertRuleRepository(session_factory)
+    finally:
+        await engine.dispose()
+
+
+@pytest.fixture
+async def alert_repository() -> AsyncIterator[PostgresAlertRepository]:
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as connection:
+        await connection.run_sync(AlertBase.metadata.create_all)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        yield PostgresAlertRepository(session_factory)
+    finally:
+        await engine.dispose()
+
+
+@pytest.fixture
+def alert_service(
+    alert_rule_repository: PostgresAlertRuleRepository, alert_repository: PostgresAlertRepository
+) -> AlertService:
+    return AlertService(alert_rule_repository, alert_repository)
+
+
+@pytest.fixture
 def connection_manager() -> ConnectionManager:
     return ConnectionManager()
+
+
+@pytest.fixture
+def initial_analysis_service(
+    watchlist_service: WatchlistService,
+    portfolio_market_snapshot_service: PortfolioMarketSnapshotService,
+    signal_service: SignalDetectionService,
+    alert_service: AlertService,
+    recommendation_service: PortfolioRecommendationService,
+    risk_service: RiskAnalyticsService,
+) -> InitialPortfolioAnalysisService:
+    return InitialPortfolioAnalysisService(
+        watchlist_service=watchlist_service,
+        portfolio_market_snapshot_service=portfolio_market_snapshot_service,
+        signal_service=signal_service,
+        alert_service=alert_service,
+        recommendation_service=recommendation_service,
+        risk_service=risk_service,
+    )
 
 
 @pytest.fixture
@@ -192,6 +266,7 @@ def app(
     recommendation_service: PortfolioRecommendationService,
     risk_service: RiskAnalyticsService,
     portfolio_market_snapshot_service: PortfolioMarketSnapshotService,
+    initial_analysis_service: InitialPortfolioAnalysisService,
     connection_manager: ConnectionManager,
 ) -> FastAPI:
     application = FastAPI()
@@ -202,6 +277,7 @@ def app(
     application.state.recommendation_service = recommendation_service
     application.state.risk_service = risk_service
     application.state.portfolio_market_snapshot_service = portfolio_market_snapshot_service
+    application.state.initial_analysis_service = initial_analysis_service
     application.state.event_publisher = EventPublisher(connection_manager)
     application.add_middleware(AuthenticationMiddleware)
     application.include_router(portfolio_router, prefix="/api/v1")

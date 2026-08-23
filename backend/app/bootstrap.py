@@ -170,6 +170,7 @@ from app.services.continuous_intelligence.suppression import (
 from app.services.entity_resolution.reference_overlay import (
     apply_canonical_entity_overlay_from_path,
 )
+from app.services.initial_analysis.service import InitialPortfolioAnalysisService
 from app.services.portfolio_market_snapshot.service import PortfolioMarketSnapshotService
 from app.services.relationship_engine.engine import RelationshipEngine
 from app.signals.engine import SignalDetectionService
@@ -225,6 +226,7 @@ __all__ = [
     "build_strategy_service",
     "build_risk_repository",
     "build_risk_service",
+    "build_initial_analysis_service",
     "build_continuous_intelligence_thresholds",
     "build_continuous_intelligence_repository",
     "build_continuous_intelligence_state_store",
@@ -1173,6 +1175,44 @@ def build_risk_service(repository: BaseRiskAnalyticsRepository | None) -> RiskAn
     return RiskAnalyticsService(repository)
 
 
+def build_initial_analysis_service(
+    *,
+    watchlist_service: WatchlistService | None,
+    portfolio_market_snapshot_service: PortfolioMarketSnapshotService,
+    signal_detection_service: SignalDetectionService | None,
+    alert_service: AlertService | None,
+    recommendation_service: PortfolioRecommendationService | None,
+    risk_service: RiskAnalyticsService | None,
+    event_publisher: EventPublisher | None = None,
+) -> InitialPortfolioAnalysisService | None:
+    """Construct the InitialPortfolioAnalysisService (v1.2 Priority 8), or
+    None if any hard dependency is unavailable — the same "don't register
+    something with nothing to do" judgment `build_continuous_intelligence_service`
+    already applies: with no Watchlist/Signal/Alert/Recommendation/Risk
+    service to compose, this would have nothing to bootstrap a new
+    portfolio's state from. `portfolio_market_snapshot_service` is not
+    Optional (unlike the others) because `build_portfolio_market_snapshot_service`
+    itself always succeeds — see its own docstring.
+    """
+    if (
+        watchlist_service is None
+        or signal_detection_service is None
+        or alert_service is None
+        or recommendation_service is None
+        or risk_service is None
+    ):
+        return None
+    return InitialPortfolioAnalysisService(
+        watchlist_service=watchlist_service,
+        portfolio_market_snapshot_service=portfolio_market_snapshot_service,
+        signal_service=signal_detection_service,
+        alert_service=alert_service,
+        recommendation_service=recommendation_service,
+        risk_service=risk_service,
+        event_publisher=event_publisher,
+    )
+
+
 def build_continuous_intelligence_thresholds(settings: AppSettings) -> ContinuousIntelligenceThresholds:
     """Build the typed, documented significance thresholds (§3) from
     `AppSettings` — every field here is a named config value, never an
@@ -1726,6 +1766,15 @@ async def bootstrap_application_state(app: FastAPI) -> None:
     app.state.strategy_service = build_strategy_service(strategy_repository)
     app.state.risk_repository = risk_repository
     app.state.risk_service = build_risk_service(risk_repository)
+    app.state.initial_analysis_service = build_initial_analysis_service(
+        watchlist_service=app.state.watchlist_service,
+        portfolio_market_snapshot_service=app.state.portfolio_market_snapshot_service,
+        signal_detection_service=app.state.signal_detection_service,
+        alert_service=app.state.alert_service,
+        recommendation_service=app.state.recommendation_service,
+        risk_service=app.state.risk_service,
+        event_publisher=getattr(app.state, "event_publisher", None),
+    )
     app.state.continuous_intelligence_repository = build_continuous_intelligence_repository(logger)
     app.state.continuous_intelligence_service = build_continuous_intelligence_service(
         entity_resolution_service=app.state.entity_resolution_service,

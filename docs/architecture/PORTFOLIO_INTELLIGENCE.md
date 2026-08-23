@@ -223,13 +223,13 @@ change — a new nullable `market_data_coverage` JSON column on the
 existing `risk_assessments` table (Alembic migration
 `0003_risk_market_data_coverage`, not a new table; see §11 below).
 
-**`RISK_ASSESSMENT_COMPLETED` still has no REST trigger** — this is a
-pre-existing, deliberate v1.0.0/Sprint 60 boundary (see
-`docs/release/KNOWN_LIMITATIONS.md`), not something this milestone was
-asked to fix (§26 forbids adding endpoints outside the frozen `/api/v1`
-surface without genuine additive need). Risk still benefits from market
-data automatically whenever `assess_portfolio()` *is* invoked against
-market-aware candidates.
+**`RISK_ASSESSMENT_COMPLETED` still has no REST trigger** — this was a
+pre-existing, deliberate v1.0.0/Sprint 60 boundary at the time this
+milestone shipped, not something this milestone was asked to fix (§26
+forbids adding endpoints outside the frozen `/api/v1` surface without
+genuine additive need). Risk still benefits from market data automatically
+whenever `assess_portfolio()` *is* invoked against market-aware candidates.
+**Closed in v1.2 Priority 8 — see §17.**
 
 ## 7. Recommendations transparency, Decision Context, and API surface
 
@@ -421,6 +421,7 @@ the market-data UI actually renders from MSW-mocked responses).
   settings**, for the same reason: nothing consumes them (§13 above).
 - **`RISK_ASSESSMENT_COMPLETED` still has no REST trigger** — pre-existing
   v1.0.0/Sprint 60 boundary, unchanged by this milestone (§6 above).
+  **Closed in v1.2 Priority 8 — see §17.**
 - **Valuation is permanently `VALUATION_UNAVAILABLE`** — no holdings
   quantity/cost-basis field exists anywhere in this codebase (§2 above);
   this is a data-availability fact, not a bug.
@@ -439,3 +440,143 @@ Unchanged. `portfolio_id` is `watchlist_id` by the same explicit product
 decision `app.api.v1.portfolio.router`'s own module docstring already
 documents. No new Portfolio persistence model was introduced anywhere in
 this milestone.
+
+## 17. Automatic Initial Risk & Recommendation on New Watchlists (v1.2 Priority 8)
+
+### Root cause
+
+A newly created watchlist's Decision Center stayed empty forever, not
+because any evaluation service was broken, but because **no code path
+anywhere ever called the first evaluation**:
+
+- `WatchlistService` is deliberately metadata-only (its own module
+  docstring: "no market scanning and no AI reasoning of any kind").
+- `PortfolioRecommendationService.generate_recommendations()` had exactly
+  one caller anywhere in this codebase — `POST /portfolio/recommendations`
+  — and it requires the *client* to supply `evidence: list[CandidateEvidence]`
+  itself. No automatic evidence-sourcing pipeline existed.
+- `RiskAnalyticsService.assess_portfolio()` had **zero** callers anywhere
+  in production code — §6 above already documented this outright as a
+  "known gap."
+- `ContinuousIntelligenceService._detect_risk`/`_detect_recommendations`
+  only ever look up the *most-recently-stored* request for a portfolio and
+  return immediately if none exists — the 15-minute cycle detects
+  *changes* to an existing assessment, it never bootstraps the first one.
+
+### Trigger design
+
+`app.services.initial_analysis.service.InitialPortfolioAnalysisService`
+(new, pure composition — no second evaluation engine) — one method,
+`ensure_initial_analysis(portfolio_id)`:
+
+1. Builds one `CandidateEvidence` per `WatchlistItem`, sourced entirely
+   from already-existing services, exactly mirroring what
+   `ContinuousIntelligenceService._detect_signals` already computes
+   per-entity (§1 above's own evaluation chain, unchanged): a market
+   snapshot (`PortfolioMarketSnapshotService`, §2), signal evaluation
+   (`SignalDetectionService.evaluate_company()`) against every enabled
+   `SignalDefinition`, and alert evaluation (`AlertService.evaluate_rules()`)
+   for every triggered signal — the same alert pathway, same untouched
+   cooldown/dedup, that `ContinuousIntelligenceService` already uses.
+   `screening_result`/`research_report`/`portfolio_summary`/`planning_score`
+   are left `None` — Screening/Research/Portfolio Intelligence are
+   AI-agent-driven with no existing automatic trigger, and adding one here
+   would make watchlist creation depend on a Claude API call. An honestly
+   unavailable input, never a fabricated one.
+2. Generates the `RecommendationResult` first, then feeds it into
+   `assess_portfolio()` — **the reverse of the ASCII flow a plain reading
+   of "Create → add companies → Risk → Recommendation" might suggest**,
+   corrected here against this document's own §1 evaluation chain: Risk is
+   strictly downstream of Recommendations in this architecture
+   (`RiskAnalyticsService.assess_portfolio()` requires an already-generated
+   `RecommendationResult` as a parameter) — there is no Risk-first path to
+   build without inventing a second evaluation engine.
+3. Publishes the two **existing, already-built, previously-unused**
+   real-time events — `RECOMMENDATION_GENERATED` (already published by the
+   manual POST endpoint) and `RISK_ASSESSMENT_COMPLETED` (the event model
+   and `EventPublisher.publish_risk_assessment_completed()` existed since
+   Sprint 59, built for exactly this future capability per §6/§9's own
+   prior notes, and had never once been called before this priority). No
+   new event type, no new realtime mechanism.
+
+**Async, never blocking `POST /watchlists/{id}/companies`.** Dispatched via
+FastAPI's built-in `BackgroundTasks` (not a new scheduler — a
+post-response job the framework already provides), from the watchlist
+router's `add_company` handler, the moment a watchlist first has a company
+to evaluate. Best-effort: if `app.state.initial_analysis_service` isn't
+configured, `add_company` still succeeds — this is a side effect, never a
+requirement.
+
+**Idempotent by construction, not by convention.** Every entry point
+(`add_company`'s automatic dispatch, and the manual/retry endpoint below)
+calls the same `ensure_initial_analysis()`, which first checks whether a
+`RecommendationRequest` already references the portfolio and returns
+immediately if so — a settled portfolio is never re-evaluated. Concurrent
+attempts (two `add_company` calls racing, or a manual retry racing the
+automatic trigger) are serialized per-portfolio by a dedicated
+`CycleLock` instance (the exact same lock abstraction Continuous
+Intelligence already uses — `app.services.continuous_intelligence.locking`
+— reused, not reinvented, keyed `initial_analysis:{portfolio_id}`,
+independent of whether CI itself is enabled).
+
+### States
+
+`app.services.initial_analysis.models.InitialAnalysisStatus`:
+`ANALYZING` (in flight) / `READY` (complete, full market-data coverage) /
+`PARTIAL` (complete, but `RiskAssessment.market_data_coverage.status !=
+FULL` for one or more companies — a real result, never disguised as
+complete-with-full-coverage) / `UNAVAILABLE` (nothing to analyze — zero
+companies; **never** used for "market data was thin", that is `PARTIAL`)
+/ `ERROR` (the job raised before a result could be stored; safe to retry).
+Tracked in `InMemoryInitialAnalysisStateStore` — same documented tradeoff
+as `InMemoryCycleLock`/`InMemoryContinuousIntelligenceStateStore`: this is
+job *status*, not the durable outcome (the real `RecommendationResult`/
+`RiskAssessment` rows are already persisted by their own repositories,
+unaffected by a restart). A restart loses an in-flight/ERROR record; the
+next trigger simply starts fresh — `get_status()` self-heals to `READY`
+from persisted results when no in-process record exists, at the cost of
+losing the READY/PARTIAL distinction across a restart (a documented,
+accepted limitation — see §18).
+
+### New API surface
+
+- `GET /portfolio/{portfolio_id}/analysis-status` (`portfolio:read`) —
+  read-only lookup of the current `InitialAnalysisState`.
+- `POST /portfolio/{portfolio_id}/analysis` (`portfolio:recommend`) —
+  dispatches (or retries) `ensure_initial_analysis()` as a background job,
+  returns immediately with the pre-dispatch status. The one supported way
+  to retry after a prior attempt ended in `ERROR`; a safe no-op otherwise.
+
+`GET /portfolio/risk` and `GET /portfolio/recommendations` remain
+unchanged, read-only lookups.
+
+### Frontend
+
+`InitialAnalysisEmptyState` (`src/components/portfolio/`) — one shared
+component (not duplicated across the four risk/recommendations panels:
+`features/watchlists/portfolio-{risk,recommendations}-panel.tsx` and
+`features/decision-center/{risk,recommendations}/*-panel.tsx`) that turns
+`InitialAnalysisState` into the ANALYZING/ERROR(+Retry)/UNAVAILABLE empty
+state a panel shows in place of the old static "no risk assessment yet"
+copy — including the Decision Center risk panel's own stale claim ("There
+is no button to trigger one from here — the backend computes risk
+assessments on its own schedule, not on demand"), now false and removed.
+`useInitialAnalysisStatus` polls every 3s **only** while `status ===
+"ANALYZING"` — a fallback for a client that missed the real-time event
+(reconnect gap, backgrounded tab), never the primary update path.
+`lib/realtime-invalidation.ts`'s `RISK_ASSESSMENT_COMPLETED` case, a
+long-standing no-op stub ("Never actually published"), now genuinely
+invalidates `["portfolio", "risk"]` — the event is genuinely published as
+of this priority.
+
+### What this priority deliberately did not do
+
+- No Risk-first evaluation path (§ above — the real dependency runs
+  Recommendation-first).
+- No second scheduler, no new realtime mechanism, no new evaluation
+  formulas — every score is exactly what `PortfolioRecommendationService`/
+  `RiskAnalyticsService` already computed for the manual/scheduled paths.
+- No automatic re-evaluation when companies are added *after* the initial
+  job already settled — "initial" means exactly that; keeping Risk/
+  Recommendations in sync with every subsequent watchlist edit is a
+  distinct, unscoped capability (see `docs/release/KNOWN_LIMITATIONS.md`).

@@ -165,6 +165,53 @@ def test_add_company_rejects_added_at_from_client(client: TestClient, auth_heade
     assert response.status_code == 422
 
 
+class _FakeInitialAnalysisService:
+    """Records every `ensure_initial_analysis` call — a spy, not a real
+    `InitialPortfolioAnalysisService` (that needs Signal/Alert/
+    Recommendation/Risk services this router-focused test file has no
+    reason to wire up)."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def ensure_initial_analysis(self, portfolio_id: str) -> None:
+        self.calls.append(portfolio_id)
+
+
+async def test_add_company_dispatches_initial_analysis_when_configured(
+    app: FastAPI, auth_headers: dict[str, str]
+) -> None:
+    """v1.2 Priority 8: the one real side effect `add_company` gains —
+    dispatched as a `BackgroundTasks` job, never blocking the response."""
+    fake_service = _FakeInitialAnalysisService()
+    app.state.initial_analysis_service = fake_service
+    with TestClient(app) as client:
+        created = client.post("/api/v1/watchlists", json={"name": "A"}, headers=auth_headers).json()["data"]
+        response = client.post(
+            f"/api/v1/watchlists/{created['id']}/companies",
+            json={"ticker": "AAPL"},
+            headers=auth_headers,
+        )
+    assert response.status_code == 201
+    assert fake_service.calls == [created["id"]]
+
+
+def test_add_company_never_fails_when_initial_analysis_service_unconfigured(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    """The default fixture `app` never sets `initial_analysis_service` —
+    confirms `add_company` degrades gracefully (still 201) rather than
+    requiring this unrelated collaborator, mirroring every other optional
+    dependency's treatment throughout this codebase."""
+    created = client.post("/api/v1/watchlists", json={"name": "A"}, headers=auth_headers).json()["data"]
+    response = client.post(
+        f"/api/v1/watchlists/{created['id']}/companies",
+        json={"ticker": "AAPL"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+
+
 def test_add_duplicate_ticker_returns_409(client: TestClient, auth_headers: dict[str, str]) -> None:
     created = client.post("/api/v1/watchlists", json={"name": "A"}, headers=auth_headers).json()["data"]
     client.post(

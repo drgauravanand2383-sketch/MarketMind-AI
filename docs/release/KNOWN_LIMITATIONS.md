@@ -50,15 +50,20 @@ there is no buffer, queue, or history (Sprint 59's own explicit
 constraint). A client must be connected *before* an event happens to
 receive it.
 
-## `RISK_ASSESSMENT_COMPLETED` has no REST trigger
+## ~~`RISK_ASSESSMENT_COMPLETED` has no REST trigger~~ Resolved in v1.2 Priority 8
 
-No endpoint in `/api/v1` calls `RiskAnalyticsService.assess_portfolio()`
-— `GET /portfolio/risk` is a read-only lookup of an already-stored
+No endpoint in `/api/v1` called `RiskAnalyticsService.assess_portfolio()`
+— `GET /portfolio/risk` was a read-only lookup of an already-stored
 assessment (Sprint 57's own design decision), and Sprint 58/59/60 each
 inherited "REST API surface is feature complete"/frozen constraints that
-rule out adding a creation endpoint retroactively. The event model and
-publisher method exist and are fully tested; nothing currently invokes
-them in production.
+ruled out adding a creation endpoint retroactively. The event model and
+publisher method existed and were fully tested from Sprint 59 onward, but
+nothing invoked them in production. **v1.2 Priority 8** added
+`POST /portfolio/{portfolio_id}/analysis` and the automatic
+`InitialPortfolioAnalysisService` trigger on `add_company` — see
+`docs/architecture/PORTFOLIO_INTELLIGENCE.md` §17. `GET /portfolio/risk`
+remains a read-only lookup; the new trigger is what now populates the row
+it reads.
 
 ## Three `GET .../{id}` endpoints are backed by an in-process cache, not real persistence
 
@@ -258,9 +263,9 @@ for the full design. Its own known limitations:
   Risk's own formulas were deliberately left unchanged — market data
   contributes only an informational `market_data_coverage` field, never a
   scoring input.
-- **`RISK_ASSESSMENT_COMPLETED` still has no REST trigger** — the same
-  pre-existing v1.0.0/Sprint 60 boundary documented above, unaffected by
-  this milestone.
+- ~~`RISK_ASSESSMENT_COMPLETED` still has no REST trigger~~ **Resolved in
+  v1.2 Priority 8** — see the top-level entry above and
+  `docs/architecture/PORTFOLIO_INTELLIGENCE.md` §17.
 - **No scheduled, recurring portfolio-intelligence refresh.** Unlike the
   Milestone 13 market-data refresh (a fixed, portfolio-agnostic entity
   set on an interval), portfolios are arbitrary and user-created — there
@@ -293,12 +298,18 @@ Milestone 16 — see that section below):
   **Resolved in Milestone 16** — see below.
 - **Risk/Recommendation changes require something else to have already
   recomputed them.** This milestone never calls `assess_portfolio()`/
-  `generate_recommendations()` itself — no automatic evidence-sourcing
-  pipeline exists anywhere in this codebase to feed them. A portfolio
-  whose risk/recommendations are never recomputed by any existing
-  pathway (user action or otherwise) will never produce a decision-context
-  notification, no matter how long the scheduled cycle runs. **Still true
-  in Milestone 16** — out of scope for a reliability-hardening milestone.
+  `generate_recommendations()` itself — it only detects changes to an
+  already-existing assessment/result. **Partially resolved in v1.2
+  Priority 8**: `InitialPortfolioAnalysisService` now guarantees every
+  portfolio gets *one* real recommendation+risk assessment automatically
+  (on first company added), so this cycle's own change-detection has
+  something to compare against going forward. **Still true for every
+  subsequent watchlist edit** — adding/removing companies after the
+  initial job has already settled does not trigger a re-evaluation; no
+  automatic evidence-sourcing pipeline recomputes an existing assessment,
+  only bootstraps the first one. See
+  `docs/architecture/PORTFOLIO_INTELLIGENCE.md` §17's own "what this
+  priority deliberately did not do."
 - **No per-user watchlist ownership, still.** Same pre-existing
   characteristic Milestone 14 already documented — scope is enforced by
   permission + `correlation_id` only, not a new ownership model (adding
@@ -560,3 +571,51 @@ source health reporting. Full design:
   limitation documented elsewhere in this file remains true and unchanged
   — this is a source-quality and provenance fix, not an architecture
   change.
+
+## Automatic Initial Risk & Recommendation on New Watchlists (v1.2 Priority 8)
+
+Closes the empty-new-watchlist Decision Center gap (§ above,
+`RISK_ASSESSMENT_COMPLETED` had no REST trigger; `assess_portfolio()` had
+zero callers anywhere in production code) by adding
+`InitialPortfolioAnalysisService`, dispatched automatically (via
+`BackgroundTasks`, never blocking the HTTP response) the first time a
+company is added to a watchlist. Full design:
+`docs/architecture/PORTFOLIO_INTELLIGENCE.md` §17. Its own known
+limitations:
+
+- **Only the *first* company-add triggers automatic analysis.** Once a
+  portfolio has a settled `RecommendationRequest`, `ensure_initial_analysis()`
+  is a permanent no-op for it (by design — idempotency, §4 of this
+  priority's own spec) — adding, removing, or changing companies
+  afterward never re-triggers a recomputation. The only supported ways to
+  get a fresh Risk/Recommendation state after that point are the existing
+  manual `POST /portfolio/recommendations` (client-supplied evidence) or
+  `POST /portfolio/{portfolio_id}/analysis` after an `ERROR` state.
+- **`POST /portfolio/{portfolio_id}/analysis` is technically a general
+  retry/re-trigger endpoint, but its idempotency guard makes it a no-op
+  for any portfolio that already has a settled recommendation** — it is
+  not, and was not built to be, a general "recompute this portfolio"
+  button. A dedicated recomputation capability (distinct from initial
+  bootstrap) is unscoped future work.
+- **Job status (`ANALYZING`/`ERROR`) is in-memory only, same documented
+  tradeoff as `InMemoryCycleLock`/`InMemoryContinuousIntelligenceStateStore`.**
+  Lost on restart; `GET .../analysis-status` self-heals to `READY` from
+  persisted results in that case, at the cost of losing the READY/PARTIAL
+  distinction for a portfolio analyzed before the restart. The
+  `RecommendationResult`/`RiskAssessment` themselves are unaffected —
+  already durably persisted by their own repositories.
+- **Evidence is limited to Signals/Alerts/Market Data — never Screening,
+  Company Research, or Portfolio Intelligence.** Those three subsystems
+  are AI-agent-driven (a real Claude API call each) with no existing
+  automatic trigger for a new watchlist; wiring them in here would make
+  watchlist creation depend on LLM latency/cost. A candidate's `confidence`
+  honestly reflects this narrower evidence base (`PortfolioRecommendationService
+  ._confidence()`'s own existing, unmodified coverage formula) — never
+  fabricated, just genuinely lower than a candidate built from all six
+  possible evidence sources.
+- **Concurrency safety is per-process only**, like every other
+  `InMemoryCycleLock` use in this codebase — a second application replica
+  is not currently guarded against racing the same portfolio's initial
+  analysis (the existing `PostgresCycleLock` cross-process implementation
+  was not wired into this priority; it reuses a dedicated in-memory lock
+  instance, matching this codebase's single-replica deployment today).

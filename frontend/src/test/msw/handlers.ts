@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import { API_BASE_URL } from "@/services/api/config";
 import {
   buildAuthenticationResponse,
+  buildInitialAnalysisState,
   buildMeta,
   buildResearchReport,
   testApplicationHealth,
@@ -167,6 +168,16 @@ export const handlers = [
       { status: 201 },
     );
   }),
+
+  // v1.2 Priority 8. Defaults to UNAVAILABLE (matches `testInitialAnalysisState`)
+  // — individual tests override with `server.use(...)` for ANALYZING/READY/
+  // PARTIAL/ERROR scenarios, the same pattern every other handler here uses.
+  http.get(`${API_BASE_URL}/portfolio/:id/analysis-status`, ({ params }) =>
+    HttpResponse.json(wrapSuccess(buildInitialAnalysisState({ portfolio_id: String(params.id) }))),
+  ),
+  http.post(`${API_BASE_URL}/portfolio/:id/analysis`, ({ params }) =>
+    HttpResponse.json(wrapSuccess(buildInitialAnalysisState({ portfolio_id: String(params.id) })), { status: 202 }),
+  ),
 
   http.get(`${API_BASE_URL}/portfolio/:id`, ({ params }) => {
     const watchlist = getWatchlist(String(params.id));

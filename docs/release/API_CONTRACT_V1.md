@@ -89,12 +89,24 @@ One equivalent, documented exception on the `POST` side: `POST
 nothing to return, the same "genuinely no body" reasoning `DELETE`
 already gets elsewhere in this contract.
 
+A third, v1.2 Priority 8 exception on the `POST` side: `POST
+/portfolio/{portfolio_id}/analysis` returns `202` (not `201`) — it
+dispatches `InitialPortfolioAnalysisService.ensure_initial_analysis()` as
+a `BackgroundTasks` job and returns immediately, before the job runs;
+`201` (resource created/action *executed*) would be a false claim about
+what has actually happened at response time. `202 Accepted` is the
+standard HTTP status for exactly this "accepted for processing, not yet
+complete" case — genuinely different from both `201` (synchronous,
+complete by the time of response) and `204` (no body at all; this
+response does have a body — the pre-dispatch `InitialAnalysisState`).
+
 ## 4. Status codes
 
 | Code | Meaning | Where |
 |---|---|---|
 | `200` | Success — `GET`, `PATCH`, and the one `DELETE` noted above | every read/update endpoint |
-| `201` | Success — resource created / action executed | every `POST` except the one noted below (16 endpoints) |
+| `201` | Success — resource created / action executed | every `POST` except the two noted below |
+| `202` | Success — accepted, processing continues in the background | `POST /portfolio/{portfolio_id}/analysis` |
 | `204` | Success — resource deleted (or revoked), no body | every other `DELETE` (4 endpoints), plus `POST /auth/logout` |
 | `401` | No authenticated principal | `require_policy`, every protected endpoint |
 | `403` | Authenticated, but the policy denies | `require_policy`, every protected endpoint |
