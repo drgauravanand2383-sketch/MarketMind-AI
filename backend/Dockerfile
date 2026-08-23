@@ -52,7 +52,22 @@ USER appuser
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+# --timeout=15s (was 5s) and --retries=5 (was 3): this is a single-worker
+# uvicorn process (no --workers flag below) sharing one event loop between
+# request handling and its own heavy autonomous background work (hourly
+# ingestion, hourly market-data refresh, 15-min Continuous Intelligence
+# cycles) — real, observed live: a busy stretch left the app unresponsive
+# to new connections for up to ~1.5-2 minutes (entity-resolution/embedding
+# CPU work plus an upstream Yahoo Finance retry/failure), which the
+# previous 5s timeout / 3 retries (90s total tolerance) flagged unhealthy
+# even though the process was never crashed or stuck — it recovered and
+# kept serving requests throughout. 15s x 5 retries = up to ~2.5 minutes of
+# consecutive failures tolerated (interval unchanged at 30s), enough to
+# ride out that kind of transient busy period without masking a genuine
+# outage (still bounded, still fails fast for something actually down).
+# --start-period=40s (was 15s): matching slack for a cold container whose
+# first request may race a scheduled job through the same startup window.
+HEALTHCHECK --interval=30s --timeout=15s --start-period=40s --retries=5 \
     CMD curl -f http://localhost:8000/api/v1/health || exit 1
 
 # Migrations (`alembic upgrade head`) are a separate, explicit step —
