@@ -137,19 +137,6 @@ from app.scheduler.ap_scheduler import APSchedulerService
 from app.scheduler.models import Schedule, ScheduleTriggerType
 from app.scheduler.scheduler import Scheduler
 from app.screening.engine import ScreeningEngine
-from app.services.embedding.service import EmbeddingService
-from app.services.entity_resolution.service import (
-    DEFAULT_HIGH_THRESHOLD,
-    DEFAULT_MAX_CANDIDATES,
-    DEFAULT_MEDIUM_THRESHOLD,
-    EntityResolutionService,
-)
-from app.services.evidence_engine.engine import EvidenceEngine
-from app.services.knowledge_ingestion.service import KnowledgeIngestionService
-from app.services.llm.service import LLMService
-from app.services.market_intelligence.engine import MarketIntelligenceEngine
-from app.services.market_snapshot.cache import InMemoryMarketSnapshotCache
-from app.services.market_snapshot.service import MarketSnapshotService
 from app.services.continuous_intelligence.config import ContinuousIntelligenceThresholds
 from app.services.continuous_intelligence.locking import (
     CycleLock,
@@ -167,17 +154,30 @@ from app.services.continuous_intelligence.suppression import (
     Suppression,
     SuppressionService,
 )
+from app.services.embedding.service import EmbeddingService
 from app.services.entity_resolution.reference_overlay import (
     apply_canonical_entity_overlay_from_path,
 )
+from app.services.entity_resolution.service import (
+    DEFAULT_HIGH_THRESHOLD,
+    DEFAULT_MAX_CANDIDATES,
+    DEFAULT_MEDIUM_THRESHOLD,
+    EntityResolutionService,
+)
+from app.services.evidence_engine.engine import EvidenceEngine
 from app.services.initial_analysis.service import InitialPortfolioAnalysisService
+from app.services.knowledge_ingestion.service import KnowledgeIngestionService
+from app.services.llm.service import LLMService
+from app.services.market_intelligence.engine import MarketIntelligenceEngine
+from app.services.market_snapshot.cache import InMemoryMarketSnapshotCache
+from app.services.market_snapshot.service import MarketSnapshotService
 from app.services.portfolio_market_snapshot.service import PortfolioMarketSnapshotService
 from app.services.relationship_engine.engine import RelationshipEngine
 from app.signals.engine import SignalDetectionService
 from app.strategy.engine import StrategyEvaluationService
 from app.watchlist.service import WatchlistService
-from app.workflows.engine import WorkflowEngine
 from app.workflows.continuous_intelligence.workflow import ContinuousIntelligenceWorkflow
+from app.workflows.engine import WorkflowEngine
 from app.workflows.market_data_refresh.workflow import MarketDataRefreshWorkflow
 from app.workflows.morning_pipeline.pipeline import MorningPipeline
 

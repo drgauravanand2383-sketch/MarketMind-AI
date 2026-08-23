@@ -67,8 +67,17 @@ from app.api.v1.portfolio.dependencies import (
 )
 from app.api.v1.portfolio.schemas import GenerateRecommendationsRequest
 from app.api.v1.schemas.common import PaginatedResponse, SuccessResponse, build_success_response
-from app.api.v1.schemas.filters import WatchlistFilterParams, matches_watchlist_filters, watchlist_filter_params
-from app.api.v1.schemas.pagination import PaginationParams, build_paginated_response, paginate_items, pagination_params
+from app.api.v1.schemas.filters import (
+    WatchlistFilterParams,
+    matches_watchlist_filters,
+    watchlist_filter_params,
+)
+from app.api.v1.schemas.pagination import (
+    PaginationParams,
+    build_paginated_response,
+    paginate_items,
+    pagination_params,
+)
 from app.api.v1.watchlists.dependencies import get_watchlist_service
 from app.api.ws.dependencies.services import get_event_publisher
 from app.api.ws.publishers.event_publisher import EventPublisher

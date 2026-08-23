@@ -30,8 +30,16 @@ from app.api.v1.signals.schemas import (
     EvaluateSignalsRequest,
     UpdateSignalDefinitionRequest,
 )
-from app.api.v1.strategies.schemas import CreateStrategyRequest, EvaluateStrategyRequest, UpdateStrategyRequest
-from app.api.v1.watchlists.schemas import AddCompanyRequest, CreateWatchlistRequest, RenameWatchlistRequest
+from app.api.v1.strategies.schemas import (
+    CreateStrategyRequest,
+    EvaluateStrategyRequest,
+    UpdateStrategyRequest,
+)
+from app.api.v1.watchlists.schemas import (
+    AddCompanyRequest,
+    CreateWatchlistRequest,
+    RenameWatchlistRequest,
+)
 
 NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
 

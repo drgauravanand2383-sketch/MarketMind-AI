@@ -49,7 +49,10 @@ from app.auth.services.authorization import AuthorizationService
 from app.providers.market_data.mock import MockMarketDataProvider
 from app.recommendations.engine import PortfolioRecommendationService
 from app.repositories.alerts.postgres.models import Base as AlertBase
-from app.repositories.alerts.postgres.repository import PostgresAlertRepository, PostgresAlertRuleRepository
+from app.repositories.alerts.postgres.repository import (
+    PostgresAlertRepository,
+    PostgresAlertRuleRepository,
+)
 from app.repositories.recommendations.postgres.models import Base as RecommendationBase
 from app.repositories.recommendations.postgres.repository import PostgresRecommendationRepository
 from app.repositories.risk.postgres.models import Base as RiskBase

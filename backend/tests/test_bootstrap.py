@@ -6,6 +6,8 @@ import logging
 
 import pytest
 
+from app.agents.company_research.agent import CompanyResearchAgent
+from app.agents.portfolio_intelligence.agent import PortfolioIntelligenceAgent
 from app.bootstrap import (
     AppSettings,
     EmptyKnowledgeHub,
@@ -13,57 +15,55 @@ from app.bootstrap import (
     InProcessMemory,
     NoOpEventBus,
     SettingsConfiguration,
+    build_alert_repository,
+    build_alert_rule_repository,
+    build_alert_service,
+    build_auth_repository,
+    build_authentication_provider,
+    build_authentication_service,
+    build_authorization_service,
+    build_backtesting_repository,
+    build_backtesting_service,
+    build_clock,
+    build_company_research_agent,
+    build_configuration_validation_service,
     build_embedding_provider,
     build_entity_resolution_service,
+    build_explainability_repository,
+    build_explainability_service,
+    build_health_check_service,
+    build_initial_analysis_service,
+    build_jwt_signer,
+    build_knowledge_hub,
     build_knowledge_repository,
+    build_llm_service,
+    build_market_data_provider,
+    build_market_snapshot_service,
+    build_metrics_recorder,
     build_news_collector_agent,
+    build_normalization_service,
+    build_password_hasher,
+    build_policy_evaluator,
+    build_portfolio_intelligence_agent,
+    build_portfolio_market_snapshot_service,
+    build_profiler,
+    build_prompt_registry,
+    build_recommendation_repository,
+    build_recommendation_service,
+    build_risk_repository,
+    build_risk_service,
     build_scheduler_infrastructure,
     build_screening_engine,
     build_screening_repository,
-    build_market_data_provider,
-    build_market_snapshot_service,
-    build_normalization_service,
     build_signal_detection_service,
     build_signal_repository,
-    build_alert_rule_repository,
-    build_alert_repository,
-    build_alert_service,
-    build_recommendation_repository,
-    build_recommendation_service,
+    build_startup_validation_service,
     build_strategy_repository,
     build_strategy_service,
-    build_risk_repository,
-    build_risk_service,
-    build_initial_analysis_service,
-    build_portfolio_market_snapshot_service,
-    build_backtesting_repository,
-    build_backtesting_service,
-    build_explainability_repository,
-    build_explainability_service,
     build_structured_logger,
-    build_metrics_recorder,
-    build_profiler,
-    build_health_check_service,
-    build_configuration_validation_service,
-    build_startup_validation_service,
-    build_auth_repository,
-    build_clock,
-    build_password_hasher,
-    build_jwt_signer,
-    build_authorization_service,
-    build_authentication_provider,
-    build_authentication_service,
-    build_policy_evaluator,
     build_watchlist_repository,
     build_watchlist_service,
-    build_prompt_registry,
-    build_knowledge_hub,
-    build_llm_service,
-    build_company_research_agent,
-    build_portfolio_intelligence_agent,
 )
-from app.agents.company_research.agent import CompanyResearchAgent
-from app.agents.portfolio_intelligence.agent import PortfolioIntelligenceAgent
 from app.core.runtime import AgentRuntime
 from app.knowledge.hub import KnowledgeHub
 from app.market_data.normalization import NormalizationService
@@ -77,7 +77,6 @@ from app.services.entity_resolution.service import EntityResolutionService
 from app.services.llm.service import LLMService
 from app.services.market_snapshot.service import MarketSnapshotService
 from app.workflows.engine import WorkflowEngine
-
 
 _LOGGER = logging.getLogger("test.bootstrap")
 

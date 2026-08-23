@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import uuid
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -24,7 +23,6 @@ from app.auth.repositories.postgres.repository import PostgresAuthRepository
 from app.auth.services.authentication import AuthenticationService
 from app.auth.services.authorization import AuthorizationService
 from tests.api.v1.watchlists.conftest import make_authenticated_headers
-
 
 # --------------------------------------------------------------------------
 # Authentication / authorization

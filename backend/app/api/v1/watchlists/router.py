@@ -40,10 +40,18 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Path, Request, status
 
-from app.auth.dependencies.policy_guard import require_policy
 from app.api.v1.schemas.common import PaginatedResponse, SuccessResponse, build_success_response
-from app.api.v1.schemas.filters import WatchlistFilterParams, matches_watchlist_filters, watchlist_filter_params
-from app.api.v1.schemas.pagination import PaginationParams, build_paginated_response, paginate_items, pagination_params
+from app.api.v1.schemas.filters import (
+    WatchlistFilterParams,
+    matches_watchlist_filters,
+    watchlist_filter_params,
+)
+from app.api.v1.schemas.pagination import (
+    PaginationParams,
+    build_paginated_response,
+    paginate_items,
+    pagination_params,
+)
 from app.api.v1.watchlists.dependencies import get_watchlist_service
 from app.api.v1.watchlists.schemas import (
     AddCompanyRequest,
@@ -51,6 +59,7 @@ from app.api.v1.watchlists.schemas import (
     RenameWatchlistRequest,
     UpdateNotesRequest,
 )
+from app.auth.dependencies.policy_guard import require_policy
 from app.auth.policies import RequirePermission
 from app.watchlist.models import Watchlist, WatchlistItem, WatchlistSnapshot
 from app.watchlist.service import WatchlistService

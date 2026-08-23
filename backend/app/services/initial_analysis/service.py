@@ -85,7 +85,10 @@ from app.risk.engine import RiskAnalyticsService
 from app.risk.models import MarketDataCoverageStatus
 from app.services.continuous_intelligence.locking import CycleLock, InMemoryCycleLock
 from app.services.initial_analysis.models import InitialAnalysisState, InitialAnalysisStatus
-from app.services.initial_analysis.state import InitialAnalysisStateStore, InMemoryInitialAnalysisStateStore
+from app.services.initial_analysis.state import (
+    InitialAnalysisStateStore,
+    InMemoryInitialAnalysisStateStore,
+)
 from app.services.portfolio_market_snapshot.service import PortfolioMarketSnapshotService
 from app.services.portfolio_market_snapshot.signal_adapter import build_market_data_snapshot
 from app.signals.engine import SignalDetectionService

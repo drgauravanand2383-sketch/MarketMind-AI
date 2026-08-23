@@ -18,7 +18,10 @@ from app.alerts.models import AlertCondition, AlertOperator
 from app.providers.market_data.mock import MockMarketDataProvider
 from app.recommendations.engine import PortfolioRecommendationService
 from app.repositories.alerts.postgres.models import Base as AlertBase
-from app.repositories.alerts.postgres.repository import PostgresAlertRepository, PostgresAlertRuleRepository
+from app.repositories.alerts.postgres.repository import (
+    PostgresAlertRepository,
+    PostgresAlertRuleRepository,
+)
 from app.repositories.recommendations.postgres.models import Base as RecommendationBase
 from app.repositories.recommendations.postgres.repository import PostgresRecommendationRepository
 from app.repositories.risk.postgres.models import Base as RiskBase
@@ -256,8 +259,8 @@ async def test_empty_watchlist_is_unavailable_and_creates_nothing(
     status = await service.get_status(watchlist.id)
     assert status.status == InitialAnalysisStatus.UNAVAILABLE
     assert status.recommendation_request_id is None
-    assert [] == [r for r in await recommendation_service.list_requests() if watchlist.id in r.watchlist_ids]
-    assert [] == [r for r in await risk_service.list_requests() if r.portfolio_id == watchlist.id]
+    assert [r for r in await recommendation_service.list_requests() if watchlist.id in r.watchlist_ids] == []
+    assert [r for r in await risk_service.list_requests() if r.portfolio_id == watchlist.id] == []
 
 
 async def test_status_for_unknown_portfolio_raises_not_found(service: InitialPortfolioAnalysisService) -> None:

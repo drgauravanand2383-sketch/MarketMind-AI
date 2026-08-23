@@ -13,7 +13,6 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -413,10 +412,10 @@ async def test_returns_503_when_risk_service_not_configured(
     authorization_service,
     watchlist_service: WatchlistService,
 ) -> None:
-    from app.auth.middleware import AuthenticationMiddleware
-    from app.auth.policies import PolicyEvaluator
     from app.api.v1.exception_handlers import register_exception_handlers
     from app.api.v1.portfolio import router as portfolio_router
+    from app.auth.middleware import AuthenticationMiddleware
+    from app.auth.policies import PolicyEvaluator
 
     headers = await make_authenticated_headers(auth_repository, auth_service)
     portfolio_id = await make_watchlist(watchlist_service)
