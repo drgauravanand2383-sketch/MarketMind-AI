@@ -68,8 +68,9 @@ a strictly positive `return_percent`.
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timezone
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from datetime import UTC, date, datetime
+from typing import TYPE_CHECKING
 
 from app.backtesting.exceptions import (
     BacktestRequestNotFoundError,
@@ -109,7 +110,7 @@ _ResolvedSnapshot = tuple[RecommendationResult, "StrategyEvaluationResult | None
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class BacktestingService:
@@ -295,12 +296,15 @@ def _select_snapshots_for_mode(
     if mode in (ReplayMode.DAILY, ReplayMode.CUSTOM):
         return ordered
 
+    key_fn: Callable[[HistoricalSnapshot], tuple[int, int]]
     if mode == ReplayMode.WEEKLY:
-        key_fn: Callable[[HistoricalSnapshot], tuple[int, int]] = (
-            lambda snapshot: snapshot.timestamp.isocalendar()[:2]
-        )
+
+        def key_fn(snapshot: HistoricalSnapshot) -> tuple[int, int]:
+            return snapshot.timestamp.isocalendar()[:2]
     else:  # ReplayMode.MONTHLY
-        key_fn = lambda snapshot: (snapshot.timestamp.year, snapshot.timestamp.month)
+
+        def key_fn(snapshot: HistoricalSnapshot) -> tuple[int, int]:
+            return (snapshot.timestamp.year, snapshot.timestamp.month)
 
     grouped: dict[tuple[int, int], HistoricalSnapshot] = {}
     for snapshot in ordered:
@@ -357,7 +361,7 @@ def _build_periods(
     previous_score: float | None = None
 
     for snapshot, (recommendation_result, strategy_evaluation_result, risk_assessment) in zip(
-        snapshots, resolved
+        snapshots, resolved, strict=True
     ):
         recommendation_component, strategy_component, risk_component = _period_component_scores(
             recommendation_result, strategy_evaluation_result, risk_assessment, strategy_ids

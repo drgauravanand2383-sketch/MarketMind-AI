@@ -13,7 +13,7 @@ to be built from live market data.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -27,9 +27,9 @@ from app.services.portfolio_market_snapshot.signal_adapter import build_market_d
 from app.signals.engine import SignalDetectionService
 from app.signals.models import SignalCondition, SignalDefinition, SignalOperator, SignalPriority
 from app.signals.reference_definitions import build_price_breakout_signal_definition
-from tests.alerts.conftest import make_condition, make_rule
+from tests.alerts.conftest import make_condition
 
-NOW = datetime(2026, 8, 14, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 14, tzinfo=UTC)
 
 
 class FakeClock:

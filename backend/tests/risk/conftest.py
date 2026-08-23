@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from app.recommendations.models import RecommendationCandidate, RecommendationResult, RecommendationSummary, RecommendationType
+from app.recommendations.models import (
+    RecommendationCandidate,
+    RecommendationResult,
+    RecommendationSummary,
+    RecommendationType,
+)
 from app.signals.models import SignalCategory, SignalPriority, SignalResult
 
-NOW = datetime(2026, 8, 11, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 11, tzinfo=UTC)
 
 
 def make_signal(

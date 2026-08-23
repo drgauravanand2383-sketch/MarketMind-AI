@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from app.signals.exceptions import (
@@ -25,6 +25,7 @@ from app.signals.models import (
     ConditionEvaluation,
     MarketDataSnapshot,
     SignalBatchResult,
+    SignalCategory,
     SignalCondition,
     SignalConditionGroup,
     SignalDefinition,
@@ -91,13 +92,13 @@ class SignalDetectionService:
         self._check_condition_count(None, conditions)
         await self._check_unique_name(name)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         definition = SignalDefinition(
             id=str(uuid.uuid4()),
             name=name,
             description=description,
-            category=category,
-            priority=priority,
+            category=SignalCategory(category),
+            priority=SignalPriority(priority),
             enabled=enabled,
             conditions=conditions,
             groups=groups,
@@ -118,7 +119,7 @@ class SignalDetectionService:
         self._check_condition_count(definition.id, definition.conditions)
         await self._check_unique_name(definition.name, ignore_signal_id=definition.id)
 
-        updated = definition.model_copy(update={"updated_at": datetime.now(timezone.utc)})
+        updated = definition.model_copy(update={"updated_at": datetime.now(UTC)})
         result = await self._repository.update_signal_definition(updated)
         if result is None:
             raise SignalDefinitionNotFoundError(definition.id)
@@ -200,7 +201,7 @@ class SignalDetectionService:
             matched_conditions=matched,
             failed_conditions=failed,
             reason=_build_reason(triggered, matched, failed, enabled_conditions, score),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
     def evaluate_companies(

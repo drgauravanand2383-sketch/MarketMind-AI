@@ -74,8 +74,9 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from app.alerts.engine import AlertService
 from app.alerts.models import Alert
@@ -108,7 +109,7 @@ _logger = logging.getLogger("marketmind.services.initial_analysis")
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class InitialPortfolioAnalysisService:

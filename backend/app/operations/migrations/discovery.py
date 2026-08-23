@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections import Counter
 
 from sqlalchemy import MetaData
+from sqlalchemy.orm import DeclarativeBase
 
 from app.auth.repositories.postgres.models import Base as AuthBase
 from app.repositories.alerts.postgres.models import Base as AlertsBase
@@ -37,7 +38,7 @@ from app.repositories.watchlist.postgres.models import Base as WatchlistBase
 
 __all__ = ["collect_metadata", "collect_table_names", "duplicate_table_names"]
 
-_BASES: tuple[type, ...] = (
+_BASES: tuple[type[DeclarativeBase], ...] = (
     AlertsBase,
     AuthBase,
     BacktestingBase,

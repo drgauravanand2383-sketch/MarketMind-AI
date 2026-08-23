@@ -62,8 +62,9 @@ from __future__ import annotations
 
 import uuid
 from collections import Counter
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from app.backtesting.engine import BacktestingService
 from app.backtesting.exceptions import BacktestResultNotFoundError, BacktestRunNotFoundError
@@ -117,7 +118,7 @@ _COMPONENT_CATEGORY_FIELDS: tuple[tuple[AttributionCategory, str], ...] = (
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class ExplainabilityService:

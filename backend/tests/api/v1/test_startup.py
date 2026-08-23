@@ -56,6 +56,7 @@ def test_all_three_custom_middleware_are_registered() -> None:
 def test_cors_and_gzip_middleware_are_registered() -> None:
     from fastapi.middleware.cors import CORSMiddleware
     from starlette.middleware.gzip import GZipMiddleware
+
     from app.main import create_app
 
     app = create_app()
@@ -80,8 +81,9 @@ def test_authentication_middleware_is_registered() -> None:
 
 
 def test_exception_handlers_are_registered() -> None:
-    from starlette.exceptions import HTTPException as StarletteHTTPException
     from fastapi.exceptions import RequestValidationError
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+
     from app.main import create_app
 
     app = create_app()

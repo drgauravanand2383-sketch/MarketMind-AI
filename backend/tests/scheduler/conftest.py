@@ -10,7 +10,7 @@ in these tests. `MagicMock(spec=WorkflowEngine)` auto-detects that
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -30,7 +30,7 @@ def workflow_execution_result(
     output: Any = None,
     error: str | None = None,
 ) -> WorkflowExecutionResult:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return WorkflowExecutionResult(
         workflow_id=workflow_id,
         execution_id=execution_id,
@@ -98,5 +98,5 @@ def one_time_schedule(
         enabled=enabled,
         interval_seconds=1.0,
         initiated_by=initiated_by,
-        metadata={"run_date": run_date or datetime.now(timezone.utc)},
+        metadata={"run_date": run_date or datetime.now(UTC)},
     )

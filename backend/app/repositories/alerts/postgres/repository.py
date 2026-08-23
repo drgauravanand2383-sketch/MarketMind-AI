@@ -13,10 +13,10 @@ database (via aiosqlite) in tests.
 from __future__ import annotations
 
 import copy as copy_module
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.alerts.models import Alert, AlertRule
 from app.repositories.alerts.postgres.mapper import (
@@ -32,7 +32,7 @@ __all__ = ["PostgresAlertRuleRepository", "PostgresAlertRepository"]
 
 
 class PostgresAlertRuleRepository(BaseAlertRuleRepository):
-    def __init__(self, session_factory: async_sessionmaker) -> None:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         """Initialize the repository.
 
         Args:
@@ -91,7 +91,7 @@ class PostgresAlertRuleRepository(BaseAlertRuleRepository):
             source = await session.get(AlertRuleModel, rule_id)
             if source is None:
                 return None
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             new_model = AlertRuleModel(
                 id=new_rule_id,
                 name=new_name,
@@ -119,7 +119,7 @@ class PostgresAlertRuleRepository(BaseAlertRuleRepository):
 
 
 class PostgresAlertRepository(BaseAlertRepository):
-    def __init__(self, session_factory: async_sessionmaker) -> None:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         """Initialize the repository.
 
         Args:

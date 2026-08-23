@@ -12,7 +12,7 @@ tests.
 from __future__ import annotations
 
 from sqlalchemy import desc, select
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.backtesting.models import BacktestRequest, BacktestResult, BacktestRun
 from app.repositories.backtesting.postgres.mapper import (
@@ -34,7 +34,7 @@ __all__ = ["PostgresBacktestingRepository"]
 
 
 class PostgresBacktestingRepository(BaseBacktestingRepository):
-    def __init__(self, session_factory: async_sessionmaker) -> None:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         """Initialize the repository.
 
         Args:

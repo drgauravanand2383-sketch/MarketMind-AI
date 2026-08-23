@@ -311,7 +311,13 @@ class AppConfig(BaseModel):
     postgres: PostgreSQLSettings = Field(default_factory=PostgreSQLSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
     chromadb: ChromaDBSettings = Field(default_factory=ChromaDBSettings)
-    anthropic: AnthropicSettings = Field(default_factory=AnthropicSettings)
+    # AnthropicSettings.api_key has no Python-level default (required) but is
+    # actually sourced from the ANTHROPIC_API_KEY env var by pydantic-settings
+    # at construction time — invisible to mypy, which only sees a required
+    # field with no default and flags the bare class reference as failing to
+    # satisfy `Callable[[], Never]`. Every sibling *Settings default_factory
+    # above is unaffected only because none of them has a required field.
+    anthropic: AnthropicSettings = Field(default_factory=AnthropicSettings)  # type: ignore[arg-type]
     embedding_provider: EmbeddingProviderSettings = Field(default_factory=EmbeddingProviderSettings)
     rss: RSSSettings = Field(default_factory=RSSSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)

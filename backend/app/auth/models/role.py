@@ -23,14 +23,14 @@ permissions and parent chain.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = ["BuiltinRole", "Role"]
 
 
-class BuiltinRole(str, Enum):
+class BuiltinRole(StrEnum):
     ADMIN = "ADMIN"
     ANALYST = "ANALYST"
     VIEWER = "VIEWER"

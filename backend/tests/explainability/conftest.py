@@ -18,7 +18,7 @@ that is itself deterministic and cheap given in-memory data.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -53,7 +53,7 @@ from app.strategy.models import (
     StrategySummary,
 )
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 async def _sqlite_session_factory(base: type) -> async_sessionmaker:

@@ -26,6 +26,7 @@ from starlette.responses import Response
 
 from app.auth.exceptions import TokenError
 from app.auth.models.authentication import AuthenticatedPrincipal
+from app.auth.services.authentication import AuthenticationService
 
 __all__ = ["AuthenticationMiddleware", "BEARER_PREFIX"]
 
@@ -42,7 +43,9 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         if not authorization_header or not authorization_header.startswith(BEARER_PREFIX):
             return None
 
-        authentication_service = getattr(request.app.state, "authentication_service", None)
+        authentication_service: AuthenticationService | None = getattr(
+            request.app.state, "authentication_service", None
+        )
         if authentication_service is None:
             return None
 

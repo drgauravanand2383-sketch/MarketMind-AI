@@ -4,7 +4,7 @@ test (services, providers, policies, middleware, dependencies)."""
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -20,7 +20,7 @@ from app.auth.security.password_hashing import Pbkdf2PasswordHasher
 from app.auth.services.authentication import AuthenticationService
 from app.auth.services.authorization import AuthorizationService
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 class FakeClock(BaseClock):

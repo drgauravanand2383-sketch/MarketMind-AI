@@ -9,7 +9,7 @@ validates and batches requests for a future embedding step.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.services.embedding.models import (
     EmbeddingBatch,
@@ -75,7 +75,7 @@ class EmbeddingService:
 
         metadata = EmbeddingBatchMetadata(
             batch_id=str(uuid.uuid4()),
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             total_documents_received=len(documents),
             accepted_count=len(requests),
             rejected_documents=rejected_documents,

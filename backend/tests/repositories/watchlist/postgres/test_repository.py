@@ -11,7 +11,7 @@ behavior directly (not through WatchlistService) — no business rules
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -20,7 +20,7 @@ from app.repositories.watchlist.postgres.models import Base
 from app.repositories.watchlist.postgres.repository import PostgresWatchlistRepository
 from app.watchlist.models import Watchlist, WatchlistItem
 
-NOW = datetime(2026, 8, 6, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 6, tzinfo=UTC)
 
 
 @pytest.fixture

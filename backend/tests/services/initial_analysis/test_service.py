@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -45,7 +45,7 @@ from app.watchlist.exceptions import WatchlistNotFoundError
 from app.watchlist.models import WatchlistItem
 from app.watchlist.service import WatchlistService
 
-NOW = datetime(2026, 8, 23, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 23, tzinfo=UTC)
 
 AAPL_REFERENCE = CompanyReference(
     entity_id="aapl",

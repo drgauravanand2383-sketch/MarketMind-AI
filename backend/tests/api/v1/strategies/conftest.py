@@ -10,7 +10,7 @@ with the shared auth fixtures (`tests.api.v1._auth_fixtures`).
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi import FastAPI
@@ -38,7 +38,7 @@ from tests.api.v1._auth_fixtures import (  # noqa: F401 - re-exported as fixture
     make_authenticated_headers,
 )
 
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 
 ALL_STRATEGY_PERMISSIONS = ("strategy:read", "strategy:update", "strategy:evaluate")
 

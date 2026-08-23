@@ -7,7 +7,7 @@ to prove the contract's shape is implementable and behaves as documented.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -48,7 +48,7 @@ class _InMemoryKnowledgeRepository(BaseKnowledgeRepository):
             )
         return SaveResult(
             batch_id=ingestion_batch.ingestion_metadata.batch_id,
-            saved_at=datetime.now(timezone.utc),
+            saved_at=datetime.now(UTC),
             vector_count=len(embedding_batch.chunks),
             relational_count=len(ingestion_batch.relational_records),
             success=True,
@@ -88,7 +88,7 @@ def _ingestion_batch() -> IngestionBatch:
         ],
         ingestion_metadata=IngestionMetadata(
             batch_id="batch-1",
-            ingested_at=datetime.now(timezone.utc),
+            ingested_at=datetime.now(UTC),
             total_items_received=1,
             accepted_count=1,
         ),
@@ -100,7 +100,7 @@ def _embedding_batch() -> EmbeddingBatch:
         chunks=[],
         batch_metadata=EmbeddingBatchMetadata(
             batch_id="embed-batch-1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             total_documents_received=0,
             accepted_count=0,
             max_batch_size=100,

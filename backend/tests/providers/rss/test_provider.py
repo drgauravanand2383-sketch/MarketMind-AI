@@ -10,7 +10,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import httpx
-import pytest
 
 from app.providers.rss.models import RSSFeedSource, RSSProviderConfig
 from app.providers.rss.provider import RSSProvider, summarize_feed_health

@@ -9,7 +9,7 @@ No scoring-formula test overlaps with tests/recommendations/test_scoring.py
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.recommendations.engine import PortfolioRecommendationService
 from app.services.market_snapshot.models import MarketSnapshot, MarketSnapshotResult, MarketSnapshotStatus
@@ -27,7 +27,7 @@ def _snapshot_result(
         snapshot = MarketSnapshot(
             entity_id="dell", canonical_name="Dell Technologies Inc.", ticker="DELL",
             price=price, change_percent=change_percent,
-            quoted_at=datetime.now(timezone.utc), fetched_at=datetime.now(timezone.utc),
+            quoted_at=datetime.now(UTC), fetched_at=datetime.now(UTC),
             provider="Yahoo Finance",
         )
     return MarketSnapshotResult(entity_id="dell", status=status, snapshot=snapshot, reason="test")

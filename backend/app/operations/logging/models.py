@@ -12,14 +12,14 @@ integration) ultimately consumes it.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = ["LogCategory", "LogLevel", "LogRecord"]
 
 
-class LogCategory(str, Enum):
+class LogCategory(StrEnum):
     APPLICATION = "APPLICATION"
     REPOSITORY = "REPOSITORY"
     SERVICE = "SERVICE"
@@ -27,7 +27,7 @@ class LogCategory(str, Enum):
     VALIDATION = "VALIDATION"
 
 
-class LogLevel(str, Enum):
+class LogLevel(StrEnum):
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"

@@ -7,7 +7,9 @@ WebSocket, per `tests/api/ws/fakes.py`.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
+from app.alerts.models import Alert, AlertPriority, AlertStatus
 from app.api.ws.connection_manager.manager import ConnectionManager
 from app.api.ws.event_models.event_type import EventType
 from app.api.ws.event_models.events import AlertEvent
@@ -15,11 +17,7 @@ from app.api.ws.subscriptions.models import Subscription
 from app.auth.models.authentication import AuthenticatedPrincipal
 from tests.api.ws.fakes import FakeWebSocket
 
-from datetime import datetime, timezone
-
-from app.alerts.models import Alert, AlertPriority, AlertStatus
-
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 
 
 def _principal(user_id: str = "u1", roles: tuple[str, ...] = ()) -> AuthenticatedPrincipal:
@@ -108,7 +106,7 @@ async def test_broadcast_delivers_only_to_matching_subscribers() -> None:
     subscribed_ws = FakeWebSocket()
     unsubscribed_ws = FakeWebSocket()
     subscribed_id = await manager.connect(subscribed_ws, _principal("u1"))
-    unsubscribed_id = await manager.connect(unsubscribed_ws, _principal("u2"))
+    await manager.connect(unsubscribed_ws, _principal("u2"))
     manager.subscribe(subscribed_id, Subscription(event_types=frozenset({EventType.ALERT_GENERATED})))
 
     delivered = await manager.broadcast(_alert_event())

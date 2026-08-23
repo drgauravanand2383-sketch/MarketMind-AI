@@ -13,10 +13,10 @@ aiosqlite) in tests — see `tests/repositories/watchlist/postgres/test_reposito
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 from app.repositories.watchlist.postgres.mapper import (
@@ -26,7 +26,6 @@ from app.repositories.watchlist.postgres.mapper import (
     watchlist_to_model,
 )
 from app.repositories.watchlist.postgres.models import (
-    WatchlistItemModel,
     WatchlistModel,
     WatchlistSnapshotModel,
 )
@@ -51,7 +50,7 @@ def _build_summary(name: str, total_companies: int, average_confidence: float | 
 
 
 class PostgresWatchlistRepository(BaseWatchlistRepository):
-    def __init__(self, session_factory: async_sessionmaker) -> None:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         """Initialize the repository.
 
         Args:
@@ -83,7 +82,7 @@ class PostgresWatchlistRepository(BaseWatchlistRepository):
             if model is None:
                 return None
             model.name = name
-            model.updated_at = datetime.now(timezone.utc)
+            model.updated_at = datetime.now(UTC)
             await session.commit()
             return model_to_watchlist(model)
 
@@ -100,7 +99,7 @@ class PostgresWatchlistRepository(BaseWatchlistRepository):
             if model is None:
                 return None
             model.items.append(watchlist_item_to_model(item, watchlist_id))
-            model.updated_at = datetime.now(timezone.utc)
+            model.updated_at = datetime.now(UTC)
             await session.commit()
             return model_to_watchlist(model)
 
@@ -110,7 +109,7 @@ class PostgresWatchlistRepository(BaseWatchlistRepository):
             if model is None:
                 return None
             model.items = [current for current in model.items if current.ticker != ticker]
-            model.updated_at = datetime.now(timezone.utc)
+            model.updated_at = datetime.now(UTC)
             await session.commit()
             return model_to_watchlist(model)
 
@@ -123,7 +122,7 @@ class PostgresWatchlistRepository(BaseWatchlistRepository):
                 if item_model.ticker == ticker:
                     item_model.notes = notes
                     break
-            model.updated_at = datetime.now(timezone.utc)
+            model.updated_at = datetime.now(UTC)
             await session.commit()
             return model_to_watchlist(model)
 
@@ -144,7 +143,7 @@ class PostgresWatchlistRepository(BaseWatchlistRepository):
 
             snapshot_model = WatchlistSnapshotModel(
                 watchlist_id=watchlist_id,
-                snapshot_time=datetime.now(timezone.utc),
+                snapshot_time=datetime.now(UTC),
                 total_companies=total_companies,
                 average_confidence=average_confidence,
                 summary=_build_summary(model.name, total_companies, average_confidence),

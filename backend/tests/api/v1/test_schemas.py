@@ -3,7 +3,7 @@ ErrorResponse, ValidationErrorResponse, PaginatedResponse, MetadataResponse."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import BaseModel, ValidationError
@@ -19,7 +19,7 @@ from app.api.v1.schemas.common import (
     build_success_response,
 )
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 class _Payload(BaseModel):

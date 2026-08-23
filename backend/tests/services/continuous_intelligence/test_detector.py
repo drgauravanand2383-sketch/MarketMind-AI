@@ -4,7 +4,7 @@ baseline semantics, and stale-data safety (§20)."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.recommendations.models import RecommendationCandidate, RecommendationType
 from app.risk.models import RiskAssessment, RiskSeverity
@@ -16,7 +16,7 @@ from app.services.market_snapshot.models import MarketSnapshot, MarketSnapshotRe
 from app.signals.models import SignalCategory, SignalPriority, SignalResult
 from app.strategy.models import StrategyEvaluationResult, StrategySummary
 
-NOW = datetime(2026, 8, 15, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 15, tzinfo=UTC)
 
 
 def _detector(**overrides: object) -> ChangeDetectionService:

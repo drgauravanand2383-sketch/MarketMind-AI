@@ -59,7 +59,7 @@ boolean "matched"/"triggered" field, only continuous `alignment_score`/
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -80,7 +80,7 @@ __all__ = [
 ]
 
 
-class StrategyOperator(str, Enum):
+class StrategyOperator(StrEnum):
     EQUALS = "EQUALS"
     NOT_EQUALS = "NOT_EQUALS"
     GREATER_THAN = "GREATER_THAN"
@@ -92,7 +92,7 @@ class StrategyOperator(str, Enum):
     NOT_IN = "NOT_IN"
 
 
-class StrategyType(str, Enum):
+class StrategyType(StrEnum):
     VALUE = "VALUE"
     GROWTH = "GROWTH"
     DIVIDEND = "DIVIDEND"

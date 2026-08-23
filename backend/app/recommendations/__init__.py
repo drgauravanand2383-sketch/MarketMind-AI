@@ -11,6 +11,7 @@ only, with transparent reasoning.
 
 from __future__ import annotations
 
+from app.recommendations.engine import PortfolioRecommendationService
 from app.recommendations.exceptions import (
     DuplicateRequestNameError,
     RecommendationEngineError,
@@ -27,7 +28,6 @@ from app.recommendations.models import (
     RecommendationType,
     ScoringWeights,
 )
-from app.recommendations.engine import PortfolioRecommendationService
 
 __all__ = [
     "PortfolioRecommendationService",

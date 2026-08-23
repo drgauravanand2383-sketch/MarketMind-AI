@@ -8,7 +8,7 @@ reimplements SQL or ChromaDB logic itself.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -36,7 +36,7 @@ def _ingestion_batch(
         relational_records=relational_records,
         ingestion_metadata=IngestionMetadata(
             batch_id="batch-1",
-            ingested_at=datetime.now(timezone.utc),
+            ingested_at=datetime.now(UTC),
             total_items_received=len(relational_records),
             accepted_count=len(relational_records),
         ),
@@ -48,7 +48,7 @@ def _embedding_batch() -> EmbeddingBatch:
         chunks=[],
         batch_metadata=EmbeddingBatchMetadata(
             batch_id="embed-batch-1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             total_documents_received=0,
             accepted_count=0,
             max_batch_size=100,

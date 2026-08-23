@@ -43,7 +43,13 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.alerts.exceptions import AlertEngineError
-from app.api.v1.schemas.common import ErrorResponse, ValidationErrorFieldError, ValidationErrorResponse, build_metadata, request_id_of
+from app.api.v1.schemas.common import (
+    ErrorResponse,
+    ValidationErrorFieldError,
+    ValidationErrorResponse,
+    build_metadata,
+    request_id_of,
+)
 from app.api.v1.schemas.result_store import ResultNotFoundError
 from app.backtesting.exceptions import BacktestingError
 from app.explainability.exceptions import ExplainabilityError
@@ -141,8 +147,14 @@ async def handle_unhandled_exception(request: Request, exc: Exception) -> JSONRe
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Register every handler above on `app`. Call once, from `app.main.create_app`."""
-    app.add_exception_handler(StarletteHTTPException, handle_http_exception)
-    app.add_exception_handler(RequestValidationError, handle_validation_error)
+    # Starlette's own `add_exception_handler` stub types the handler
+    # parameter as accepting the base `Exception` regardless of which
+    # exception class is registered against — real runtime dispatch only
+    # ever calls a registered handler with an instance of its own
+    # registered class, so narrowing `exc` to `StarletteHTTPException`/
+    # `RequestValidationError` here is correct and deliberate, not a bug.
+    app.add_exception_handler(StarletteHTTPException, handle_http_exception)  # type: ignore[arg-type]
+    app.add_exception_handler(RequestValidationError, handle_validation_error)  # type: ignore[arg-type]
     for exception_class in _DOMAIN_ERROR_BASE_CLASSES:
         app.add_exception_handler(exception_class, handle_domain_error)
     app.add_exception_handler(ResultNotFoundError, handle_domain_error)

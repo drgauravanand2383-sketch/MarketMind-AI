@@ -26,19 +26,18 @@ PostgreSQL database during this milestone's own live acceptance testing).
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
-
 from app.repositories.continuous_intelligence.postgres.models import (
     Base as ContinuousIntelligenceBase,
 )
 
 # revision identifiers, used by Alembic.
 revision: str = "0005_ci_persistence"
-down_revision: Union[str, None] = "0004_strategy_linkage"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0004_strategy_linkage"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

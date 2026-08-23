@@ -11,14 +11,14 @@ this sprint's explicit scope ("No Redis. No external implementation.").
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = ["RateLimitScope", "RateLimitRule", "RateLimitDecision"]
 
 
-class RateLimitScope(str, Enum):
+class RateLimitScope(StrEnum):
     """The dimension a rate limit is keyed by."""
 
     PER_USER = "PER_USER"

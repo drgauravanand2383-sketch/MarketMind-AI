@@ -106,7 +106,7 @@ class AgentRuntime:
         logger: logging.Logger,
         configuration: ConfigurationInterface,
         knowledge_hub: KnowledgeHubInterface,
-        memory: "MemoryInterface",
+        memory: MemoryInterface,
         tool_registry: ToolRegistryInterface,
         event_bus: EventBusInterface,
     ) -> None:
@@ -145,7 +145,7 @@ class AgentRuntime:
         return self._knowledge_hub
 
     @property
-    def memory(self) -> "MemoryInterface":
+    def memory(self) -> MemoryInterface:
         """Interface for short-term and long-term memory access."""
         return self._memory
 

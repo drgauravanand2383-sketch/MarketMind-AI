@@ -36,7 +36,7 @@ Risk/Recommendation state.
 from __future__ import annotations
 
 import uuid as uuid_module
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Path, Request, status
 
@@ -177,7 +177,7 @@ async def add_company(
     background_tasks: BackgroundTasks,
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> SuccessResponse[Watchlist]:
-    item = WatchlistItem(**body.model_dump(), added_at=datetime.now(timezone.utc))
+    item = WatchlistItem(**body.model_dump(), added_at=datetime.now(UTC))
     watchlist = await service.add_company(str(watchlist_id), item)
 
     initial_analysis_service = getattr(request.app.state, "initial_analysis_service", None)

@@ -14,8 +14,8 @@ monitoring backend — a future sprint can add a vendor-specific
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from app.operations.metrics.models import MetricSample
 
@@ -23,7 +23,7 @@ __all__ = ["BaseMetricsRecorder", "InMemoryMetricsRecorder"]
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class BaseMetricsRecorder(ABC):

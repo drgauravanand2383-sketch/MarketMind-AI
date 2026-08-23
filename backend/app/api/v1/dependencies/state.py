@@ -6,6 +6,15 @@ already constructed, raising 503 if it isn't configured on this
 application instance. No component is ever constructed here — this
 module only wires already-built components to HTTP handlers.
 
+`resolve_app_state` itself lives in `app.api.dependencies.state`, not
+here — see that module's own docstring for why (importing anything under
+`app.api.v1.*` triggers `app/api/v1/__init__.py`'s eager import of the
+entire `/api/v1` router tree, which several other callers of
+`resolve_app_state` outside this package cannot safely trigger as a side
+effect of their own imports). Re-exported here anyway so existing
+`from app.api.v1.dependencies.state import resolve_app_state` references
+(if any remain) keep working.
+
 `get_repositories_map`/`get_services_map` enumerate the same
 repository/service `app.state` attribute names
 `app.operations.validation.startup.DEFAULT_REQUIRED_COMPONENTS` already
@@ -16,8 +25,9 @@ fragile for no benefit.
 
 from __future__ import annotations
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request
 
+from app.api.dependencies.state import resolve_app_state
 from app.bootstrap import AppSettings
 from app.operations.health.service import HealthCheckService
 from app.operations.validation.configuration import ConfigurationValidationService
@@ -26,6 +36,7 @@ from app.operations.validation.startup import StartupValidationService
 __all__ = [
     "REPOSITORY_NAMES",
     "SERVICE_NAMES",
+    "resolve_app_state",
     "get_app_settings",
     "get_health_check_service",
     "get_configuration_validation_service",
@@ -62,36 +73,31 @@ SERVICE_NAMES: tuple[str, ...] = (
 )
 
 
-def _resolve(request: Request, name: str, *, label: str) -> object:
-    component = getattr(request.app.state, name, None)
-    if component is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"{label} is not configured on this application instance.",
-        )
-    return component
-
-
 def get_app_settings(request: Request) -> AppSettings:
     """Resolve the shared `AppSettings` configured at application startup."""
-    return _resolve(request, "settings", label="AppSettings")  # type: ignore[return-value]
+    return resolve_app_state(request, "settings", AppSettings, label="AppSettings")
 
 
 def get_health_check_service(request: Request) -> HealthCheckService:
     """Resolve the shared `HealthCheckService` (Sprint 54) configured at application startup."""
-    return _resolve(request, "health_check_service", label="HealthCheckService")  # type: ignore[return-value]
+    return resolve_app_state(request, "health_check_service", HealthCheckService, label="HealthCheckService")
 
 
 def get_configuration_validation_service(request: Request) -> ConfigurationValidationService:
     """Resolve the shared `ConfigurationValidationService` (Sprint 54) configured at application startup."""
-    return _resolve(  # type: ignore[return-value]
-        request, "configuration_validation_service", label="ConfigurationValidationService"
+    return resolve_app_state(
+        request,
+        "configuration_validation_service",
+        ConfigurationValidationService,
+        label="ConfigurationValidationService",
     )
 
 
 def get_startup_validation_service(request: Request) -> StartupValidationService:
     """Resolve the shared `StartupValidationService` (Sprint 54) configured at application startup."""
-    return _resolve(request, "startup_validation_service", label="StartupValidationService")  # type: ignore[return-value]
+    return resolve_app_state(
+        request, "startup_validation_service", StartupValidationService, label="StartupValidationService"
+    )
 
 
 def get_repositories_map(request: Request) -> dict[str, object | None]:

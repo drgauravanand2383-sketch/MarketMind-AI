@@ -20,11 +20,8 @@ domain package if multi-instance deployment requires it.
 from __future__ import annotations
 
 import uuid
-from typing import Generic, TypeVar
 
 __all__ = ["InMemoryResultStore", "ResultNotFoundError"]
-
-T = TypeVar("T")
 
 
 class ResultNotFoundError(Exception):
@@ -42,7 +39,7 @@ class ResultNotFoundError(Exception):
         super().__init__(f"No {kind} found with id {result_id!r}.")
 
 
-class InMemoryResultStore(Generic[T]):
+class InMemoryResultStore[T]:
     """Stores values keyed by a freshly generated id."""
 
     def __init__(self, kind: str) -> None:

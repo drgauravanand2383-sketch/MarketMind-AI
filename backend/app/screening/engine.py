@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from app.screening.exceptions import (
@@ -73,7 +73,7 @@ class ScreeningEngine:
         self._check_filter_count(None, filters)
         await self._check_unique_name(name)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         profile = ScreeningProfile(
             id=str(uuid.uuid4()),
             name=name,
@@ -98,7 +98,7 @@ class ScreeningEngine:
         self._check_filter_count(profile.id, profile.filters)
         await self._check_unique_name(profile.name, ignore_profile_id=profile.id)
 
-        updated = profile.model_copy(update={"updated_at": datetime.now(timezone.utc)})
+        updated = profile.model_copy(update={"updated_at": datetime.now(UTC)})
         result = await self._repository.update_profile(updated)
         if result is None:
             raise ScreeningProfileNotFoundError(profile.id)

@@ -32,8 +32,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import MappingProxyType
+
+from pydantic import BaseModel
 
 from app.agents.news_collector.agent import NewsCollectorAgent
 from app.agents.news_collector.models import NewsCollectionRequest, NewsCollectionResult
@@ -174,7 +176,7 @@ class MorningPipeline:
             exception, with everything produced up to that point preserved
             in `stage_metrics` and `final_context`.
         """
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
         execution_id = context.execution_id
         working_context = context
         stage_metrics: list[StageMetric] = []
@@ -184,7 +186,7 @@ class MorningPipeline:
 
         # Stage 1: News Collector (internally invokes RSS Provider, and any
         # other registered providers, via its own ProviderRegistry).
-        stage_started = datetime.now(timezone.utc)
+        stage_started = datetime.now(UTC)
         try:
             collection_result = await self._news_collector.run(working_context, request)
         except Exception as exc:  # noqa: BLE001 - a fatal stage failure, recorded and halted
@@ -195,7 +197,7 @@ class MorningPipeline:
         working_context = self._advance(working_context, "news_collector", collection_result)
 
         # Stage 2: Knowledge Ingestion
-        stage_started = datetime.now(timezone.utc)
+        stage_started = datetime.now(UTC)
         try:
             ingestion_batch = self._ingestion_service.prepare_batch(collection_result)
         except Exception as exc:  # noqa: BLE001
@@ -206,7 +208,7 @@ class MorningPipeline:
         working_context = self._advance(working_context, "knowledge_ingestion", ingestion_batch)
 
         # Stage 3: Embedding Service
-        stage_started = datetime.now(timezone.utc)
+        stage_started = datetime.now(UTC)
         try:
             embedding_batch = self._embedding_service.prepare_batch(ingestion_batch.vector_documents)
         except Exception as exc:  # noqa: BLE001
@@ -217,7 +219,7 @@ class MorningPipeline:
         working_context = self._advance(working_context, "embedding_service", embedding_batch)
 
         # Stage 4: Embedding Provider
-        stage_started = datetime.now(timezone.utc)
+        stage_started = datetime.now(UTC)
         try:
             embedding_result = await self._embedding_provider.generate(embedding_batch)
         except Exception as exc:  # noqa: BLE001
@@ -229,7 +231,7 @@ class MorningPipeline:
 
         # Stage 5: Knowledge Repository (save this run's batch, then read
         # back the records it just persisted, for the stages that follow).
-        stage_started = datetime.now(timezone.utc)
+        stage_started = datetime.now(UTC)
         try:
             save_result = await self._knowledge_repository.save_batch(ingestion_batch, embedding_batch)
             records = await self._fetch_saved_records(ingestion_batch)
@@ -241,7 +243,7 @@ class MorningPipeline:
         working_context = self._advance(working_context, "knowledge_repository", save_result)
 
         # Stage 6: Evidence Engine
-        stage_started = datetime.now(timezone.utc)
+        stage_started = datetime.now(UTC)
         try:
             evidence_graph = self._evidence_engine.build_graph(records)
         except Exception as exc:  # noqa: BLE001
@@ -252,7 +254,7 @@ class MorningPipeline:
         working_context = self._advance(working_context, "evidence_engine", evidence_graph)
 
         # Stage 7: Market Intelligence Engine
-        stage_started = datetime.now(timezone.utc)
+        stage_started = datetime.now(UTC)
         try:
             market_intelligence = self._market_intelligence_engine.analyze(records)
         except Exception as exc:  # noqa: BLE001
@@ -269,7 +271,7 @@ class MorningPipeline:
         working_context = self._advance(working_context, "market_intelligence_engine", market_intelligence)
 
         # Stage 8: Relationship Engine
-        stage_started = datetime.now(timezone.utc)
+        stage_started = datetime.now(UTC)
         try:
             relationship_graph = self._relationship_engine.build_graph(market_intelligence)
         except Exception as exc:  # noqa: BLE001
@@ -288,7 +290,7 @@ class MorningPipeline:
             status=PipelineStatus.COMPLETED,
             execution_id=execution_id,
             started_at=started_at,
-            completed_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(UTC),
             stage_metrics=stage_metrics,
             final_context=working_context,
             evidence_graph=evidence_graph,
@@ -327,7 +329,7 @@ class MorningPipeline:
             1 for doc in ingestion_batch.vector_documents
             if doc.metadata.get("entity_resolved") is True
         )
-        duration_seconds = (datetime.now(timezone.utc) - started_at).total_seconds()
+        duration_seconds = (datetime.now(UTC) - started_at).total_seconds()
         provider_summary = collection_result.provider_summary
 
         _logger.info(
@@ -364,12 +366,12 @@ class MorningPipeline:
         return StageMetric(
             stage_name=stage_name,
             started_at=started_at,
-            completed_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(UTC),
             succeeded=succeeded,
             error=error,
         )
 
-    def _advance(self, context: ExecutionContext, stage_name: str, output: object) -> ExecutionContext:
+    def _advance(self, context: ExecutionContext, stage_name: str, output: BaseModel) -> ExecutionContext:
         """Advance the ExecutionContext to reflect one completed stage."""
         updated_outputs = dict(context.agent_outputs)
         updated_outputs[stage_name] = output
@@ -399,7 +401,7 @@ class MorningPipeline:
             agent_id=stage_name,
             error_type=type(error).__name__,
             error_message=str(error),
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=datetime.now(UTC),
         )
         context = replace(
             context,
@@ -411,7 +413,7 @@ class MorningPipeline:
             status=PipelineStatus.FAILED,
             execution_id=execution_id,
             started_at=started_at,
-            completed_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(UTC),
             stage_metrics=stage_metrics,
             final_context=context,
             failed_stage=stage_name,

@@ -6,7 +6,7 @@ operational script)."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.api.ws.connection_manager.manager import ConnectionManager
 from app.api.ws.event_models.event_type import EventType
@@ -36,7 +36,7 @@ def _context(execution_id: str = "exec-1") -> ExecutionContext:
         workflow_type="market_data_refresh",
         trigger=TriggerType.SCHEDULED,
         initiated_by="test",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
         trace_id=execution_id,
         participating_agents=(),
         status=WorkflowStatus.RUNNING,

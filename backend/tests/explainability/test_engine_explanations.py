@@ -8,8 +8,13 @@ from __future__ import annotations
 from app.explainability.engine import ExplainabilityService
 from app.explainability.models import AttributionCategory
 from app.risk.models import PortfolioExposure, RiskCategory, RiskSeverity
-from tests.explainability.conftest import make_candidate, make_risk_assessment, make_risk_metric, make_rule_alignment, make_strategy_match
-
+from tests.explainability.conftest import (
+    make_candidate,
+    make_risk_assessment,
+    make_risk_metric,
+    make_rule_alignment,
+    make_strategy_match,
+)
 
 # --- explain_recommendation -----------------------------------------------------------
 

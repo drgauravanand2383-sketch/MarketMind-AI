@@ -5,7 +5,7 @@ own regression tests)."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.repositories.risk.postgres.mapper import (
     assessment_to_model,
@@ -23,7 +23,7 @@ from app.risk.models import (
     RiskSeverity,
 )
 
-NOW = datetime(2026, 8, 11, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 11, tzinfo=UTC)
 
 
 def test_request_round_trips() -> None:

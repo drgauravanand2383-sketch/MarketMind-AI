@@ -8,7 +8,7 @@ alongside metadata describing what was accepted and what was rejected.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -23,7 +23,7 @@ __all__ = [
 ]
 
 
-class RejectionReason(str, Enum):
+class RejectionReason(StrEnum):
     """Why a NewsItem was excluded from an IngestionBatch."""
 
     MISSING_ID = "missing_id"

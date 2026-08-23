@@ -25,7 +25,6 @@ from tests.explainability.conftest import (
     make_strategy_match,
 )
 
-
 # --- Basic orchestration -----------------------------------------------------------
 
 

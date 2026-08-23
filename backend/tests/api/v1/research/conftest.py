@@ -8,7 +8,7 @@ test-substitution mechanism Sprint 57 used for `PortfolioIntelligenceAgent`.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi import FastAPI
@@ -47,7 +47,7 @@ class StubCompanyResearchAgent:
     async def run(self, context: object, input_data: CompanyResearchRequest) -> CompanyResearchReport:
         return CompanyResearchReport(
             request=input_data,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
             company_overview=CompanyOverview(
                 company_name=input_data.company_name, ticker=input_data.ticker,
                 matched=True, entity_recognized=True, mention_count=1,

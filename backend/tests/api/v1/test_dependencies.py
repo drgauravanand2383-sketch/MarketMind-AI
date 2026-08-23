@@ -5,7 +5,7 @@ constructed here."""
 from __future__ import annotations
 
 import pytest
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
 
 from app.api.v1.dependencies.state import (
     REPOSITORY_NAMES,

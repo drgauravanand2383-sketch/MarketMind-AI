@@ -166,7 +166,7 @@ async def run_screening(
     request: Request,
     body: RunScreeningRequest,
     engine: ScreeningEngine = Depends(get_screening_engine),
-    store: InMemoryResultStore = Depends(get_screening_result_store),
+    store: InMemoryResultStore[tuple[str, list[ScreenResult]]] = Depends(get_screening_result_store),
 ) -> SuccessResponse[ScreeningRunEnvelope]:
     profile = await engine.get_profile(body.profile_id)
     results: list[ScreenResult] = engine.evaluate_companies(profile, body.companies)
@@ -186,7 +186,7 @@ async def run_screening(
 async def get_screening_result(
     request: Request,
     result_id: uuid_module.UUID,
-    store: InMemoryResultStore = Depends(get_screening_result_store),
+    store: InMemoryResultStore[tuple[str, list[ScreenResult]]] = Depends(get_screening_result_store),
 ) -> SuccessResponse[ScreeningRunEnvelope]:
     profile_id, results = store.get(str(result_id))
     return build_success_response(

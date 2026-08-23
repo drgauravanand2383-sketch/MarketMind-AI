@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED, JobExecutionEvent
@@ -193,7 +193,7 @@ class APSchedulerService:
         raising or by returning success=False — never affects any other
         scheduled job, and the scheduler keeps running.
         """
-        self._last_execution_at = datetime.now(timezone.utc)
+        self._last_execution_at = datetime.now(UTC)
         if event.exception is not None:
             _logger.error(
                 "scheduled_workflow_errored",

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.agents.news_collector.normalizer import normalize_provider_result
 from app.providers.models import ProviderResult
@@ -15,7 +15,7 @@ def _rss_result(
     feed = RSSFeedData(feed_url=feed_url, feed_title="Sample Feed", entries=entries)
     return ProviderResult(
         provider_id="rss",
-        fetched_at=datetime.now(timezone.utc),
+        fetched_at=datetime.now(UTC),
         success=True,
         data=[feed],
     )
@@ -74,7 +74,7 @@ def test_normalize_multiple_entries_across_feeds() -> None:
     )
     feed2 = RSSFeedData(feed_url="https://b.com/feed.xml", entries=[RSSFeedEntry(title="B1")])
     result = ProviderResult(
-        provider_id="rss", fetched_at=datetime.now(timezone.utc), success=True, data=[feed1, feed2]
+        provider_id="rss", fetched_at=datetime.now(UTC), success=True, data=[feed1, feed2]
     )
 
     items = normalize_provider_result(result)
@@ -85,7 +85,7 @@ def test_normalize_multiple_entries_across_feeds() -> None:
 def test_normalize_returns_empty_list_for_unrecognized_provider() -> None:
     result = ProviderResult(
         provider_id="unknown-provider",
-        fetched_at=datetime.now(timezone.utc),
+        fetched_at=datetime.now(UTC),
         success=True,
         data=[{"whatever": "shape"}],
     )
@@ -154,7 +154,7 @@ def test_normalize_threads_configured_source_name_and_category() -> None:
         entries=[entry],
     )
     result = ProviderResult(
-        provider_id="rss", fetched_at=datetime.now(timezone.utc), success=True, data=[feed]
+        provider_id="rss", fetched_at=datetime.now(UTC), success=True, data=[feed]
     )
 
     items = normalize_provider_result(result)
@@ -176,6 +176,6 @@ def test_normalize_source_name_and_category_are_none_for_pre_priority_6_feed() -
 
 def test_normalize_handles_no_data() -> None:
     result = ProviderResult(
-        provider_id="rss", fetched_at=datetime.now(timezone.utc), success=True, data=None
+        provider_id="rss", fetched_at=datetime.now(UTC), success=True, data=None
     )
     assert normalize_provider_result(result) == []

@@ -4,7 +4,7 @@ normalization, and missing-field handling."""
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime, timezone
 
 import pytest
 
@@ -71,7 +71,7 @@ def test_normalize_exchange_unknown_falls_back_to_other(service: NormalizationSe
 def test_normalize_timestamp_naive_is_treated_as_utc(service: NormalizationService) -> None:
     naive = datetime(2026, 1, 1, 12, 0, 0)
     normalized = service.normalize_timestamp(naive)
-    assert normalized.tzinfo == timezone.utc
+    assert normalized.tzinfo == UTC
     assert normalized.hour == 12
 
 
@@ -83,7 +83,7 @@ def test_normalize_timestamp_converts_other_timezone_to_utc(service: Normalizati
 
     normalized = service.normalize_timestamp(aware)
 
-    assert normalized.tzinfo == timezone.utc
+    assert normalized.tzinfo == UTC
     assert normalized.hour == 12
 
 
@@ -169,7 +169,7 @@ def test_normalize_quote_respects_custom_precision(service: NormalizationService
 def test_normalize_quote_normalizes_naive_timestamp_to_utc(service: NormalizationService) -> None:
     quote = MarketQuote.model_construct(ticker="AAPL", price=100.0, timestamp=datetime(2026, 1, 1, 12, 0, 0))
     normalized = service.normalize_quote(quote)
-    assert normalized.timestamp.tzinfo == timezone.utc
+    assert normalized.timestamp.tzinfo == UTC
 
 
 def test_normalize_quote_leaves_none_optional_price_fields_alone(service: NormalizationService) -> None:

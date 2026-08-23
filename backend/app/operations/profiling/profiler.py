@@ -15,9 +15,9 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from types import TracebackType
-from typing import Callable
 
 from app.operations.profiling.models import ProfileSample
 
@@ -25,7 +25,7 @@ __all__ = ["BaseProfiler", "InMemoryProfiler"]
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class BaseProfiler(ABC):
@@ -36,7 +36,7 @@ class BaseProfiler(ABC):
         """Record one timing observation for `operation`."""
         raise NotImplementedError
 
-    def measure(self, operation: str) -> "_Measurement":
+    def measure(self, operation: str) -> _Measurement:
         """Return a context manager (sync or async) timing `operation`."""
         return _Measurement(self, operation)
 
@@ -49,7 +49,7 @@ class _Measurement:
         self._operation = operation
         self._start = 0.0
 
-    def __enter__(self) -> "_Measurement":
+    def __enter__(self) -> _Measurement:
         self._start = time.perf_counter()
         return self
 
@@ -58,7 +58,7 @@ class _Measurement:
     ) -> None:
         self._profiler.record(self._operation, time.perf_counter() - self._start)
 
-    async def __aenter__(self) -> "_Measurement":
+    async def __aenter__(self) -> _Measurement:
         self._start = time.perf_counter()
         return self
 

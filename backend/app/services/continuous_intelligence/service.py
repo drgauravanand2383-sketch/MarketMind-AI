@@ -50,8 +50,9 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from app.alerts.engine import AlertService
 from app.knowledge.hub import KnowledgeHub
@@ -90,7 +91,7 @@ _logger = logging.getLogger("marketmind.services.continuous_intelligence")
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class ContinuousIntelligenceService:
@@ -228,6 +229,12 @@ class ContinuousIntelligenceService:
 
             if snapshot_result is not None:
                 try:
+                    # A market snapshot exists for this entity only if it
+                    # already resolved to a ticker (quote fetching is
+                    # ticker-based) — this invariant, not a type gap, is
+                    # what `_detect_signals`'s own `ticker: str` (not
+                    # `str | None`) already assumes.
+                    assert reference.ticker is not None
                     signal_result = await self._detect_signals(entity_id, label, reference.ticker, snapshot_result)
                     decision_changes_detected += signal_result[0]
                     emitted.extend(signal_result[1])
@@ -305,7 +312,7 @@ class ContinuousIntelligenceService:
     # --- Per-category detection, each returning (count_detected, emitted, suppressed) -----------------------------------------------------------
 
     async def _detect_news(
-        self, entity_id: str, label: str, ticker: str
+        self, entity_id: str, label: str, ticker: str | None
     ) -> tuple[int, list[DetectedChange], list[DetectedChange]]:
         assert self._knowledge_hub is not None
         detected = 0

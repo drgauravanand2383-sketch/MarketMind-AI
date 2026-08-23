@@ -12,7 +12,7 @@ from __future__ import annotations
 import uuid
 from collections import Counter
 from collections.abc import Iterable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from app.watchlist.exceptions import (
@@ -45,7 +45,7 @@ class WatchlistService:
     async def create_watchlist(self, name: str, description: str = "") -> Watchlist:
         """Create a new watchlist. Raises `WatchlistValidationError` if `name` is blank."""
         _require_non_blank(name, field_name="name")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         watchlist = Watchlist(
             id=str(uuid.uuid4()), name=name, description=description, created_at=now, updated_at=now
         )

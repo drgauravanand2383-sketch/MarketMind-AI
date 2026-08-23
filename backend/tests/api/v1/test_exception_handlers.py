@@ -19,7 +19,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.v1.exception_handlers import register_exception_handlers
-from app.risk.exceptions import RiskAssessmentNotFoundError, DuplicateRiskRequestNameError, RiskAnalyticsError
+from app.risk.exceptions import DuplicateRiskRequestNameError, RiskAnalyticsError, RiskAssessmentNotFoundError
 from app.watchlist.exceptions import WatchlistServiceError
 
 

@@ -3,7 +3,7 @@ duplicate detection, and event-type/correlation-id matching."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.alerts.models import Alert, AlertPriority, AlertStatus
 from app.api.ws.event_models.event_type import EventType
@@ -12,7 +12,7 @@ from app.api.ws.subscriptions.models import Subscription
 from app.api.ws.subscriptions.registry import SubscriptionRegistry
 from app.recommendations.models import RecommendationResult, RecommendationSummary
 
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 
 
 def _alert_event(correlation_id: str = "a1") -> AlertEvent:

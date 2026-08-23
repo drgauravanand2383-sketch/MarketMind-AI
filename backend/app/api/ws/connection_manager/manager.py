@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import WebSocket
 
@@ -40,7 +40,7 @@ class ConnectionManager:
         """Accept `websocket` and register a new connection for `principal`. Returns the new connection id."""
         await websocket.accept()
         connection_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         self._connections[connection_id] = WebSocketConnection(
             connection_id=connection_id, websocket=websocket, principal=principal, connected_at=now, last_heartbeat_at=now
         )
@@ -59,7 +59,7 @@ class ConnectionManager:
         connection = self._connections.get(connection_id)
         if connection is None:
             return False
-        connection.last_heartbeat_at = datetime.now(timezone.utc)
+        connection.last_heartbeat_at = datetime.now(UTC)
         return True
 
     def subscribe(self, connection_id: str, subscription: Subscription) -> bool:
@@ -115,7 +115,7 @@ class ConnectionManager:
         if connection is None:
             return False
         envelope = EventEnvelope(
-            metadata=EventMetadata(connection_id=connection_id, delivered_at=datetime.now(timezone.utc)),
+            metadata=EventMetadata(connection_id=connection_id, delivered_at=datetime.now(UTC)),
             event=event,
         )
         try:

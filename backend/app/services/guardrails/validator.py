@@ -9,6 +9,7 @@ LLM-response post-processing layer.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from pydantic import BaseModel
@@ -105,7 +106,7 @@ class OutputValidator:
         )
 
     @staticmethod
-    def _to_issue(error: dict[str, Any]) -> ValidationIssue:
+    def _to_issue(error: Mapping[str, Any]) -> ValidationIssue:
         loc = error.get("loc", ())
         field = ".".join(str(part) for part in loc) if loc else None
         return ValidationIssue(field=field, severity="error", message=error["msg"])

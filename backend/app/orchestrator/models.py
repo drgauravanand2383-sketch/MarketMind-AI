@@ -20,7 +20,7 @@ dependency cycle).
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -38,7 +38,7 @@ __all__ = [
 ]
 
 
-class ExecutionStatus(str, Enum):
+class ExecutionStatus(StrEnum):
     """The terminal state of one task's execution."""
 
     SUCCESS = "success"

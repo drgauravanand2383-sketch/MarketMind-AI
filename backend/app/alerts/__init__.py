@@ -10,6 +10,7 @@ are implemented in a future sprint.
 
 from __future__ import annotations
 
+from app.alerts.engine import AlertService
 from app.alerts.exceptions import (
     AlertEngineError,
     AlertNotFoundError,
@@ -28,7 +29,6 @@ from app.alerts.models import (
     AlertStatus,
     NotificationChannel,
 )
-from app.alerts.engine import AlertService
 
 __all__ = [
     "AlertService",

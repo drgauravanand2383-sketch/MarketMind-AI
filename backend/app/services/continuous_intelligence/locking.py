@@ -43,8 +43,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Callable, Protocol
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+from typing import Protocol
 
 from app.repositories.continuous_intelligence.repository import (
     BaseContinuousIntelligenceStateRepository,
@@ -59,7 +60,7 @@ DEFAULT_LOCK_TTL_SECONDS = 300.0
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class CycleLock(Protocol):

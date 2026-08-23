@@ -66,7 +66,7 @@ def _live_market_data_available(request: Request) -> bool:
     description="Which major backend capability areas this deployment currently supports.",
 )
 async def get_capabilities(
-    request: Request, services: dict = Depends(get_services_map)
+    request: Request, services: dict[str, object | None] = Depends(get_services_map)
 ) -> SuccessResponse[CapabilitiesResponse]:
     capabilities: dict[str, bool] = {
         capability: services.get(service_name) is not None

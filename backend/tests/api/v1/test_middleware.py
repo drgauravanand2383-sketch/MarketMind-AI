@@ -11,7 +11,6 @@ from fastapi.testclient import TestClient
 from app.api.v1.middleware.request_id import REQUEST_ID_HEADER
 from app.api.v1.middleware.timing import PROCESS_TIME_HEADER
 
-
 # --- Request ID -----------------------------------------------------------
 
 
@@ -157,7 +156,6 @@ def test_security_headers_present_even_on_error_responses(client: TestClient) ->
 
 
 def test_csp_is_sent_when_configured() -> None:
-    from fastapi import FastAPI
 
     from app.api.v1.middleware.security_headers import SecurityHeadersMiddleware
     from app.config.models import SecurityHeadersSettings
@@ -179,7 +177,6 @@ def test_csp_is_sent_when_configured() -> None:
 
 
 def test_hsts_is_sent_when_enabled() -> None:
-    from fastapi import FastAPI
 
     from app.api.v1.middleware.security_headers import SecurityHeadersMiddleware
     from app.config.models import SecurityHeadersSettings

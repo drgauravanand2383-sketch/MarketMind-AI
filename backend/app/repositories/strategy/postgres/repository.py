@@ -12,10 +12,10 @@ aiosqlite) in tests.
 from __future__ import annotations
 
 import copy as copy_module
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import desc, select
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.repositories.strategy.postgres.mapper import (
     evaluation_to_model,
@@ -34,7 +34,7 @@ __all__ = ["PostgresStrategyRepository"]
 
 
 class PostgresStrategyRepository(BaseStrategyRepository):
-    def __init__(self, session_factory: async_sessionmaker) -> None:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         """Initialize the repository.
 
         Args:
@@ -93,7 +93,7 @@ class PostgresStrategyRepository(BaseStrategyRepository):
             source = await session.get(InvestmentStrategyModel, strategy_id)
             if source is None:
                 return None
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             new_model = InvestmentStrategyModel(
                 id=new_strategy_id,
                 name=new_name,

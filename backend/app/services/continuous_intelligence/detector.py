@@ -19,7 +19,7 @@ emit an event simply because a scheduler ran."
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.recommendations.models import RecommendationCandidate, RecommendationType
 from app.risk.models import RiskAssessment
@@ -43,7 +43,7 @@ _MARKET_DATA_PRESENT = (MarketSnapshotStatus.FRESH, MarketSnapshotStatus.STALE)
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class ChangeDetectionService:

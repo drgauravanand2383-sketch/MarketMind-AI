@@ -9,10 +9,10 @@ mapper.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Select, or_, select
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.repositories.knowledge.models import (
     DeleteResult,
@@ -46,7 +46,7 @@ class PostgresKnowledgeRepository(BaseKnowledgeRepository):
         - "start_date" / "end_date": `datetime` bounds on `published_at_parsed`.
     """
 
-    def __init__(self, session_factory: async_sessionmaker) -> None:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         """Initialize the repository.
 
         Args:
@@ -83,7 +83,7 @@ class PostgresKnowledgeRepository(BaseKnowledgeRepository):
 
         return SaveResult(
             batch_id=ingestion_batch.ingestion_metadata.batch_id,
-            saved_at=datetime.now(timezone.utc),
+            saved_at=datetime.now(UTC),
             vector_count=0,
             relational_count=0 if errors else len(records),
             success=not errors,

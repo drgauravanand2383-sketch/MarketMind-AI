@@ -7,9 +7,7 @@ status instead), and existing evidence/news behavior is unaffected.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
-
-import pytest
+from datetime import UTC, date, datetime
 
 from app.agents.company_research.agent import CompanyResearchAgent
 from app.agents.company_research.models import CompanyResearchRequest
@@ -102,7 +100,7 @@ class _FakeMarketDataProvider(MarketDataProvider):
         return "Fake Provider"
 
     async def health(self) -> ProviderHealth:
-        return ProviderHealth(provider="Fake Provider", status=ProviderHealthStatus.HEALTHY, last_updated=datetime.now(timezone.utc))
+        return ProviderHealth(provider="Fake Provider", status=ProviderHealthStatus.HEALTHY, last_updated=datetime.now(UTC))
 
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities()
@@ -110,7 +108,7 @@ class _FakeMarketDataProvider(MarketDataProvider):
 
 def _quote() -> MarketQuote:
     return MarketQuote(
-        ticker="DELL", price=494.51, timestamp=datetime.now(timezone.utc),
+        ticker="DELL", price=494.51, timestamp=datetime.now(UTC),
         previous_close=484.5, change=10.01, change_percent=2.07,
         currency=Currency.USD, exchange=Exchange.NYSE,
     )
@@ -127,7 +125,7 @@ def _snapshot_service(provider: MarketDataProvider) -> MarketSnapshotService:
 def _context() -> ExecutionContext:
     return ExecutionContext(
         workflow_id="WF-COMPANY-RESEARCH", execution_id="exec-1", workflow_type="company_research",
-        trigger=TriggerType.USER_REQUEST, initiated_by="test", started_at=datetime.now(timezone.utc),
+        trigger=TriggerType.USER_REQUEST, initiated_by="test", started_at=datetime.now(UTC),
         trace_id="trace-1", participating_agents=("AGT-004",), status=WorkflowStatus.RUNNING,
     )
 

@@ -9,16 +9,17 @@ anything.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+import contextlib
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from app.core.context import TriggerType, WorkflowStatus
 from app.scheduler.scheduler import (
-    Scheduler,
     ScheduleAlreadyRegisteredError,
     ScheduleDisabledError,
     ScheduleNotRegisteredError,
+    Scheduler,
 )
 from tests.scheduler.conftest import (
     cron_schedule,
@@ -69,10 +70,8 @@ def test_duplicate_registration_does_not_replace_existing_schedule() -> None:
     first = interval_schedule("morning_brief", interval_seconds=60.0)
     scheduler.register_schedule(first)
 
-    try:
+    with contextlib.suppress(ScheduleAlreadyRegisteredError):
         scheduler.register_schedule(interval_schedule("morning_brief", interval_seconds=999.0))
-    except ScheduleAlreadyRegisteredError:
-        pass
 
     assert scheduler.list_schedules() == [first]
 
@@ -127,9 +126,9 @@ async def test_run_schedule_builds_execution_context_with_expected_fields() -> N
     scheduler = Scheduler(engine)
     scheduler.register_schedule(interval_schedule("morning_brief", initiated_by="cron-runner"))
 
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     record = await scheduler.run_schedule("morning_brief")
-    after = datetime.now(timezone.utc)
+    after = datetime.now(UTC)
 
     context = engine.execute.call_args.args[1]
     assert context.workflow_id == "morning_brief"
@@ -247,7 +246,7 @@ async def test_run_all_due_reruns_once_the_interval_has_elapsed() -> None:
     assert len(first) == 1
 
     stale_record = scheduler._last_execution["morning_brief"].model_copy(
-        update={"triggered_at": datetime.now(timezone.utc) - timedelta(seconds=120)}
+        update={"triggered_at": datetime.now(UTC) - timedelta(seconds=120)}
     )
     scheduler._last_execution["morning_brief"] = stale_record
 

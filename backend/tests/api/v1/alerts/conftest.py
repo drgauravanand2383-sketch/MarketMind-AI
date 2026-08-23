@@ -10,7 +10,7 @@ sprint, so tests seed `AlertRule`s directly via `AlertService.create_rule()`.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi import FastAPI
@@ -35,7 +35,7 @@ from tests.api.v1._auth_fixtures import (  # noqa: F401 - re-exported as fixture
     make_authenticated_headers,
 )
 
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 
 ALL_ALERT_PERMISSIONS = ("alerts:read", "alerts:evaluate")
 

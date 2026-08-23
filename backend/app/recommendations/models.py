@@ -56,7 +56,7 @@ alone.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -81,7 +81,7 @@ __all__ = [
 ]
 
 
-class RecommendationType(str, Enum):
+class RecommendationType(StrEnum):
     STRONG_BUY = "STRONG_BUY"
     BUY = "BUY"
     WATCH = "WATCH"

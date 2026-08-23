@@ -18,10 +18,18 @@ the caller (`app.bootstrap.bootstrap_application_state`) passes in.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 
-from app.config.models import AnthropicSettings, APISettings, AuthSettings, LLMSettings, LoggingSettings, PostgreSQLSettings, RSSSettings
+from app.config.models import (
+    AnthropicSettings,
+    APISettings,
+    AuthSettings,
+    LLMSettings,
+    LoggingSettings,
+    PostgreSQLSettings,
+    RSSSettings,
+)
 from app.operations.migrations.discovery import collect_table_names, duplicate_table_names
 from app.operations.validation._report import build_report
 from app.operations.validation.configuration import ConfigurationValidationService
@@ -57,7 +65,7 @@ DEFAULT_REQUIRED_COMPONENTS: frozenset[str] = frozenset(
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class StartupValidationService:

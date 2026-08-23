@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 import pytest
 
 from app.prompts.exceptions import TemplateAlreadyRegisteredError, TemplateNotFoundError
@@ -53,10 +55,8 @@ def test_duplicate_registration_does_not_replace_existing_template() -> None:
     first = build_template(version=1, description="first")
     registry.register(first)
 
-    try:
+    with contextlib.suppress(TemplateAlreadyRegisteredError):
         registry.register(build_template(version=1, description="second"))
-    except TemplateAlreadyRegisteredError:
-        pass
 
     assert registry.get("company_research", 1).description == "first"
 

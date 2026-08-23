@@ -10,7 +10,7 @@ provider-specific or SDK type.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -25,7 +25,7 @@ __all__ = [
 ]
 
 
-class ConversationRole(str, Enum):
+class ConversationRole(StrEnum):
     """A single conversation turn's speaker."""
 
     USER = "user"

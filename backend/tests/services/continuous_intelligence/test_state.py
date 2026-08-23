@@ -15,7 +15,7 @@ just a single store instance).
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -33,7 +33,7 @@ from app.services.continuous_intelligence.state import (
 )
 from app.services.market_snapshot.models import MarketSnapshot
 
-NOW = datetime(2026, 8, 15, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 15, tzinfo=UTC)
 
 
 def _snapshot(price: float) -> MarketSnapshot:

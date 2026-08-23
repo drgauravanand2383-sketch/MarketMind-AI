@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from app.recommendations.models import RecommendationCandidate, RecommendationResult, RecommendationSummary, RecommendationType
+from app.recommendations.models import (
+    RecommendationCandidate,
+    RecommendationResult,
+    RecommendationSummary,
+    RecommendationType,
+)
 from app.strategy.models import InvestmentStrategy, StrategyRule, StrategyWeighting
 
-NOW = datetime(2026, 8, 10, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 10, tzinfo=UTC)
 
 
 def make_rule(

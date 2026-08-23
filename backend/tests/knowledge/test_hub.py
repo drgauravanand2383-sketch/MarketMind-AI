@@ -6,7 +6,7 @@ or SQLite is required anywhere in this file.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
@@ -102,8 +102,8 @@ async def test_search_with_date_range_filters_routes_structured() -> None:
     repo.search.return_value = []
     hub = KnowledgeHub(repo)
 
-    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    end = datetime(2026, 12, 31, tzinfo=timezone.utc)
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    end = datetime(2026, 12, 31, tzinfo=UTC)
     await hub.search(KnowledgeSearchFilters(start_date=start, end_date=end))
 
     called_query = repo.search.call_args.args[0]
@@ -182,8 +182,8 @@ async def test_search_with_no_results_returns_empty_list() -> None:
 def test_filters_reject_start_date_after_end_date() -> None:
     with pytest.raises(ValidationError):
         KnowledgeSearchFilters(
-            start_date=datetime(2026, 12, 31, tzinfo=timezone.utc),
-            end_date=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            start_date=datetime(2026, 12, 31, tzinfo=UTC),
+            end_date=datetime(2026, 1, 1, tzinfo=UTC),
         )
 
 
@@ -199,8 +199,8 @@ def test_filters_reject_unknown_fields() -> None:
 
 def test_filters_accept_a_valid_date_range() -> None:
     filters = KnowledgeSearchFilters(
-        start_date=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        end_date=datetime(2026, 12, 31, tzinfo=timezone.utc),
+        start_date=datetime(2026, 1, 1, tzinfo=UTC),
+        end_date=datetime(2026, 12, 31, tzinfo=UTC),
     )
     assert filters.start_date is not None
     assert filters.end_date is not None

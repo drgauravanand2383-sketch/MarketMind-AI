@@ -8,7 +8,7 @@ EvidenceGraph, MarketIntelligence, and RelationshipGraph data.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.agents.company_research.models import (
     CompanyOverview,
@@ -177,7 +177,7 @@ def build_report(
 
     return CompanyResearchReport(
         request=request,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         company_overview=company_overview,
         latest_news=latest_news,
         market_intelligence=market_intelligence_summary,

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.screening.models import LogicalGroup, ScreenFilter, ScreeningProfile, ScreenOperator
 
-NOW = datetime(2026, 8, 6, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 6, tzinfo=UTC)
 
 
 def make_filter(

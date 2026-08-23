@@ -6,7 +6,7 @@ module — every external boundary is a lightweight, in-memory stub.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.agents.news_collector.agent import NewsCollectorAgent
 from app.core.context import ExecutionContext, TriggerType, WorkflowStatus
@@ -71,7 +71,7 @@ class MockAppleRSSProvider(BaseProvider):
         feed = RSSFeedData(feed_url="https://example.com/feed.xml", entries=[entry])
         return ProviderResult(
             provider_id=self.provider_id,
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
             success=True,
             data=[feed],
         )
@@ -100,7 +100,7 @@ class NoIdRSSProvider(BaseProvider):
         feed = RSSFeedData(feed_url="https://example.com/feed.xml", entries=[entry])
         return ProviderResult(
             provider_id=self.provider_id,
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
             success=True,
             data=[feed],
         )
@@ -162,7 +162,7 @@ class InMemoryKnowledgeRepository(BaseKnowledgeRepository):
             )
         return SaveResult(
             batch_id=ingestion_batch.ingestion_metadata.batch_id,
-            saved_at=datetime.now(timezone.utc),
+            saved_at=datetime.now(UTC),
             vector_count=len(embedding_batch.chunks),
             relational_count=len(ingestion_batch.relational_records),
             success=True,
@@ -211,7 +211,7 @@ def context(execution_id: str = "exec-1") -> ExecutionContext:
         workflow_type="morning_intelligence_pipeline",
         trigger=TriggerType.SCHEDULED,
         initiated_by="test",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
         trace_id=execution_id,
         participating_agents=(),
         status=WorkflowStatus.RUNNING,

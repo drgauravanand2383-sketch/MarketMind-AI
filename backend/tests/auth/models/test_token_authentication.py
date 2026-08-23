@@ -3,7 +3,7 @@ AuthenticationResponse/AuthenticatedPrincipal domain models."""
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
@@ -16,7 +16,7 @@ from app.auth.models.authentication import (
 from app.auth.models.token import AccessToken, RefreshToken
 from app.auth.models.user import User
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 def test_access_token_defaults_token_type_to_bearer() -> None:

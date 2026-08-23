@@ -21,11 +21,11 @@ _BEARER_PREFIX = "Bearer "
 def _extract_token(websocket: WebSocket) -> str | None:
     authorization_header = websocket.headers.get("authorization")
     if authorization_header and authorization_header.startswith(_BEARER_PREFIX):
-        token = authorization_header[len(_BEARER_PREFIX) :].strip()
-        if token:
-            return token
-    token = websocket.query_params.get("token")
-    return token or None
+        bearer_token = authorization_header[len(_BEARER_PREFIX) :].strip()
+        if bearer_token:
+            return bearer_token
+    query_token = websocket.query_params.get("token")
+    return query_token or None
 
 
 async def authenticate_websocket(

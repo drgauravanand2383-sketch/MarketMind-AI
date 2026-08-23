@@ -215,8 +215,17 @@ class AnthropicProvider(BaseLLMProvider):
         malformed response, not allowed to propagate as a raw AttributeError.
         """
         try:
+            # `block.text` only runs after the `getattr(..., "type") == "text"`
+            # guard, which is a real runtime discriminant over the SDK's own
+            # 10+-member content-block union — but mypy cannot narrow a Union
+            # from a `getattr` comparison the way it can from `isinstance`.
+            # Already inside this method's own malformed-response handling
+            # (see docstring): a genuinely wrong assumption here still raises
+            # AttributeError, still caught below, never propagates raw.
             content = "".join(
-                block.text for block in message.content if getattr(block, "type", None) == "text"
+                block.text  # type: ignore[union-attr]
+                for block in message.content
+                if getattr(block, "type", None) == "text"
             )
             return MessageResponse(
                 content=content,

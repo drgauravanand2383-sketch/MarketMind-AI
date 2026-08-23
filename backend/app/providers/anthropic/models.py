@@ -11,7 +11,7 @@ the one sanctioned bridge from `app.config.models.AnthropicSettings`
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
@@ -27,7 +27,7 @@ __all__ = [
 ]
 
 
-class ConversationRole(str, Enum):
+class ConversationRole(StrEnum):
     """A single conversation turn's speaker, matching Anthropic's Messages API roles."""
 
     USER = "user"

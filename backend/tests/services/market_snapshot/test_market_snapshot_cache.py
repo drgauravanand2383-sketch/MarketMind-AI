@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -11,7 +11,7 @@ from app.services.market_snapshot.models import MarketSnapshot
 
 
 def _snapshot(entity_id: str = "dell", fetched_at: datetime | None = None) -> MarketSnapshot:
-    now = fetched_at or datetime.now(timezone.utc)
+    now = fetched_at or datetime.now(UTC)
     return MarketSnapshot(
         entity_id=entity_id,
         canonical_name="Dell Technologies Inc.",
@@ -43,14 +43,14 @@ def test_deterministic_key_is_entity_id_not_ticker() -> None:
 
 def test_is_fresh_true_within_ttl() -> None:
     cache = InMemoryMarketSnapshotCache(ttl_seconds=60.0)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     snapshot = _snapshot(fetched_at=now)
     assert cache.is_fresh(snapshot, now=now + timedelta(seconds=30)) is True
 
 
 def test_is_fresh_false_past_ttl() -> None:
     cache = InMemoryMarketSnapshotCache(ttl_seconds=60.0)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     snapshot = _snapshot(fetched_at=now)
     assert cache.is_fresh(snapshot, now=now + timedelta(seconds=61)) is False
 
@@ -60,7 +60,7 @@ def test_is_fresh_compares_against_fetched_at_not_quoted_at() -> None:
     (e.g. fetched right after market close) — freshness is about when
     *we* cached it, not the provider's own quote time."""
     cache = InMemoryMarketSnapshotCache(ttl_seconds=60.0)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     snapshot = MarketSnapshot(
         entity_id="dell", canonical_name="Dell Technologies Inc.", ticker="DELL",
         price=494.51, quoted_at=now - timedelta(hours=5), fetched_at=now, provider="Yahoo Finance",

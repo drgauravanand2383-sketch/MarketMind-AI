@@ -44,7 +44,7 @@ the root."
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -66,7 +66,7 @@ __all__ = [
 ]
 
 
-class SignalOperator(str, Enum):
+class SignalOperator(StrEnum):
     EQUALS = "EQUALS"
     NOT_EQUALS = "NOT_EQUALS"
     GREATER_THAN = "GREATER_THAN"
@@ -78,12 +78,12 @@ class SignalOperator(str, Enum):
     NOT_IN = "NOT_IN"
 
 
-class SignalLogicType(str, Enum):
+class SignalLogicType(StrEnum):
     AND = "AND"
     OR = "OR"
 
 
-class SignalCategory(str, Enum):
+class SignalCategory(StrEnum):
     TECHNICAL = "TECHNICAL"
     FUNDAMENTAL = "FUNDAMENTAL"
     VALUATION = "VALUATION"
@@ -94,7 +94,7 @@ class SignalCategory(str, Enum):
     CUSTOM = "CUSTOM"
 
 
-class SignalPriority(str, Enum):
+class SignalPriority(StrEnum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"

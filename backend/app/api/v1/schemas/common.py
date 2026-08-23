@@ -16,8 +16,7 @@ models, independent of every domain package's own Pydantic models.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from typing import Generic, TypeVar
+from datetime import UTC, datetime
 
 from fastapi import Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -29,8 +28,6 @@ __all__ = [
     "ValidationErrorResponse",
     "PaginatedResponse",
 ]
-
-T = TypeVar("T")
 
 API_VERSION = "v1"
 
@@ -45,7 +42,7 @@ class MetadataResponse(BaseModel):
     api_version: str = API_VERSION
 
 
-class SuccessResponse(BaseModel, Generic[T]):
+class SuccessResponse[T](BaseModel):
     """The envelope for every successful `/api/v1` response."""
 
     model_config = ConfigDict(extra="forbid")
@@ -90,7 +87,7 @@ class ValidationErrorResponse(BaseModel):
     meta: MetadataResponse
 
 
-class PaginatedResponse(BaseModel, Generic[T]):
+class PaginatedResponse[T](BaseModel):
     """The envelope for a paginated `/api/v1` list response. No endpoint
     in this sprint returns a paginated list yet (every Sprint 55 endpoint
     is a single-object status/introspection response) — this exists as
@@ -108,7 +105,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
 
 
 def build_metadata(request_id: str, *, now: datetime | None = None) -> MetadataResponse:
-    return MetadataResponse(request_id=request_id, timestamp=now or datetime.now(timezone.utc))
+    return MetadataResponse(request_id=request_id, timestamp=now or datetime.now(UTC))
 
 
 def request_id_of(request: Request) -> str:
@@ -119,7 +116,7 @@ def request_id_of(request: Request) -> str:
     return getattr(request.state, "request_id", None) or str(uuid.uuid4())
 
 
-def build_success_response(data: T, request: Request) -> SuccessResponse[T]:
+def build_success_response[T](data: T, request: Request) -> SuccessResponse[T]:
     """Wrap `data` in the standard `SuccessResponse` envelope, populating
     `meta` from the current request."""
     return SuccessResponse(data=data, meta=build_metadata(request_id_of(request)))

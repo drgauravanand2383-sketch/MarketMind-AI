@@ -13,11 +13,12 @@ a background job: the check only ever runs in response to a real inbound
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.api.v1.dependencies.state import get_health_check_service, get_repositories_map, get_services_map
 from app.api.v1.schemas.common import SuccessResponse, build_success_response
-from app.api.ws.dependencies.services import get_event_publisher
 from app.api.ws.publishers.event_publisher import EventPublisher
 from app.operations.health.models import ApplicationHealth, ReadinessStatus
 from app.operations.health.service import HealthCheckService
@@ -45,8 +46,8 @@ router = APIRouter(tags=["Health"])
 async def get_health(
     request: Request,
     health_service: HealthCheckService = Depends(get_health_check_service),
-    repositories: dict = Depends(get_repositories_map),
-    services: dict = Depends(get_services_map),
+    repositories: dict[str, Any] = Depends(get_repositories_map),
+    services: dict[str, object | None] = Depends(get_services_map),
 ) -> SuccessResponse[ApplicationHealth]:
     health = await health_service.check_application(repositories, services)
 
@@ -83,8 +84,8 @@ async def get_ready(
     request: Request,
     response: Response,
     health_service: HealthCheckService = Depends(get_health_check_service),
-    repositories: dict = Depends(get_repositories_map),
-    services: dict = Depends(get_services_map),
+    repositories: dict[str, Any] = Depends(get_repositories_map),
+    services: dict[str, object | None] = Depends(get_services_map),
 ) -> SuccessResponse[ReadinessStatus]:
     readiness = await health_service.check_readiness(repositories, services)
     if not readiness.ready:

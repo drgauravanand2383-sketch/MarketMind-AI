@@ -9,16 +9,24 @@ rules/channels, cooldown/deduplication) are enforced at this layer.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.alerts.models import Alert, AlertCondition, AlertOperator, AlertPriority, AlertRule, AlertStatus, NotificationChannel
+from app.alerts.models import (
+    Alert,
+    AlertCondition,
+    AlertOperator,
+    AlertPriority,
+    AlertRule,
+    AlertStatus,
+    NotificationChannel,
+)
 from app.repositories.alerts.postgres.models import Base
 from app.repositories.alerts.postgres.repository import PostgresAlertRepository, PostgresAlertRuleRepository
 
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 
 
 @pytest.fixture

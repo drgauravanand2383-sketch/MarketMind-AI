@@ -108,7 +108,7 @@ class YahooFinanceProviderConfig(BaseModel):
     unavailable_after_consecutive_failures: int = Field(default=8, ge=1)
 
     @model_validator(mode="after")
-    def _validate_failure_thresholds(self) -> "YahooFinanceProviderConfig":
+    def _validate_failure_thresholds(self) -> YahooFinanceProviderConfig:
         if self.unavailable_after_consecutive_failures < self.degraded_after_consecutive_failures:
             raise ValueError(
                 "unavailable_after_consecutive_failures must be >= degraded_after_consecutive_failures; "
@@ -437,22 +437,20 @@ class YahooFinanceProvider(MarketDataProvider):
 
         bars: list[HistoricalPrice] = []
         for index, ts in enumerate(timestamps):
-            values = (
-                opens[index] if index < len(opens) else None,
-                highs[index] if index < len(highs) else None,
-                lows[index] if index < len(lows) else None,
-                closes[index] if index < len(closes) else None,
-            )
-            if any(value is None for value in values):
+            bar_open = opens[index] if index < len(opens) else None
+            bar_high = highs[index] if index < len(highs) else None
+            bar_low = lows[index] if index < len(lows) else None
+            bar_close = closes[index] if index < len(closes) else None
+            if bar_open is None or bar_high is None or bar_low is None or bar_close is None:
                 continue  # a non-trading interval bar — skipped, never fabricated
             has_volume = index < len(volumes) and volumes[index] is not None
             bars.append(
                 HistoricalPrice(
                     date=datetime.fromtimestamp(ts, tz=UTC),
-                    open=values[0],
-                    high=values[1],
-                    low=values[2],
-                    close=values[3],
+                    open=bar_open,
+                    high=bar_high,
+                    low=bar_low,
+                    close=bar_close,
                     volume=int(volumes[index]) if has_volume else 0,
                 )
             )

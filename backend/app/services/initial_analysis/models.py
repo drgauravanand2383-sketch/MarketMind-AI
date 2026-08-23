@@ -13,14 +13,14 @@ already exist, unchanged, in `app.risk.models`/`app.recommendations.models`).
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
 __all__ = ["InitialAnalysisStatus", "InitialAnalysisState"]
 
 
-class InitialAnalysisStatus(str, Enum):
+class InitialAnalysisStatus(StrEnum):
     """Where one portfolio's initial-analysis job currently stands.
 
     `ANALYZING`: dispatched, not yet complete (or currently retrying).

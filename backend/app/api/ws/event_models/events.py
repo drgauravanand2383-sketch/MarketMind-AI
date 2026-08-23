@@ -5,7 +5,7 @@ directly; no event model duplicates or recomputes business data.
 
 from __future__ import annotations
 
-from typing import Literal, Union
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -48,7 +48,7 @@ class RecommendationEvent(BaseEvent[RecommendationResult]):
     event_type: Literal[EventType.RECOMMENDATION_GENERATED] = EventType.RECOMMENDATION_GENERATED
 
 
-class BacktestEvent(BaseEvent[Union[BacktestRun, BacktestResult]]):
+class BacktestEvent(BaseEvent[BacktestRun | BacktestResult]):
     """Covers both `BACKTEST_STARTED` (payload: `BacktestRun`, still
     running) and `BACKTEST_COMPLETED` (payload: `BacktestResult`) —
     the one event type in this framework with two possible `event_type`
@@ -110,20 +110,20 @@ class PortfolioIntelligenceChangedEvent(BaseEvent[DetectedChange]):
     event_type: Literal[EventType.PORTFOLIO_INTELLIGENCE_CHANGED] = EventType.PORTFOLIO_INTELLIGENCE_CHANGED
 
 
-AnyEvent = Union[
-    AlertEvent,
-    RecommendationEvent,
-    BacktestEvent,
-    StrategyEvent,
-    RiskEvent,
-    ExplainabilityEvent,
-    HealthEvent,
-    MarketSnapshotEvent,
-    PortfolioIntelligenceEvent,
-    SignificantMarketChangeEvent,
-    SignificantNewsUpdateEvent,
-    PortfolioIntelligenceChangedEvent,
-]
+AnyEvent = (
+    AlertEvent
+    | RecommendationEvent
+    | BacktestEvent
+    | StrategyEvent
+    | RiskEvent
+    | ExplainabilityEvent
+    | HealthEvent
+    | MarketSnapshotEvent
+    | PortfolioIntelligenceEvent
+    | SignificantMarketChangeEvent
+    | SignificantNewsUpdateEvent
+    | PortfolioIntelligenceChangedEvent
+)
 
 
 class EventEnvelope(BaseModel):

@@ -10,6 +10,7 @@ in this package — alignment scoring and explainability only.
 
 from __future__ import annotations
 
+from app.strategy.engine import StrategyEvaluationService
 from app.strategy.exceptions import (
     DuplicateStrategyNameError,
     MaxStrategiesExceededError,
@@ -30,7 +31,6 @@ from app.strategy.models import (
     StrategyType,
     StrategyWeighting,
 )
-from app.strategy.engine import StrategyEvaluationService
 
 __all__ = [
     "StrategyEvaluationService",

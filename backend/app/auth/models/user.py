@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -23,7 +23,7 @@ __all__ = ["UserStatus", "User"]
 _EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
-class UserStatus(str, Enum):
+class UserStatus(StrEnum):
     ACTIVE = "ACTIVE"
     DISABLED = "DISABLED"
     LOCKED = "LOCKED"

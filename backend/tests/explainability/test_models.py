@@ -3,7 +3,7 @@ validation rules and structural defaults."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -21,7 +21,7 @@ from app.explainability.models import (
 )
 from app.risk.models import RiskSeverity
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 def _request(**overrides: object) -> ExplainabilityRequest:

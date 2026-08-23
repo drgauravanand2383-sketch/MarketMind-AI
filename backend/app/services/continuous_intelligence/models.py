@@ -26,7 +26,7 @@ barely above threshold").
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -46,7 +46,7 @@ __all__ = [
 ]
 
 
-class ChangeDomain(str, Enum):
+class ChangeDomain(StrEnum):
     """Which part of the system a `DetectedChange` originated from —
     directly maps to the WS event type this milestone publishes it as
     (see `app.services.continuous_intelligence.service`)."""
@@ -59,7 +59,7 @@ class ChangeDomain(str, Enum):
     SIGNAL = "SIGNAL"
 
 
-class ChangePriority(str, Enum):
+class ChangePriority(StrEnum):
     INFO = "INFO"
     LOW = "LOW"
     MEDIUM = "MEDIUM"

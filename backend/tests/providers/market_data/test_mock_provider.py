@@ -5,7 +5,7 @@ edge cases including large batch requests and invalid inputs."""
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -328,9 +328,9 @@ async def test_health_latency_is_zero(provider: MockMarketDataProvider) -> None:
 
 
 async def test_health_last_updated_is_recent(provider: MockMarketDataProvider) -> None:
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     health = await provider.health()
-    after = datetime.now(timezone.utc)
+    after = datetime.now(UTC)
     assert before <= health.last_updated <= after
 
 
@@ -365,7 +365,7 @@ async def test_all_get_methods_reject_blank_ticker(provider: MockMarketDataProvi
 
 
 async def test_custom_reference_time_is_used_as_quote_timestamp() -> None:
-    reference_time = datetime(2025, 6, 15, tzinfo=timezone.utc)
+    reference_time = datetime(2025, 6, 15, tzinfo=UTC)
     provider = MockMarketDataProvider(reference_time=reference_time)
 
     quote = await provider.get_quote("AAPL")
@@ -374,8 +374,8 @@ async def test_custom_reference_time_is_used_as_quote_timestamp() -> None:
 
 
 async def test_different_reference_times_produce_different_history_windows() -> None:
-    provider_a = MockMarketDataProvider(reference_time=datetime(2025, 1, 1, tzinfo=timezone.utc))
-    provider_b = MockMarketDataProvider(reference_time=datetime(2026, 1, 1, tzinfo=timezone.utc))
+    provider_a = MockMarketDataProvider(reference_time=datetime(2025, 1, 1, tzinfo=UTC))
+    provider_b = MockMarketDataProvider(reference_time=datetime(2026, 1, 1, tzinfo=UTC))
 
     series_a = await provider_a.get_price_history("AAPL", Interval.ONE_DAY)
     series_b = await provider_b.get_price_history("AAPL", Interval.ONE_DAY)

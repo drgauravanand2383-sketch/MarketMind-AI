@@ -5,9 +5,6 @@ from __future__ import annotations
 
 import time
 
-import pytest
-
-from app.orchestrator.exceptions import OrchestratorError
 from app.orchestrator.models import AgentTask, ExecutionPlan, ExecutionStatus
 from app.orchestrator.orchestrator import AgentOrchestrator
 from tests.orchestrator.conftest import FakeAgent, TaskInput

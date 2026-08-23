@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED, JobExecutionEvent
@@ -247,7 +247,7 @@ def test_raised_exception_is_logged(caplog: pytest.LogCaptureFixture) -> None:
         code=EVENT_JOB_ERROR,
         job_id="morning_brief",
         jobstore="default",
-        scheduled_run_time=datetime.now(timezone.utc),
+        scheduled_run_time=datetime.now(UTC),
         exception=RuntimeError("boom"),
     )
 
@@ -264,14 +264,14 @@ def test_workflow_level_failure_is_logged(caplog: pytest.LogCaptureFixture) -> N
         workflow_id="morning_brief",
         execution_id="exec-1",
         trace_id="exec-1",
-        triggered_at=datetime.now(timezone.utc),
+        triggered_at=datetime.now(UTC),
         result=failed_result,
     )
     event = JobExecutionEvent(
         code=EVENT_JOB_EXECUTED,
         job_id="morning_brief",
         jobstore="default",
-        scheduled_run_time=datetime.now(timezone.utc),
+        scheduled_run_time=datetime.now(UTC),
         retval=record,
     )
 
@@ -287,14 +287,14 @@ def test_successful_execution_is_not_logged_as_an_error(caplog: pytest.LogCaptur
         workflow_id="morning_brief",
         execution_id="exec-1",
         trace_id="exec-1",
-        triggered_at=datetime.now(timezone.utc),
+        triggered_at=datetime.now(UTC),
         result=workflow_execution_result(success=True),
     )
     event = JobExecutionEvent(
         code=EVENT_JOB_EXECUTED,
         job_id="morning_brief",
         jobstore="default",
-        scheduled_run_time=datetime.now(timezone.utc),
+        scheduled_run_time=datetime.now(UTC),
         retval=record,
     )
 

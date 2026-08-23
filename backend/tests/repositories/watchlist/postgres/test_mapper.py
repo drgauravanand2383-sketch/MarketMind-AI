@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.repositories.watchlist.postgres.mapper import (
     model_to_snapshot,
@@ -14,7 +14,7 @@ from app.repositories.watchlist.postgres.mapper import (
 from app.repositories.watchlist.postgres.models import WatchlistSnapshotModel
 from app.watchlist.models import Watchlist, WatchlistItem
 
-NOW = datetime(2026, 8, 6, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 6, tzinfo=UTC)
 
 
 def test_watchlist_item_round_trips_through_the_model() -> None:

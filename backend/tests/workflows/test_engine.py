@@ -10,7 +10,8 @@ touched anywhere.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+import contextlib
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -48,7 +49,7 @@ def _context(execution_id: str = "exec-1") -> ExecutionContext:
         workflow_type="test",
         trigger=TriggerType.USER_REQUEST,
         initiated_by="test",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
         trace_id=execution_id,
         participating_agents=(),
         status=WorkflowStatus.RUNNING,
@@ -94,10 +95,8 @@ def test_duplicate_registration_does_not_replace_existing_workflow() -> None:
     first = _StubWorkflow(output="first")
     engine.register_workflow("morning_brief", first)
 
-    try:
+    with contextlib.suppress(WorkflowAlreadyRegisteredError):
         engine.register_workflow("morning_brief", _StubWorkflow(output="second"))
-    except WorkflowAlreadyRegisteredError:
-        pass
 
     assert engine.list_workflows() == ["morning_brief"]
 

@@ -40,7 +40,7 @@ while never inventing behavior beyond what this sprint implements.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -62,7 +62,7 @@ __all__ = [
 ALERT_TYPE_SIGNAL_TRIGGERED = "SIGNAL_TRIGGERED"
 
 
-class AlertOperator(str, Enum):
+class AlertOperator(StrEnum):
     EQUALS = "EQUALS"
     NOT_EQUALS = "NOT_EQUALS"
     GREATER_THAN = "GREATER_THAN"
@@ -74,7 +74,7 @@ class AlertOperator(str, Enum):
     NOT_IN = "NOT_IN"
 
 
-class NotificationChannel(str, Enum):
+class NotificationChannel(StrEnum):
     EMAIL = "EMAIL"
     PUSH = "PUSH"
     SMS = "SMS"
@@ -85,7 +85,7 @@ class NotificationChannel(str, Enum):
     IN_APP = "IN_APP"
 
 
-class AlertStatus(str, Enum):
+class AlertStatus(StrEnum):
     PENDING = "PENDING"
     GENERATED = "GENERATED"
     SUPPRESSED = "SUPPRESSED"
@@ -93,7 +93,7 @@ class AlertStatus(str, Enum):
     EXPIRED = "EXPIRED"
 
 
-class AlertPriority(str, Enum):
+class AlertPriority(StrEnum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"

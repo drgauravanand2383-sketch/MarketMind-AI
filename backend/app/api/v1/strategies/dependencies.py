@@ -7,18 +7,13 @@ duplicated — evaluating a strategy needs an already-computed
 
 from __future__ import annotations
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request
 
+from app.api.dependencies.state import resolve_app_state
 from app.strategy.engine import StrategyEvaluationService
 
 __all__ = ["get_strategy_service"]
 
 
 def get_strategy_service(request: Request) -> StrategyEvaluationService:
-    service = getattr(request.app.state, "strategy_service", None)
-    if service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="StrategyEvaluationService is not configured on this application instance.",
-        )
-    return service
+    return resolve_app_state(request, "strategy_service", StrategyEvaluationService, label="StrategyEvaluationService")

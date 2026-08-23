@@ -9,7 +9,7 @@ deduplication across providers, storage, or Knowledge Hub writes.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel
 
@@ -135,7 +135,7 @@ class NewsCollectorAgent(BaseAgent):
         return NewsCollectionResult(
             items=items,
             provider_summary=summaries,
-            collected_at=datetime.now(timezone.utc),
+            collected_at=datetime.now(UTC),
         )
 
     async def _run_one_provider(

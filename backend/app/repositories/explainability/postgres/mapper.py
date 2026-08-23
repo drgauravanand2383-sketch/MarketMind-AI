@@ -8,7 +8,7 @@ here since these are independent modules with no shared base to place it in.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.explainability.models import (
     ExplainabilityRequest,
@@ -27,7 +27,7 @@ __all__ = ["request_to_model", "model_to_request", "result_to_model", "model_to_
 
 
 def _ensure_aware(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def request_to_model(request: ExplainabilityRequest) -> ExplainabilityRequestModel:

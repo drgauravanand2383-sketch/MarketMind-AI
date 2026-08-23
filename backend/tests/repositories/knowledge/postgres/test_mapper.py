@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.repositories.knowledge.postgres.mapper import (
     model_to_knowledge_record,
@@ -23,7 +23,7 @@ def test_parse_published_at_handles_rfc822_format() -> None:
 
 def test_parse_published_at_handles_iso_format() -> None:
     parsed = parse_published_at("2026-08-03T06:00:00+00:00")
-    assert parsed == datetime(2026, 8, 3, 6, 0, 0, tzinfo=timezone.utc)
+    assert parsed == datetime(2026, 8, 3, 6, 0, 0, tzinfo=UTC)
 
 
 def test_parse_published_at_returns_none_for_unparseable_string() -> None:

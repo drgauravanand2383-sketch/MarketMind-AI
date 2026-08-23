@@ -6,7 +6,7 @@ dates, positive volume, supported intervals, supported currencies.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 
 import pytest
 from pydantic import ValidationError

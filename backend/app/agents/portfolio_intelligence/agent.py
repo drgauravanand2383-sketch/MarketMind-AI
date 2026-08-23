@@ -42,11 +42,14 @@ from app.agents.company_research.models import CompanyResearchRequest
 from app.agents.portfolio_intelligence.models import (
     CompanySummary,
     Holding,
+    PortfolioEvidenceReference,
     PortfolioIntelligenceReport,
     PortfolioIntelligenceRequest,
     PortfolioNarrative,
     PortfolioResearchReport,
     PortfolioResearchRequest,
+    SectorOverlap,
+    SharedRelationship,
 )
 from app.agents.portfolio_intelligence.prompts import PORTFOLIO_INTELLIGENCE_TEMPLATE_ID
 from app.agents.portfolio_intelligence.report_builder import build_portfolio_report
@@ -450,7 +453,7 @@ class PortfolioIntelligenceAgent(BaseAgent):
         return "\n".join(lines)
 
     @staticmethod
-    def _format_sector_exposure(sector_exposure: list) -> str:
+    def _format_sector_exposure(sector_exposure: list[SectorOverlap]) -> str:
         if not sector_exposure:
             return "No sector exposure determined."
         lines = [
@@ -461,7 +464,7 @@ class PortfolioIntelligenceAgent(BaseAgent):
         return "\n".join(lines)
 
     @staticmethod
-    def _format_shared_relationships(shared_relationships: list) -> str:
+    def _format_shared_relationships(shared_relationships: list[SharedRelationship]) -> str:
         if not shared_relationships:
             return "No relationships identified between portfolio holdings."
         lines = [
@@ -483,7 +486,7 @@ class PortfolioIntelligenceAgent(BaseAgent):
         return "\n".join(lines)
 
     @staticmethod
-    def _format_evidence(evidence_summary: list) -> str:
+    def _format_evidence(evidence_summary: list[PortfolioEvidenceReference]) -> str:
         if not evidence_summary:
             return "No evidence available."
         lines = [

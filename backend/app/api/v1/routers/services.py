@@ -31,7 +31,7 @@ router = APIRouter(tags=["System"])
 async def get_services(
     request: Request,
     health_service: HealthCheckService = Depends(get_health_check_service),
-    services: dict = Depends(get_services_map),
+    services: dict[str, object | None] = Depends(get_services_map),
 ) -> SuccessResponse[ServicesResponse]:
     service_health = health_service.check_services(services)
     entries = tuple(

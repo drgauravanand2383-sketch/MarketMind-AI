@@ -5,6 +5,8 @@ and MarketDataSnapshot."""
 
 from __future__ import annotations
 
+from datetime import UTC
+
 import pytest
 from pydantic import ValidationError
 
@@ -279,9 +281,9 @@ def test_market_data_snapshot_all_sources_optional() -> None:
 
 
 def test_market_data_snapshot_accepts_full_bundle() -> None:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     snapshot = MarketDataSnapshot(
         ticker="AAPL",
         company_name="Apple",

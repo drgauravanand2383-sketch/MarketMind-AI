@@ -3,7 +3,7 @@ tz-aware normalization, and structural defaults."""
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -18,7 +18,7 @@ from app.backtesting.models import (
     ReplayMode,
 )
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 def _request(**overrides: object) -> BacktestRequest:
@@ -126,7 +126,7 @@ def test_snapshot_normalizes_naive_timestamp_to_utc() -> None:
 
 
 def test_snapshot_preserves_already_aware_timestamp() -> None:
-    aware = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    aware = datetime(2026, 1, 1, tzinfo=UTC)
     snapshot = HistoricalSnapshot(timestamp=aware, recommendation_result_id="rec-1")
     assert snapshot.timestamp == aware
 

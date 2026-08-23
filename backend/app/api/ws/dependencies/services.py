@@ -6,8 +6,9 @@ constructs a service.
 
 from __future__ import annotations
 
-from fastapi import HTTPException, Request, WebSocket, status
+from fastapi import Request, WebSocket
 
+from app.api.dependencies.state import resolve_app_state
 from app.api.ws.connection_manager.manager import ConnectionManager
 from app.api.ws.publishers.event_publisher import EventPublisher
 from app.auth.policies.evaluator import PolicyEvaluator
@@ -37,10 +38,4 @@ def get_event_publisher(request: Request) -> EventPublisher:
     """REST-side provider — resolves the shared `EventPublisher` so
     existing routers can publish a real-time event after their own
     service call succeeds, without constructing anything themselves."""
-    publisher = getattr(request.app.state, "event_publisher", None)
-    if publisher is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="EventPublisher is not configured on this application instance.",
-        )
-    return publisher
+    return resolve_app_state(request, "event_publisher", EventPublisher, label="EventPublisher")

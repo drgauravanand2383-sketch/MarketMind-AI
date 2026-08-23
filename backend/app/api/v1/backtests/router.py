@@ -32,7 +32,7 @@ struct is computed or evaluated.
 from __future__ import annotations
 
 import uuid as uuid_module
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Request, status
 
@@ -76,7 +76,7 @@ async def create_backtest(
         replay_mode=body.replay_mode,
     )
     started_run = BacktestRun(
-        request_id=backtest_request.id, started_at=datetime.now(timezone.utc), status=BacktestStatus.PENDING
+        request_id=backtest_request.id, started_at=datetime.now(UTC), status=BacktestStatus.PENDING
     )
     await event_publisher.publish_backtest_started(started_run)
 

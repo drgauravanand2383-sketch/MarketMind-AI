@@ -4,7 +4,7 @@ RiskAssessmentRequest, PortfolioExposure, RiskMetric, and RiskAssessment."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -20,7 +20,7 @@ from app.risk.models import (
     RiskWeighting,
 )
 
-NOW = datetime(2026, 8, 11, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 11, tzinfo=UTC)
 
 # --- RiskWeighting -----------------------------------------------------------
 

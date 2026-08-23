@@ -5,18 +5,13 @@ from `request.app.state`, the exact pattern
 
 from __future__ import annotations
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request
 
 from app.alerts.engine import AlertService
+from app.api.dependencies.state import resolve_app_state
 
 __all__ = ["get_alert_service"]
 
 
 def get_alert_service(request: Request) -> AlertService:
-    service = getattr(request.app.state, "alert_service", None)
-    if service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="AlertService is not configured on this application instance.",
-        )
-    return service
+    return resolve_app_state(request, "alert_service", AlertService, label="AlertService")

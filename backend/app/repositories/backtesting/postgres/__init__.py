@@ -1,10 +1,10 @@
 """PostgreSQL-backed backtesting repository (SQLAlchemy async ORM)."""
 
 from app.repositories.backtesting.postgres.models import (
-    Base,
     BacktestRequestModel,
     BacktestResultModel,
     BacktestRunModel,
+    Base,
 )
 from app.repositories.backtesting.postgres.repository import PostgresBacktestingRepository
 

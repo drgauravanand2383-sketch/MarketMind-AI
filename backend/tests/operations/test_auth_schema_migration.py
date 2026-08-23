@@ -17,13 +17,13 @@ import os
 import sqlite3
 import tempfile
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
-from alembic import command
 from alembic.config import Config
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from alembic import command
 from app.auth.models.role import Role
 from app.auth.models.user import User
 from app.auth.repositories.postgres.repository import PostgresAuthRepository
@@ -150,7 +150,7 @@ def test_postgres_auth_repository_works_against_the_migrated_schema(
             session_factory = async_sessionmaker(engine, expire_on_commit=False)
             repository = PostgresAuthRepository(session_factory)
 
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             user = User(id="u1", username="alice", email="alice@example.com", created_at=now, updated_at=now)
             await repository.create_user(user, "hash1")
             role = Role(id="r1", name="ADMIN", permissions=("watchlist:read",))

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -39,14 +39,14 @@ def sample_intelligence() -> MorningIntelligence:
             Headline(
                 title="Fed holds rates steady",
                 source=reuters,
-                published_at=datetime(2026, 8, 3, 6, 0, tzinfo=timezone.utc),
+                published_at=datetime(2026, 8, 3, 6, 0, tzinfo=UTC),
                 url="https://reuters.com/fed",
                 summary="The Federal Reserve left rates unchanged.",
             ),
             Headline(
                 title="Tech stocks rally",
                 source=bloomberg,
-                published_at=datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc),
+                published_at=datetime(2026, 8, 3, 8, 0, tzinfo=UTC),
                 url=None,
                 summary=None,
             ),

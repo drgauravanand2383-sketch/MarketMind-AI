@@ -10,14 +10,14 @@ trivially-always-true condition).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.market_data.models import MarketQuote
 from app.signals.engine import SignalDetectionService
 from app.signals.models import MarketDataSnapshot
 from app.signals.reference_definitions import build_price_breakout_signal_definition
 
-NOW = datetime(2026, 8, 21, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 21, tzinfo=UTC)
 _engine = SignalDetectionService.__new__(SignalDetectionService)
 
 

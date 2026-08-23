@@ -5,19 +5,16 @@ cache. `get_company_research_agent` is reused directly from
 
 from __future__ import annotations
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request
 
 from app.agents.company_research.models import CompanyResearchReport
+from app.api.dependencies.state import resolve_app_state
 from app.api.v1.schemas.result_store import InMemoryResultStore
 
 __all__ = ["get_research_report_store"]
 
 
 def get_research_report_store(request: Request) -> InMemoryResultStore[CompanyResearchReport]:
-    store = getattr(request.app.state, "research_report_store", None)
-    if store is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="The research report store is not configured on this application instance.",
-        )
-    return store
+    return resolve_app_state(
+        request, "research_report_store", InMemoryResultStore[CompanyResearchReport], label="The research report store"
+    )

@@ -7,7 +7,7 @@ testability pattern used throughout tests/services/entity_resolution/.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -105,7 +105,7 @@ class _FakeMarketDataProvider(MarketDataProvider):
         return "Fake Provider"
 
     async def health(self) -> ProviderHealth:
-        return ProviderHealth(provider="Fake Provider", status=ProviderHealthStatus.HEALTHY, last_updated=datetime.now(timezone.utc))
+        return ProviderHealth(provider="Fake Provider", status=ProviderHealthStatus.HEALTHY, last_updated=datetime.now(UTC))
 
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities()
@@ -115,7 +115,7 @@ def _quote(ticker: str = "DELL", price: float = 494.51) -> MarketQuote:
     return MarketQuote(
         ticker=ticker,
         price=price,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         previous_close=484.5,
         change=10.01,
         change_percent=2.07,

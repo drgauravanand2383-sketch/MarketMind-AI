@@ -10,7 +10,7 @@ service's health, and an external dependency's health.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -24,7 +24,7 @@ __all__ = [
 ]
 
 
-class HealthState(str, Enum):
+class HealthState(StrEnum):
     HEALTHY = "HEALTHY"
     DEGRADED = "DEGRADED"
     UNHEALTHY = "UNHEALTHY"

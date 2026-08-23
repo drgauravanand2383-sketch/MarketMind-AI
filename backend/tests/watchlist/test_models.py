@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
 
 from app.watchlist.models import Watchlist, WatchlistItem, WatchlistSnapshot, WatchlistStatistics
 
-_NOW = datetime(2026, 8, 6, tzinfo=timezone.utc)
+_NOW = datetime(2026, 8, 6, tzinfo=UTC)
 
 
 def _item(ticker: str = "AAPL", **overrides: object) -> WatchlistItem:

@@ -29,7 +29,7 @@ against the interface, never against a concrete backing store.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from app.recommendations.models import RecommendationType
@@ -56,7 +56,7 @@ _SIGNAL_TRIGGERED = "SIGNAL_TRIGGERED"
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class ContinuousIntelligenceStateStore(Protocol):

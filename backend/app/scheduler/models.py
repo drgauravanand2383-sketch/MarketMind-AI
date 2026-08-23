@@ -10,7 +10,7 @@ themselves — that lives in scheduler.py.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -25,7 +25,7 @@ __all__ = [
 ]
 
 
-class ScheduleTriggerType(str, Enum):
+class ScheduleTriggerType(StrEnum):
     """How a Schedule determines when its workflow is due to run.
 
     Distinct from `app.core.context.TriggerType`, which records how one

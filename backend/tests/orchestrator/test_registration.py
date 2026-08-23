@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 import pytest
 
 from app.orchestrator.exceptions import AgentAlreadyRegisteredError, AgentNotRegisteredError
@@ -50,10 +52,8 @@ def test_duplicate_registration_does_not_replace_existing_agent() -> None:
     first = FakeAgent(agent_id="a", multiplier=1)
     orchestrator.register_agent("a", first)
 
-    try:
+    with contextlib.suppress(AgentAlreadyRegisteredError):
         orchestrator.register_agent("a", FakeAgent(agent_id="a", multiplier=99))
-    except AgentAlreadyRegisteredError:
-        pass
 
     assert orchestrator._agents["a"] is first
 

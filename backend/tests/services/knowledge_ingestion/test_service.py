@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.agents.news_collector.models import NewsCollectionResult, NewsItem
@@ -14,7 +14,7 @@ from app.services.knowledge_ingestion.service import KnowledgeIngestionService
 
 def _collection_result(items: list[NewsItem]) -> NewsCollectionResult:
     return NewsCollectionResult(
-        items=items, provider_summary=[], collected_at=datetime.now(timezone.utc)
+        items=items, provider_summary=[], collected_at=datetime.now(UTC)
     )
 
 
@@ -75,9 +75,9 @@ def test_vector_document_metadata_records_ingestion_provenance() -> None:
     service = KnowledgeIngestionService()
     result = _collection_result([_item()])
 
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     batch = service.prepare_batch(result)
-    after = datetime.now(timezone.utc)
+    after = datetime.now(UTC)
 
     metadata = batch.vector_documents[0].metadata
     ingested_at = datetime.fromisoformat(metadata["ingested_at"])

@@ -8,6 +8,7 @@ internet access in automated tests" constraint.
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC
 
 from app.providers.embedding.local import LocalEmbeddingProvider
 from app.providers.embedding.models import EmbeddingProviderConfig
@@ -20,8 +21,9 @@ def _config(**overrides: object) -> EmbeddingProviderConfig:
     return EmbeddingProviderConfig(**defaults)
 
 
-def _fake_factory(vector: list[float] = [0.1, 0.2, 0.3]) -> tuple[object, list[list[str]]]:
+def _fake_factory(vector: list[float] | None = None) -> tuple[object, list[list[str]]]:
     """A fake embedding-function factory recording every call it receives."""
+    vector = vector if vector is not None else [0.1, 0.2, 0.3]
     calls: list[list[str]] = []
 
     def factory() -> object:
@@ -111,7 +113,7 @@ async def test_generate_integrates_with_the_base_class_batch_orchestration() -> 
     """End-to-end through BaseEmbeddingProvider.generate() — confirms
     LocalEmbeddingProvider plugs into the already-tested batching/retry
     machinery correctly, not just its own embed_one() in isolation."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     factory, _ = _fake_factory([9.0])
     provider = LocalEmbeddingProvider(_config(), embedding_function_factory=factory)
@@ -126,7 +128,7 @@ async def test_generate_integrates_with_the_base_class_batch_orchestration() -> 
         chunks=[chunk],
         batch_metadata=EmbeddingBatchMetadata(
             batch_id="batch-1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             total_documents_received=2,
             accepted_count=2,
             max_batch_size=100,
@@ -217,7 +219,7 @@ async def test_generate_through_a_full_100_request_chunk_constructs_the_function
     orchestration, at production's own real chunk size — not a
     hand-rolled `asyncio.gather` in the test, the actual code path that
     produced the live 95/130 failure."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     factory, construction_count = _slow_fake_factory()
     provider = LocalEmbeddingProvider(_config(), embedding_function_factory=factory)
@@ -229,7 +231,7 @@ async def test_generate_through_a_full_100_request_chunk_constructs_the_function
         chunks=[chunk],
         batch_metadata=EmbeddingBatchMetadata(
             batch_id="batch-cold-start",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             total_documents_received=100,
             accepted_count=100,
             max_batch_size=100,

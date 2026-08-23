@@ -15,13 +15,13 @@ import os
 import sqlite3
 import tempfile
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
-from alembic import command
 from alembic.config import Config
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from alembic import command
 from app.repositories.continuous_intelligence.postgres.repository import (
     PostgresContinuousIntelligenceStateRepository,
 )
@@ -128,7 +128,7 @@ def test_postgres_continuous_intelligence_repository_works_against_the_migrated_
             session_factory = async_sessionmaker(engine, expire_on_commit=False)
             repository = PostgresContinuousIntelligenceStateRepository(session_factory)
 
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             await repository.put("MARKET", "dell", {"price": 100.0}, now)
             row = await repository.get("MARKET", "dell")
             assert row is not None

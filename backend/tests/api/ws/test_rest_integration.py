@@ -11,7 +11,7 @@ wires them in production.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi import FastAPI
@@ -36,7 +36,6 @@ from app.auth.services.authentication import AuthenticationService
 from app.auth.services.authorization import AuthorizationService
 from app.backtesting.engine import BacktestingService
 from app.explainability.engine import ExplainabilityService
-from app.operations.health.models import ApplicationHealth, HealthState
 from app.operations.health.service import HealthCheckService
 from app.recommendations.engine import PortfolioRecommendationService
 from app.repositories.alerts.postgres.models import Base as AlertsBase
@@ -63,7 +62,7 @@ from tests.api.v1._auth_fixtures import (  # noqa: F401 - re-exported as fixture
     make_authenticated_headers,
 )
 
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 
 
 async def _sqlite_session_factory(base: type) -> async_sessionmaker:
@@ -249,7 +248,12 @@ async def test_create_backtest_publishes_started_and_completed_events(
     ws_token: str,
     recommendation_repository: PostgresRecommendationRepository,
 ) -> None:
-    from app.recommendations.models import RecommendationCandidate, RecommendationResult, RecommendationSummary, RecommendationType
+    from app.recommendations.models import (
+        RecommendationCandidate,
+        RecommendationResult,
+        RecommendationSummary,
+        RecommendationType,
+    )
 
     candidate = RecommendationCandidate(
         ticker="AAPL", overall_score=70.0, confidence=80.0, recommendation=RecommendationType.BUY,
@@ -311,7 +315,12 @@ async def test_evaluate_strategies_publishes_event(
     ws_token: str,
     recommendation_repository: PostgresRecommendationRepository,
 ) -> None:
-    from app.recommendations.models import RecommendationCandidate, RecommendationResult, RecommendationSummary, RecommendationType
+    from app.recommendations.models import (
+        RecommendationCandidate,
+        RecommendationResult,
+        RecommendationSummary,
+        RecommendationType,
+    )
 
     candidate = RecommendationCandidate(
         ticker="AAPL", overall_score=70.0, confidence=80.0, recommendation=RecommendationType.BUY,
@@ -344,7 +353,12 @@ async def test_create_explanation_publishes_event(
     ws_token: str,
     recommendation_repository: PostgresRecommendationRepository,
 ) -> None:
-    from app.recommendations.models import RecommendationCandidate, RecommendationResult, RecommendationSummary, RecommendationType
+    from app.recommendations.models import (
+        RecommendationCandidate,
+        RecommendationResult,
+        RecommendationSummary,
+        RecommendationType,
+    )
 
     candidate = RecommendationCandidate(
         ticker="AAPL", overall_score=70.0, confidence=80.0, recommendation=RecommendationType.BUY,

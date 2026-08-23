@@ -21,8 +21,9 @@ one, rather than getting a free re-emission).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Callable, Protocol
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Protocol
 
 from app.repositories.continuous_intelligence.repository import (
     BaseContinuousIntelligenceStateRepository,
@@ -34,7 +35,7 @@ _SUPPRESSION_DOMAIN = "SUPPRESSION"
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Suppression(Protocol):

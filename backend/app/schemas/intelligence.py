@@ -9,7 +9,7 @@ lives here — schemas only.
 from __future__ import annotations
 
 from datetime import date, datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
@@ -26,7 +26,7 @@ __all__ = [
 ]
 
 
-class RiskSeverity(str, Enum):
+class RiskSeverity(StrEnum):
     """Severity level of a risk alert."""
 
     LOW = "low"

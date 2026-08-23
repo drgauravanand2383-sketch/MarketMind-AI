@@ -24,10 +24,14 @@ from app.services.llm.models import LLMHealthStatus, LLMResponse, TokenUsage
 from app.services.llm.service import LLMService
 from tests.agents.company_research.conftest import (
     build_knowledge_hub,
-    build_prompt_registry as build_company_research_prompt_registry,
     build_runtime,
-    mock_llm_service as mock_company_research_llm_service,
     record,
+)
+from tests.agents.company_research.conftest import (
+    build_prompt_registry as build_company_research_prompt_registry,
+)
+from tests.agents.company_research.conftest import (
+    mock_llm_service as mock_company_research_llm_service,
 )
 
 APPLE_RECORD = record(

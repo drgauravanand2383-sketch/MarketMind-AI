@@ -11,14 +11,14 @@ from app.scheduler.ap_scheduler import APSchedulerService
 from app.scheduler.models import (
     Schedule,
     ScheduleExecutionRecord,
-    ScheduleTriggerType,
     SchedulerHealthStatus,
+    ScheduleTriggerType,
 )
 from app.scheduler.scheduler import (
-    Scheduler,
     ScheduleAlreadyRegisteredError,
     ScheduleDisabledError,
     ScheduleNotRegisteredError,
+    Scheduler,
 )
 
 __all__ = [

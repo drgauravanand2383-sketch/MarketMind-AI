@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -32,7 +32,7 @@ class StubProvider(BaseProvider):
     async def fetch(self, **kwargs: object) -> ProviderResult:
         return ProviderResult(
             provider_id=self.provider_id,
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
             success=True,
             data={"echo": kwargs},
         )

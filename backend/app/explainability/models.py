@@ -59,7 +59,7 @@ reserved for future extensibility and has no weight here, exactly as
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -79,7 +79,7 @@ __all__ = [
 ]
 
 
-class AttributionCategory(str, Enum):
+class AttributionCategory(StrEnum):
     PLANNING = "PLANNING"
     SCREENING = "SCREENING"
     SIGNALS = "SIGNALS"

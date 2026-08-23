@@ -4,7 +4,7 @@ model metadata discovery — plus composition of ConfigurationValidationService.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.config.models import (
     AnthropicSettings,
@@ -19,7 +19,7 @@ from app.operations.validation.configuration import ConfigurationValidationServi
 from app.operations.validation.models import ValidationSeverity
 from app.operations.validation.startup import StartupValidationService
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 def _service() -> StartupValidationService:

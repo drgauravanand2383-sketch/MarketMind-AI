@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -21,7 +21,7 @@ from app.services.continuous_intelligence.locking import (
     PostgresCycleLock,
 )
 
-NOW = datetime(2026, 8, 15, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 15, tzinfo=UTC)
 
 
 class _Clock:

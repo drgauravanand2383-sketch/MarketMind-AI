@@ -12,7 +12,7 @@ not real wall-clock waits).
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 __all__ = ["BaseClock", "SystemClock"]
 
@@ -28,4 +28,4 @@ class BaseClock(ABC):
 
 class SystemClock(BaseClock):
     def now(self) -> datetime:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)

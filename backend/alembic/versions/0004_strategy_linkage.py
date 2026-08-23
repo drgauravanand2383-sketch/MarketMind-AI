@@ -28,17 +28,18 @@ constraint, so it never surfaced there).
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy import inspect
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0004_strategy_linkage"
-down_revision: Union[str, None] = "0003_risk_market_data_coverage"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0003_risk_market_data_coverage"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 _TABLE = "strategy_evaluation_results"
 _COLUMN = "recommendation_result_id"

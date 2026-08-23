@@ -20,7 +20,7 @@ for why registration order matters to FastAPI's route matching.
 from __future__ import annotations
 
 import uuid as uuid_module
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Request, status
 
@@ -28,9 +28,9 @@ from app.api.v1.portfolio.dependencies import get_recommendation_service
 from app.api.v1.schemas.common import PaginatedResponse, SuccessResponse, build_success_response
 from app.api.v1.schemas.pagination import PaginationParams, build_paginated_response, paginate_items, pagination_params
 from app.api.v1.strategies.dependencies import get_strategy_service
+from app.api.v1.strategies.schemas import CreateStrategyRequest, EvaluateStrategyRequest, UpdateStrategyRequest
 from app.api.ws.dependencies.services import get_event_publisher
 from app.api.ws.publishers.event_publisher import EventPublisher
-from app.api.v1.strategies.schemas import CreateStrategyRequest, EvaluateStrategyRequest, UpdateStrategyRequest
 from app.auth.dependencies.policy_guard import require_policy
 from app.auth.policies import RequirePermission
 from app.recommendations.engine import PortfolioRecommendationService
@@ -117,7 +117,7 @@ async def evaluate_strategies(
         id=str(uuid_module.uuid4()),
         strategy_ids=tuple(strategy.id for strategy in strategies),
         recommendation_result_id=body.recommendation_result_id,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     result = await service.evaluate_recommendations(evaluation_request, recommendation_result, strategies)
     await event_publisher.publish_strategy_evaluation_completed(result)

@@ -3,13 +3,13 @@ WatchlistService, never recomputes risk/recommendations (§7)."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.services.continuous_intelligence.decision_impact import DecisionImpactService
 from app.services.continuous_intelligence.models import ChangeDomain, ChangePriority, DetectedChange
 from app.watchlist.models import Watchlist, WatchlistItem
 
-NOW = datetime(2026, 8, 15, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 15, tzinfo=UTC)
 
 
 class _FakeWatchlistService:

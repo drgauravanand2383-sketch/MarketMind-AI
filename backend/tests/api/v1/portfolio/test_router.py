@@ -11,7 +11,7 @@ real router, real auth middleware, and real authorization.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -37,7 +37,7 @@ async def make_watchlist(watchlist_service: WatchlistService, name: str = "Tech 
     watchlist = await watchlist_service.add_company(
         watchlist.id,
         WatchlistItem(
-            ticker="AAPL", company_name="Apple", sector="Technology", added_at=datetime.now(timezone.utc)
+            ticker="AAPL", company_name="Apple", sector="Technology", added_at=datetime.now(UTC)
         ),
     )
     return watchlist.id

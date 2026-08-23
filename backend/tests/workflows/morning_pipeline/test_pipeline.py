@@ -15,16 +15,17 @@ never mutated.
 
 from __future__ import annotations
 
+from datetime import UTC
+
 from app.agents.news_collector.agent import NewsCollectorAgent
-from app.core.context import WorkflowStatus
 from app.core.context import ExecutionContext as ExecutionContextType
+from app.core.context import WorkflowStatus
 from app.providers.registry import ProviderRegistry
 from app.services.market_intelligence.engine import MarketIntelligenceEngine
 from app.services.relationship_engine.engine import RelationshipEngine
-from app.workflows.engine import WorkflowEngine
+from app.workflows.engine import WorkflowEngine, WorkflowProtocol
 from app.workflows.morning_pipeline.models import PipelineStatus
-from app.workflows.morning_pipeline.pipeline import PARTICIPATING_STAGES, MorningPipeline
-from app.workflows.engine import WorkflowProtocol
+from app.workflows.morning_pipeline.pipeline import PARTICIPATING_STAGES
 from tests.workflows.morning_pipeline.conftest import (
     FailingProvider,
     InMemoryKnowledgeRepository,
@@ -458,7 +459,7 @@ async def test_duplicate_articles_are_counted_as_deduplicated(caplog) -> None:  
             return "0.0.0-test"
 
         async def fetch(self, **kwargs):  # noqa: ANN003, ANN201
-            from datetime import datetime, timezone
+            from datetime import datetime
 
             from app.providers.models import ProviderResult
 
@@ -468,7 +469,7 @@ async def test_duplicate_articles_are_counted_as_deduplicated(caplog) -> None:  
             )
             return ProviderResult(
                 provider_id=self.provider_id,
-                fetched_at=datetime.now(timezone.utc),
+                fetched_at=datetime.now(UTC),
                 success=True,
                 data=[feed],
             )

@@ -7,7 +7,7 @@ storage — it is a pure, read-only I/O boundary.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import feedparser
 import httpx
@@ -80,7 +80,7 @@ class RSSConnector(BaseConnector):
 
         return RawFeedResult(
             feed_url=self._feed_url,
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
             feed_title=parsed.feed.get("title"),
             feed_link=parsed.feed.get("link"),
             bozo=bool(parsed.bozo),

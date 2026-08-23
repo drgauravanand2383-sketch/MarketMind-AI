@@ -18,8 +18,9 @@ from __future__ import annotations
 
 import uuid
 from collections import Counter
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from app.alerts.models import Alert, AlertStatus
 from app.recommendations.exceptions import (
@@ -50,7 +51,7 @@ _COMPONENT_NAMES = ("planning", "screening", "signals", "research", "portfolio",
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class PortfolioRecommendationService:
@@ -91,7 +92,7 @@ class PortfolioRecommendationService:
         screening_profile_ids: tuple[str, ...] = (),
         signal_definition_ids: tuple[str, ...] = (),
         alert_rule_ids: tuple[str, ...] = (),
-        planning_context: dict | None = None,
+        planning_context: dict[str, Any] | None = None,
         max_recommendations: int = 10,
         minimum_score: float = 0.0,
     ) -> RecommendationRequest:
@@ -301,10 +302,10 @@ def _references_market_quote(signal: SignalResult) -> bool:
     )
 
 
-def _average_score(items: tuple) -> float | None:  # noqa: ANN401 - SignalResult or Alert, both have `.score`
+def _average_score(items: tuple[Any, ...]) -> float | None:  # noqa: ANN401 - SignalResult or Alert, both have `.score`
     if not items:
         return None
-    return round(sum(item.score for item in items) / len(items), 2)
+    return round(float(sum(item.score for item in items)) / len(items), 2)
 
 
 def _weighted_score(components: dict[str, float | None], weights: ScoringWeights) -> float:
@@ -313,7 +314,7 @@ def _weighted_score(components: dict[str, float | None], weights: ScoringWeights
     see `ScoringWeights`'s own docstring on why the raw weight total need
     not equal any fixed constant. A candidate with zero available evidence
     scores 0 (there is nothing to credit it for)."""
-    weight_map = {name: getattr(weights, name) for name in _COMPONENT_NAMES}
+    weight_map: dict[str, float] = {name: getattr(weights, name) for name in _COMPONENT_NAMES}
     available = [(name, value) for name, value in components.items() if value is not None]
     if not available:
         return 0.0

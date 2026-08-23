@@ -6,7 +6,7 @@ Exercises batching and retry orchestration via test-only stub providers
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -35,7 +35,7 @@ def _batch(chunks: list[EmbeddingChunk]) -> EmbeddingBatch:
         chunks=chunks,
         batch_metadata=EmbeddingBatchMetadata(
             batch_id="batch-1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             total_documents_received=total,
             accepted_count=total,
             max_batch_size=100,

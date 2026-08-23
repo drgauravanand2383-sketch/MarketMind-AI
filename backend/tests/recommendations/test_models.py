@@ -6,8 +6,6 @@ descending, no overlap, classify()), CandidateEvidence, RecommendationRequest
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 import pytest
 from pydantic import ValidationError
 

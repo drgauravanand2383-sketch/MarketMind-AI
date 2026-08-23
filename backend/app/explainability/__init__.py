@@ -9,6 +9,7 @@ optimization exists anywhere in this package.
 
 from __future__ import annotations
 
+from app.explainability.engine import ExplainabilityService
 from app.explainability.exceptions import (
     DuplicateExplainabilityRequestNameError,
     ExplainabilityError,
@@ -27,7 +28,6 @@ from app.explainability.models import (
     RiskExplanation,
     StrategyExplanation,
 )
-from app.explainability.engine import ExplainabilityService
 
 __all__ = [
     "ExplainabilityService",

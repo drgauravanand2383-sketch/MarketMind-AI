@@ -31,8 +31,9 @@ from __future__ import annotations
 import statistics
 import uuid
 from collections import Counter
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from app.recommendations.models import RecommendationCandidate, RecommendationResult
 from app.risk.exceptions import (
@@ -70,7 +71,7 @@ _MARKET_CAP_INSUFFICIENT_DATA_DESCRIPTION = (
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class RiskAnalyticsService:

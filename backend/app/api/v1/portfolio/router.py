@@ -48,7 +48,7 @@ unchanged.
 from __future__ import annotations
 
 import uuid as uuid_module
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
 
@@ -125,7 +125,7 @@ def _build_execution_context(
         workflow_type=workflow_type,
         trigger=TriggerType.USER_REQUEST,
         initiated_by="api",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
         trace_id=execution_id,
         participating_agents=participating_agents,
         status=WorkflowStatus.RUNNING,

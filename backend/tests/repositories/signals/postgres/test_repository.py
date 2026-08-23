@@ -9,7 +9,7 @@ prevention, max conditions) are enforced at this layer.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -26,7 +26,7 @@ from app.signals.models import (
     SignalPriority,
 )
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 @pytest.fixture

@@ -11,7 +11,7 @@ production, an in-memory SQLite database (via aiosqlite) in tests.
 from __future__ import annotations
 
 from sqlalchemy import desc, select
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.repositories.risk.postgres.mapper import (
     assessment_to_model,
@@ -27,7 +27,7 @@ __all__ = ["PostgresRiskAnalyticsRepository"]
 
 
 class PostgresRiskAnalyticsRepository(BaseRiskAnalyticsRepository):
-    def __init__(self, session_factory: async_sessionmaker) -> None:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         """Initialize the repository.
 
         Args:

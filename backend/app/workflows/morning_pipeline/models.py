@@ -8,7 +8,7 @@ report content is modeled here.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -20,7 +20,7 @@ from app.services.relationship_engine.models import RelationshipGraph
 __all__ = ["PipelineStatus", "StageMetric", "PipelineResult"]
 
 
-class PipelineStatus(str, Enum):
+class PipelineStatus(StrEnum):
     """The terminal state of one pipeline run."""
 
     COMPLETED = "completed"

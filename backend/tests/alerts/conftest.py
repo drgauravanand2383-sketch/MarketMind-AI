@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.alerts.models import AlertCondition, AlertOperator, AlertRule
 from app.signals.models import ConditionEvaluation, SignalCategory, SignalPriority, SignalResult
 
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 
 
 def make_condition(

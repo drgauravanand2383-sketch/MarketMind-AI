@@ -3,7 +3,7 @@ validation, and `EventEnvelope` serialization round-tripping."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -15,7 +15,7 @@ from app.api.ws.event_models.events import AlertEvent, BacktestEvent, EventEnvel
 from app.backtesting.models import BacktestRun, BacktestStatus
 from app.operations.health.models import ApplicationHealth, HealthState
 
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 
 
 def _alert() -> Alert:

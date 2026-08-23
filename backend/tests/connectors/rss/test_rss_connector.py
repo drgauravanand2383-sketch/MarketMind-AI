@@ -99,9 +99,8 @@ def test_fetch_raises_on_http_error() -> None:
     with patch(
         "app.connectors.rss.rss_connector.httpx.get",
         return_value=_mock_response(b"", status_code=404),
-    ):
-        with pytest.raises(httpx.HTTPStatusError):
-            connector.fetch()
+    ), pytest.raises(httpx.HTTPStatusError):
+        connector.fetch()
 
 
 def test_fetch_sets_bozo_on_malformed_feed() -> None:

@@ -5,7 +5,7 @@ mappers' own regression tests)."""
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from app.backtesting.models import (
     BacktestPeriod,
@@ -29,7 +29,7 @@ from app.repositories.backtesting.postgres.models import (
     BacktestRunModel,
 )
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 def test_request_round_trips() -> None:

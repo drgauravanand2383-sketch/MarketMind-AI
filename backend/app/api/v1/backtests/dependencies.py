@@ -5,18 +5,13 @@
 
 from __future__ import annotations
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request
 
+from app.api.dependencies.state import resolve_app_state
 from app.backtesting.engine import BacktestingService
 
 __all__ = ["get_backtesting_service"]
 
 
 def get_backtesting_service(request: Request) -> BacktestingService:
-    service = getattr(request.app.state, "backtesting_service", None)
-    if service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="BacktestingService is not configured on this application instance.",
-        )
-    return service
+    return resolve_app_state(request, "backtesting_service", BacktestingService, label="BacktestingService")

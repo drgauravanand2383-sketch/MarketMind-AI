@@ -3,9 +3,17 @@ plus the naive-datetime normalization `_ensure_aware` performs."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from app.alerts.models import Alert, AlertCondition, AlertOperator, AlertPriority, AlertRule, AlertStatus, NotificationChannel
+from app.alerts.models import (
+    Alert,
+    AlertCondition,
+    AlertOperator,
+    AlertPriority,
+    AlertRule,
+    AlertStatus,
+    NotificationChannel,
+)
 from app.repositories.alerts.postgres.mapper import (
     alert_to_model,
     model_to_alert,
@@ -14,7 +22,7 @@ from app.repositories.alerts.postgres.mapper import (
 )
 from app.repositories.alerts.postgres.models import AlertModel, AlertRuleModel
 
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 
 
 def test_rule_with_conditions_and_channels_round_trips() -> None:

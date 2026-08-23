@@ -16,7 +16,7 @@ plain Python primitives (`str`, `float`, `datetime`, `date`).
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from app.market_data.models import Currency, Exchange, HistoricalPrice, HistoricalSeries, MarketQuote
 
@@ -94,8 +94,8 @@ class NormalizationService:
         metadata — providers must supply timezone-aware data if their
         source timezone differs) and is stamped as such, not shifted."""
         if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
     def normalize_date(self, value: date | datetime) -> date:
         """Collapse a `datetime` to its calendar `date`; a `date` passes through unchanged."""

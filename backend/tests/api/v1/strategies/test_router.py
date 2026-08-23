@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
-from app.recommendations.models import RecommendationCandidate, RecommendationResult, RecommendationSummary, RecommendationType
+from app.recommendations.models import (
+    RecommendationCandidate,
+    RecommendationResult,
+    RecommendationSummary,
+    RecommendationType,
+)
 from app.repositories.recommendations.postgres.repository import PostgresRecommendationRepository
 from tests.api.v1._auth_fixtures import make_authenticated_headers
 
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 
 
 def _make_recommendation_result(request_id: str) -> RecommendationResult:

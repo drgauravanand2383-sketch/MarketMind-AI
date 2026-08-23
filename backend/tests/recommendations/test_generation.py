@@ -18,7 +18,6 @@ from app.recommendations.exceptions import (
     RecommendationRequestNotFoundError,
     RecommendationResultNotFoundError,
 )
-from app.recommendations.models import RecommendationType
 from app.repositories.recommendations.postgres.models import Base
 from app.repositories.recommendations.postgres.repository import PostgresRecommendationRepository
 from tests.recommendations.conftest import NOW, make_evidence, make_screen_result

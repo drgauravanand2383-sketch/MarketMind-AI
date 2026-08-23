@@ -11,10 +11,10 @@ database (via aiosqlite) in tests.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.auth.models.role import Role
 from app.auth.models.user import User
@@ -31,7 +31,7 @@ __all__ = ["PostgresAuthRepository"]
 
 
 class PostgresAuthRepository(BaseAuthRepository):
-    def __init__(self, session_factory: async_sessionmaker) -> None:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         """Initialize the repository.
 
         Args:
@@ -157,7 +157,7 @@ class PostgresAuthRepository(BaseAuthRepository):
             if existing is not None:
                 return
             session.add(
-                RevokedTokenModel(token_id=token_id, expires_at=expires_at, revoked_at=datetime.now(timezone.utc))
+                RevokedTokenModel(token_id=token_id, expires_at=expires_at, revoked_at=datetime.now(UTC))
             )
             await session.commit()
 

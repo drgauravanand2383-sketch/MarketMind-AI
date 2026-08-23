@@ -12,7 +12,7 @@ aiosqlite) in tests.
 from __future__ import annotations
 
 from sqlalchemy import desc, select
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.recommendations.models import RecommendationRequest, RecommendationResult
 from app.repositories.recommendations.postgres.mapper import (
@@ -31,7 +31,7 @@ __all__ = ["PostgresRecommendationRepository"]
 
 
 class PostgresRecommendationRepository(BaseRecommendationRepository):
-    def __init__(self, session_factory: async_sessionmaker) -> None:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         """Initialize the repository.
 
         Args:

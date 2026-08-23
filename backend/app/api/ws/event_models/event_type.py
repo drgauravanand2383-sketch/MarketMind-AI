@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 __all__ = ["EventType"]
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     ALERT_GENERATED = "ALERT_GENERATED"
     BACKTEST_STARTED = "BACKTEST_STARTED"
     BACKTEST_COMPLETED = "BACKTEST_COMPLETED"

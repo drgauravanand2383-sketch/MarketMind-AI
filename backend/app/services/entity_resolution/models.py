@@ -9,7 +9,7 @@ produced it, never an opaque score.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -24,7 +24,7 @@ __all__ = [
 ]
 
 
-class ConfidenceTier(str, Enum):
+class ConfidenceTier(StrEnum):
     """The confidence classification of one entity resolution.
 
     See `docs/architecture/ENTITY_RESOLUTION.md` §6 for the full policy
@@ -44,7 +44,7 @@ class ConfidenceTier(str, Enum):
     UNRESOLVED = "UNRESOLVED"
 
 
-class ResolutionMethod(str, Enum):
+class ResolutionMethod(StrEnum):
     """Which signal produced a given EntityCandidate's match."""
 
     EXACT_NAME = "exact_name"

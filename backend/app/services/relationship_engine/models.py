@@ -7,14 +7,14 @@ and no prediction occurs anywhere in this engine.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = ["NodeType", "RelationshipType", "GraphNode", "GraphEdge", "RelationshipGraph"]
 
 
-class NodeType(str, Enum):
+class NodeType(StrEnum):
     """The category of entity a graph node represents."""
 
     COMPANY = "company"
@@ -23,7 +23,7 @@ class NodeType(str, Enum):
     THEME = "theme"
 
 
-class RelationshipType(str, Enum):
+class RelationshipType(StrEnum):
     """The kind of relationship a graph edge represents."""
 
     COMPANY_TO_SECTOR = "company_to_sector"

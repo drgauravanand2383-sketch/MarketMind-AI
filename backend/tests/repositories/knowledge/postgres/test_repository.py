@@ -10,7 +10,7 @@ source, and date range), and health checks.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -44,7 +44,7 @@ def _ingestion_batch(records: list[RelationalRecord]) -> IngestionBatch:
         relational_records=records,
         ingestion_metadata=IngestionMetadata(
             batch_id="batch-1",
-            ingested_at=datetime.now(timezone.utc),
+            ingested_at=datetime.now(UTC),
             total_items_received=len(records),
             accepted_count=len(records),
         ),
@@ -56,7 +56,7 @@ def _empty_embedding_batch() -> EmbeddingBatch:
         chunks=[],
         batch_metadata=EmbeddingBatchMetadata(
             batch_id="embed-batch-1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             total_documents_received=0,
             accepted_count=0,
             max_batch_size=100,
@@ -235,8 +235,8 @@ async def test_search_by_date_range(repository: PostgresKnowledgeRepository) -> 
     results = await repository.search(
         SearchQuery(
             filters={
-                "start_date": datetime(2026, 7, 1, tzinfo=timezone.utc),
-                "end_date": datetime(2026, 9, 1, tzinfo=timezone.utc),
+                "start_date": datetime(2026, 7, 1, tzinfo=UTC),
+                "end_date": datetime(2026, 9, 1, tzinfo=UTC),
             }
         )
     )

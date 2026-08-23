@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -11,7 +11,7 @@ from app.alerts.engine import AlertService
 from app.alerts.models import AlertCondition, AlertOperator
 from tests.api.v1._auth_fixtures import make_authenticated_headers
 
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 
 
 def _signal_payload(**overrides: object) -> dict:

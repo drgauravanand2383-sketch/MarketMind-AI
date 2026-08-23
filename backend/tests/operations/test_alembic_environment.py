@@ -17,9 +17,9 @@ import tempfile
 import uuid
 
 import pytest
-from alembic import command
 from alembic.config import Config
 
+from alembic import command
 from app.operations.migrations.discovery import collect_table_names
 
 ALEMBIC_INI_PATH = "alembic.ini"

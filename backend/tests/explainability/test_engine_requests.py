@@ -12,7 +12,6 @@ from app.explainability.exceptions import (
     ExplainabilityResultNotFoundError,
 )
 
-
 # --- create_request -----------------------------------------------------------
 
 

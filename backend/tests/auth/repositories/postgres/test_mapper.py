@@ -4,7 +4,7 @@ guarantee that `password_hash` never appears on the mapped `User`."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.auth.models.role import Role
 from app.auth.models.user import User, UserStatus
@@ -14,9 +14,9 @@ from app.auth.repositories.postgres.mapper import (
     role_to_model,
     user_to_model,
 )
-from app.auth.repositories.postgres.models import RoleModel, UserModel
+from app.auth.repositories.postgres.models import UserModel
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 def test_user_round_trips() -> None:

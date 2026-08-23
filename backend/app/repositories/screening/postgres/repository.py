@@ -12,10 +12,10 @@ aiosqlite) in tests.
 from __future__ import annotations
 
 import copy as copy_module
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.repositories.screening.postgres.mapper import model_to_profile, profile_to_model
 from app.repositories.screening.postgres.models import ScreeningProfileModel
@@ -26,7 +26,7 @@ __all__ = ["PostgresScreeningRepository"]
 
 
 class PostgresScreeningRepository(BaseScreeningRepository):
-    def __init__(self, session_factory: async_sessionmaker) -> None:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         """Initialize the repository.
 
         Args:
@@ -84,7 +84,7 @@ class PostgresScreeningRepository(BaseScreeningRepository):
             source = await session.get(ScreeningProfileModel, profile_id)
             if source is None:
                 return None
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             new_model = ScreeningProfileModel(
                 id=new_profile_id,
                 name=new_name,

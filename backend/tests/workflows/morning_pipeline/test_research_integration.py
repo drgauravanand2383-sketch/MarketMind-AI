@@ -25,8 +25,8 @@ from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 
 from app.agents.company_research.agent import CompanyResearchAgent
 from app.agents.company_research.models import CompanyResearchRequest
-from app.repositories.knowledge.chroma.repository import ChromaKnowledgeRepository
 from app.knowledge.hub import KnowledgeHub
+from app.repositories.knowledge.chroma.repository import ChromaKnowledgeRepository
 from tests.agents.company_research.conftest import build_prompt_registry, build_runtime, mock_llm_service
 from tests.workflows.morning_pipeline.conftest import (
     MockAppleRSSProvider,

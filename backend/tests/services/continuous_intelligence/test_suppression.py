@@ -3,13 +3,13 @@ fingerprints, mirroring AlertService._is_duplicate's own shape (§8)."""
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from app.services.continuous_intelligence.suppression import SuppressionService
 
-NOW = datetime(2026, 8, 15, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 15, tzinfo=UTC)
 
 
 class _Clock:

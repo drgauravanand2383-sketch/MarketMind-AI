@@ -15,11 +15,12 @@ used by `app.agents.base.BaseAgent`.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -31,7 +32,7 @@ __all__ = [
 ]
 
 
-class TriggerType(str, Enum):
+class TriggerType(StrEnum):
     """How a workflow execution was initiated."""
 
     SCHEDULED = "scheduled"
@@ -39,7 +40,7 @@ class TriggerType(str, Enum):
     UPSTREAM_WORKFLOW = "upstream_workflow"
 
 
-class WorkflowStatus(str, Enum):
+class WorkflowStatus(StrEnum):
     """The lifecycle state of a workflow execution."""
 
     PENDING = "pending"

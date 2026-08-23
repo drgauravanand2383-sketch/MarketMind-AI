@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from app.operations.logging.models import LogCategory, LogLevel, LogRecord
 
@@ -32,7 +32,7 @@ _LEVEL_TO_STDLIB: dict[LogLevel, int] = {
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class BaseStructuredLogger(ABC):

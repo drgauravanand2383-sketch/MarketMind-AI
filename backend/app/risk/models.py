@@ -47,7 +47,7 @@ consistency *against*. The literal, implementable reading enforced here:
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -65,7 +65,7 @@ __all__ = [
 ]
 
 
-class RiskCategory(str, Enum):
+class RiskCategory(StrEnum):
     DIVERSIFICATION = "DIVERSIFICATION"
     CONCENTRATION = "CONCENTRATION"
     SECTOR = "SECTOR"
@@ -77,7 +77,7 @@ class RiskCategory(str, Enum):
     CUSTOM = "CUSTOM"
 
 
-class RiskSeverity(str, Enum):
+class RiskSeverity(StrEnum):
     LOW = "LOW"
     MODERATE = "MODERATE"
     HIGH = "HIGH"
@@ -180,7 +180,7 @@ class RiskMetric(BaseModel):
     description: str
 
 
-class MarketDataCoverageStatus(str, Enum):
+class MarketDataCoverageStatus(StrEnum):
     """How much of a `RiskAssessment`'s underlying `RecommendationCandidate`s
     (Milestone 14) carry live market data — purely informational (see
     `app.risk.engine`'s own docstring: this engine never fetches market

@@ -19,7 +19,7 @@ mock always reproduces identically for a given ticker.
 from __future__ import annotations
 
 import hashlib
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from app.market_data.models import (
     CompanyProfile,
@@ -45,7 +45,7 @@ __all__ = ["MockMarketDataProvider"]
 
 PROVIDER_NAME = "Mock Market Data Provider"
 
-_DEFAULT_REFERENCE_TIME = datetime(2026, 1, 1, tzinfo=timezone.utc)
+_DEFAULT_REFERENCE_TIME = datetime(2026, 1, 1, tzinfo=UTC)
 _DEFAULT_BAR_COUNT = 30
 _MAX_BARS = 500
 
@@ -119,7 +119,7 @@ class MockMarketDataProvider(MarketDataProvider):
             provider=PROVIDER_NAME,
             status=ProviderHealthStatus.HEALTHY,
             latency_ms=0.0,
-            last_updated=datetime.now(timezone.utc),
+            last_updated=datetime.now(UTC),
         )
 
     async def get_quote(self, ticker: str) -> MarketQuote:
@@ -346,8 +346,8 @@ def _to_datetime(value: date) -> datetime:
     import so this infrastructure module depends only on domain models,
     never on the application-layer normalization service."""
     if isinstance(value, datetime):
-        return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
-    return datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    return datetime(value.year, value.month, value.day, tzinfo=UTC)
 
 
 def _require_ticker(ticker: str) -> str:
@@ -373,7 +373,7 @@ def _fraction(seed: int, salt: int, *, low: float, high: float) -> float:
     return round(_scaled(seed, salt, low=low, high=high) / 100 if high > 1 else _scaled(seed, salt, low=low, high=high), 6)
 
 
-def _pick(seed: int, salt: int, options: tuple) -> object:  # noqa: ANN401 - generic small-catalog picker
+def _pick[T](seed: int, salt: int, options: tuple[T, ...]) -> T:
     combined = _digest(f"{seed}:{salt}")
     return options[combined % len(options)]
 

@@ -9,7 +9,6 @@ import pytest
 from pydantic import ValidationError
 
 from app.strategy.models import (
-    InvestmentStrategy,
     StrategyEvaluationRequest,
     StrategyEvaluationResult,
     StrategyMatch,

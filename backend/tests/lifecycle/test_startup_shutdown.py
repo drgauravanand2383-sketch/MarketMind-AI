@@ -10,7 +10,6 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from app.bootstrap import bootstrap_application_state, shutdown_application_state
-from app.operations.logging.models import LogCategory
 from app.operations.metrics.models import METRIC_STARTUP_DURATION_SECONDS
 from app.operations.validation.models import ValidationReport
 

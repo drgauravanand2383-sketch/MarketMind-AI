@@ -8,7 +8,7 @@ here since these are independent modules with no shared base to place it in.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.backtesting.models import (
     BacktestPeriod,
@@ -35,7 +35,7 @@ __all__ = [
 
 
 def _ensure_aware(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def _ensure_aware_optional(value: datetime | None) -> datetime | None:

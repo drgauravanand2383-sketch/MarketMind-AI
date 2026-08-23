@@ -6,7 +6,7 @@ filesystem, network, LLM, or KnowledgeHub involvement anywhere.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
@@ -83,7 +83,7 @@ async def test_overwrite_preserves_original_created_at(service: MemoryService) -
 
 
 async def test_overwrite_updates_updated_at(service: MemoryService) -> None:
-    stale_time = datetime.now(timezone.utc) - timedelta(hours=1)
+    stale_time = datetime.now(UTC) - timedelta(hours=1)
     await service.store(
         global_entry(key="k", value="first", created_at=stale_time, updated_at=stale_time)
     )
@@ -327,7 +327,7 @@ def test_query_scope_validation_matches_entry_scope_validation() -> None:
 
 
 def test_entry_updated_at_before_created_at_raises() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with pytest.raises(ValidationError):
         MemoryEntry(
             key="k",

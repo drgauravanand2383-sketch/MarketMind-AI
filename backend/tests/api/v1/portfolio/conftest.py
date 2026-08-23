@@ -17,7 +17,7 @@ network-dependent dependencies.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import FastAPI
@@ -80,13 +80,13 @@ class StubPortfolioIntelligenceAgent:
     async def run(self, context: object, input_data: PortfolioIntelligenceRequest) -> PortfolioIntelligenceReport:
         return PortfolioIntelligenceReport(
             request=input_data,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
             executive_summary="Stub summary.",
             portfolio_overview=PortfolioOverview(
                 portfolio_name=input_data.portfolio_name,
                 holding_count=len(input_data.companies),
                 matched_holding_count=0,
-                generated_at=datetime.now(timezone.utc),
+                generated_at=datetime.now(UTC),
             ),
         )
 

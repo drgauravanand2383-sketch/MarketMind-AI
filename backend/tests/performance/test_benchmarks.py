@@ -11,9 +11,8 @@ results; run with `-s` to see them.
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -31,7 +30,7 @@ from app.repositories.watchlist.postgres.repository import PostgresWatchlistRepo
 from app.watchlist.service import WatchlistService
 from tests.api.ws.fakes import FakeWebSocket
 
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 ITERATIONS = 50
 
 

@@ -12,7 +12,7 @@ composition.
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.services.entity_resolution.service import EntityResolutionService
 from app.services.market_snapshot.models import MarketSnapshotResult, MarketSnapshotStatus
@@ -97,7 +97,7 @@ class PortfolioMarketSnapshotService:
 
         return PortfolioMarketSnapshot(
             portfolio_id=watchlist.id,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
             company_snapshots=tuple(company_snapshots),
             fresh_count=counts.get(MarketSnapshotStatus.FRESH, 0),
             stale_count=counts.get(MarketSnapshotStatus.STALE, 0),

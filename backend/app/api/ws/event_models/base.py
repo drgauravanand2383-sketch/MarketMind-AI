@@ -8,7 +8,6 @@ already-computed result.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -16,10 +15,8 @@ from app.api.ws.event_models.event_type import EventType
 
 __all__ = ["BaseEvent", "EventMetadata"]
 
-PayloadT = TypeVar("PayloadT")
 
-
-class BaseEvent(BaseModel, Generic[PayloadT]):
+class BaseEvent[PayloadT](BaseModel):
     """Fields shared by every concrete event type.
 
     `correlation_id` links related events together (e.g. a backtest's

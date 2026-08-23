@@ -7,7 +7,7 @@ here is a test-only double proving the interface is implementable.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi import Depends, FastAPI
@@ -21,7 +21,7 @@ from app.api.idempotency import (
     get_idempotency_key,
 )
 
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 
 
 class _FakeIdempotencyStore(IdempotencyStore):

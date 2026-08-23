@@ -14,8 +14,9 @@ is injected at construction time.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from app.alerts.exceptions import (
     AlertNotFoundError,
@@ -82,7 +83,7 @@ _CHANNELS_BY_PRIORITY: dict[AlertPriority, frozenset[NotificationChannel]] = {
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class AlertService:
@@ -159,7 +160,7 @@ class AlertService:
             name=name,
             description=description,
             enabled=enabled,
-            priority=priority,
+            priority=AlertPriority(priority),
             conditions=conditions,
             cooldown_minutes=cooldown_minutes,
             repeat_allowed=repeat_allowed,
@@ -359,21 +360,27 @@ def _evaluate_condition(condition: AlertCondition, signal: SignalResult) -> bool
 
 
 def _apply_operator(operator: AlertOperator, actual: Any, expected: Any) -> bool:
+    # `actual`/`expected` are genuinely `Any` — arbitrary attribute values
+    # compared against arbitrary configured values, this function's whole
+    # purpose. Every branch's own comparison operator already returns a
+    # real `bool` at runtime for any well-behaved comparable pair (the
+    # only kind `AlertCondition` ever configures); `bool(...)` here is a
+    # correct, harmless narrowing for mypy, not a behavior change.
     if operator == AlertOperator.EQUALS:
-        return actual == expected
+        return bool(actual == expected)
     if operator == AlertOperator.NOT_EQUALS:
-        return actual != expected
+        return bool(actual != expected)
     if operator == AlertOperator.GREATER_THAN:
-        return actual > expected
+        return bool(actual > expected)
     if operator == AlertOperator.GREATER_EQUAL:
-        return actual >= expected
+        return bool(actual >= expected)
     if operator == AlertOperator.LESS_THAN:
-        return actual < expected
+        return bool(actual < expected)
     if operator == AlertOperator.LESS_EQUAL:
-        return actual <= expected
+        return bool(actual <= expected)
     if operator == AlertOperator.BETWEEN:
         low, high = expected
-        return low <= actual <= high
+        return bool(low <= actual <= high)
     if operator == AlertOperator.IN:
         return actual in expected
     return actual not in expected  # AlertOperator.NOT_IN

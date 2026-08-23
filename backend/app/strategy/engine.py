@@ -13,8 +13,9 @@ globals, no singleton: every dependency is injected at construction time.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from app.recommendations.models import RecommendationCandidate, RecommendationResult
 from app.strategy.exceptions import (
@@ -33,6 +34,7 @@ from app.strategy.models import (
     StrategyOperator,
     StrategyRule,
     StrategySummary,
+    StrategyType,
     StrategyWeighting,
 )
 
@@ -56,7 +58,7 @@ _WEIGHTING_FIELDS = (
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class StrategyEvaluationService:
@@ -104,7 +106,7 @@ class StrategyEvaluationService:
             id=str(uuid.uuid4()),
             name=name,
             description=description,
-            strategy_type=strategy_type,
+            strategy_type=StrategyType(strategy_type),
             enabled=enabled,
             weightings=weightings,
             rules=rules,
@@ -323,21 +325,24 @@ def _evaluate_rule_against_candidate(rule: StrategyRule, candidate: Recommendati
 
 
 def _apply_operator(operator: StrategyOperator, actual: Any, expected: Any) -> bool:
+    # Same reasoning as `app.alerts.engine._apply_operator`: `actual`/
+    # `expected` are genuinely `Any` by design; `bool(...)` is a correct,
+    # harmless narrowing for mypy, never a behavior change.
     if operator == StrategyOperator.EQUALS:
-        return actual == expected
+        return bool(actual == expected)
     if operator == StrategyOperator.NOT_EQUALS:
-        return actual != expected
+        return bool(actual != expected)
     if operator == StrategyOperator.GREATER_THAN:
-        return actual > expected
+        return bool(actual > expected)
     if operator == StrategyOperator.GREATER_EQUAL:
-        return actual >= expected
+        return bool(actual >= expected)
     if operator == StrategyOperator.LESS_THAN:
-        return actual < expected
+        return bool(actual < expected)
     if operator == StrategyOperator.LESS_EQUAL:
-        return actual <= expected
+        return bool(actual <= expected)
     if operator == StrategyOperator.BETWEEN:
         low, high = expected
-        return low <= actual <= high
+        return bool(low <= actual <= high)
     if operator == StrategyOperator.IN:
         return actual in expected
     return actual not in expected  # StrategyOperator.NOT_IN

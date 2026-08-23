@@ -7,7 +7,7 @@ the repository's contract implementation, and health checks.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.repositories.knowledge.chroma.repository import ChromaKnowledgeRepository
@@ -129,7 +129,7 @@ def _ingestion_batch(documents: list[VectorDocument]) -> IngestionBatch:
         relational_records=[],
         ingestion_metadata=IngestionMetadata(
             batch_id="batch-1",
-            ingested_at=datetime.now(timezone.utc),
+            ingested_at=datetime.now(UTC),
             total_items_received=len(documents),
             accepted_count=len(documents),
         ),
@@ -141,7 +141,7 @@ def _empty_embedding_batch() -> EmbeddingBatch:
         chunks=[],
         batch_metadata=EmbeddingBatchMetadata(
             batch_id="embed-batch-1",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             total_documents_received=0,
             accepted_count=0,
             max_batch_size=100,

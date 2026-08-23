@@ -8,6 +8,7 @@ live API or market-data connection of any kind lives here.
 
 from __future__ import annotations
 
+from app.screening.engine import ScreeningEngine
 from app.screening.exceptions import (
     DuplicateProfileNameError,
     MaxFiltersExceededError,
@@ -24,7 +25,6 @@ from app.screening.models import (
     ScreenOperator,
     ScreenResult,
 )
-from app.screening.engine import ScreeningEngine
 
 __all__ = [
     "ScreeningEngine",

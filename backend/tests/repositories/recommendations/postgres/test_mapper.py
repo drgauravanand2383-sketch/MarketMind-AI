@@ -4,7 +4,7 @@ performs (mirrors the Alert Postgres mapper's own regression test, Sprint 48).""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.recommendations.models import (
     RecommendationCandidate,
@@ -24,7 +24,7 @@ from app.repositories.recommendations.postgres.models import (
     RecommendationResultModel,
 )
 
-NOW = datetime(2026, 8, 9, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 9, tzinfo=UTC)
 
 
 def test_request_round_trips() -> None:

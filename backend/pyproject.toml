@@ -40,15 +40,84 @@ build-backend = "hatchling.build"
 packages = ["app"]
 
 [tool.ruff]
-line-length = 100
+# 120, not the default 100: this codebase's own established style is
+# long-form, explanatory prose docstrings/comments (verified against the
+# real distribution — p90 line length is 122 chars, p50 is 108; the 100
+# limit was flagging normal prose, not a real readability problem). 120
+# covers the large majority of that real usage without pretending E501
+# should be disabled outright.
+line-length = 120
 target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+# B008 (a function call in a parameter default) is FastAPI's own
+# documented, required dependency-injection pattern for Depends()/Query()/
+# Security() — not a real mutable-default-argument bug. The remaining
+# entries are this codebase's own frozen (`ConfigDict(frozen=True)`)
+# value-object defaults (RiskWeighting/RiskThresholds/ScoringWeights/
+# RecommendationThresholds/ExplainabilityWeighting/StrategyWeighting, each
+# verified frozen=True in its own models.py) plus two side-effect-free,
+# no-mutable-state helpers (SystemClock has no fields at all;
+# require_policy()/RequireRole() build a closure/set a private attribute
+# once and never mutate it) — every one individually verified immutable
+# before being added here, never a blanket suppression. This is the
+# documented alternative to ruff's own suggested fix ("read the default
+# from a module-level singleton variable"), which this codebase's
+# services explicitly reject ("no globals, no singleton: every dependency
+# is injected at construction time" — see e.g. WatchlistService's own
+# module docstring).
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Security",
+    "app.risk.models.RiskWeighting",
+    "app.risk.models.RiskThresholds",
+    "app.recommendations.models.ScoringWeights",
+    "app.recommendations.models.RecommendationThresholds",
+    "app.explainability.models.ExplainabilityWeighting",
+    "app.strategy.models.StrategyWeighting",
+    "app.auth.security.clock.SystemClock",
+    "app.auth.dependencies.policy_guard.require_policy",
+    "app.auth.policies.policy.RequireRole",
+    "app.auth.policies.RequireRole",
+]
+
+# F811 false positives: each of these files imports `auth_repository`/
+# `auth_service`/`authorization_service` from `tests.api.v1._auth_fixtures`
+# solely so pytest can discover them as fixtures (already marked
+# `# noqa: F401` for that same reason), then a local `@pytest.fixture`
+# function requests one of them by taking a same-named parameter — the
+# standard pytest fixture-injection pattern, not a real redefinition bug.
+# Ruff's F811 has no built-in understanding of pytest's by-name fixture
+# resolution, so it reads the parameter as shadowing the import. Verified
+# individually: every flagged name in every listed file is this exact
+# fixture-parameter pattern, not a genuine accidental redefinition.
+[tool.ruff.lint.per-file-ignores]
+"tests/api/v1/alerts/conftest.py" = ["F811"]
+"tests/api/v1/auth/conftest.py" = ["F811"]
+"tests/api/v1/backtests/conftest.py" = ["F811"]
+"tests/api/v1/explainability/conftest.py" = ["F811"]
+"tests/api/v1/research/conftest.py" = ["F811"]
+"tests/api/v1/screening/conftest.py" = ["F811"]
+"tests/api/v1/signals/conftest.py" = ["F811"]
+"tests/api/v1/strategies/conftest.py" = ["F811"]
+"tests/api/ws/conftest.py" = ["F811"]
+"tests/api/ws/test_rest_integration.py" = ["F811"]
 
 [tool.mypy]
 python_version = "3.13"
 strict = true
+
+# Both ship no py.typed marker / stub package — mypy cannot analyze their
+# internals regardless of how this codebase uses them, so `strict = true`
+# above degrades to "trust the runtime, don't type-check across this
+# boundary" for these two specific third-party libraries only. Every other
+# dependency remains fully strict-checked.
+[[tool.mypy.overrides]]
+module = ["feedparser", "apscheduler.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

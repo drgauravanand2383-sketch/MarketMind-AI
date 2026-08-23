@@ -4,7 +4,7 @@ the Alert/Recommendation Postgres mappers' own regression tests)."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.repositories.strategy.postgres.mapper import (
     evaluation_to_model,
@@ -27,7 +27,7 @@ from app.strategy.models import (
     StrategyWeighting,
 )
 
-NOW = datetime(2026, 8, 10, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 10, tzinfo=UTC)
 
 
 def test_strategy_with_rules_and_weightings_round_trips() -> None:

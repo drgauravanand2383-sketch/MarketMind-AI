@@ -9,7 +9,7 @@ prevention, password strength) are enforced at this layer.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -19,7 +19,7 @@ from app.auth.models.user import User, UserStatus
 from app.auth.repositories.postgres.models import Base
 from app.auth.repositories.postgres.repository import PostgresAuthRepository
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 @pytest.fixture

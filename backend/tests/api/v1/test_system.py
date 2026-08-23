@@ -5,7 +5,6 @@ from __future__ import annotations
 from fastapi import status
 from fastapi.testclient import TestClient
 
-
 # --- /version -----------------------------------------------------------
 
 

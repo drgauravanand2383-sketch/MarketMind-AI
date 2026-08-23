@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from app.auth.exceptions import DuplicateEmailError, DuplicateUsernameError, WeakPasswordError
 from app.auth.models.authentication import AuthenticatedPrincipal, AuthenticationResponse
@@ -42,7 +42,7 @@ _HAS_DIGIT = re.compile(r"\d")
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def validate_password_strength(password: str) -> None:

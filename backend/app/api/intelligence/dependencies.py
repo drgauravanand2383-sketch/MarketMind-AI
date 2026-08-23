@@ -17,11 +17,12 @@ Tests use FastAPI's `app.dependency_overrides` to substitute test doubles.
 
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Request
 
 from app.agents.company_research.agent import CompanyResearchAgent
 from app.agents.news_collector.agent import NewsCollectorAgent
 from app.agents.portfolio_intelligence.agent import PortfolioIntelligenceAgent
+from app.api.dependencies.state import resolve_app_state
 from app.core.runtime import AgentRuntime
 from app.providers.embedding.provider import BaseEmbeddingProvider
 from app.repositories.knowledge.repository import BaseKnowledgeRepository
@@ -45,68 +46,37 @@ __all__ = [
 
 def get_agent_runtime(request: Request) -> AgentRuntime:
     """Resolve the shared AgentRuntime configured at application startup."""
-    runtime = getattr(request.app.state, "agent_runtime", None)
-    if runtime is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="AgentRuntime is not configured on this application instance.",
-        )
-    return runtime
+    return resolve_app_state(request, "agent_runtime", AgentRuntime, label="AgentRuntime")
 
 
 def get_knowledge_repository(request: Request) -> BaseKnowledgeRepository:
     """Resolve the shared Knowledge Repository configured at application startup."""
-    repository = getattr(request.app.state, "knowledge_repository", None)
-    if repository is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Knowledge Repository is not configured on this application instance.",
-        )
-    return repository
+    # BaseKnowledgeRepository is an ABC — resolve_app_state's `expected_type:
+    # type[T]` requires a concrete/instantiable class even though the value
+    # is never actually instantiated inside it, only used to infer `T`.
+    return resolve_app_state(request, "knowledge_repository", BaseKnowledgeRepository, label="Knowledge Repository")  # type: ignore[type-abstract]
 
 
 def get_embedding_provider(request: Request) -> BaseEmbeddingProvider:
     """Resolve the shared Embedding Provider configured at application startup."""
-    provider = getattr(request.app.state, "embedding_provider", None)
-    if provider is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Embedding Provider is not configured on this application instance.",
-        )
-    return provider
+    return resolve_app_state(request, "embedding_provider", BaseEmbeddingProvider, label="Embedding Provider")  # type: ignore[type-abstract]
 
 
 def get_news_collector_agent(request: Request) -> NewsCollectorAgent:
     """Resolve the shared News Collector agent configured at application startup."""
-    agent = getattr(request.app.state, "news_collector_agent", None)
-    if agent is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="News Collector agent is not configured on this application instance.",
-        )
-    return agent
+    return resolve_app_state(request, "news_collector_agent", NewsCollectorAgent, label="News Collector agent")
 
 
 def get_company_research_agent(request: Request) -> CompanyResearchAgent:
     """Resolve the shared CompanyResearchAgent configured at application startup."""
-    agent = getattr(request.app.state, "company_research_agent", None)
-    if agent is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="CompanyResearchAgent is not configured on this application instance.",
-        )
-    return agent
+    return resolve_app_state(request, "company_research_agent", CompanyResearchAgent, label="CompanyResearchAgent")
 
 
 def get_portfolio_intelligence_agent(request: Request) -> PortfolioIntelligenceAgent:
     """Resolve the shared PortfolioIntelligenceAgent configured at application startup."""
-    agent = getattr(request.app.state, "portfolio_intelligence_agent", None)
-    if agent is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="PortfolioIntelligenceAgent is not configured on this application instance.",
-        )
-    return agent
+    return resolve_app_state(
+        request, "portfolio_intelligence_agent", PortfolioIntelligenceAgent, label="PortfolioIntelligenceAgent"
+    )
 
 
 def get_morning_pipeline(

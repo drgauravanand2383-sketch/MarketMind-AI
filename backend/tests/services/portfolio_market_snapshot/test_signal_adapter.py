@@ -7,7 +7,7 @@ and that the resulting MarketQuote round-trips MarketSnapshot's fields.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -25,8 +25,8 @@ def _snapshot(**overrides: object) -> MarketSnapshot:
         exchange=Exchange.NYSE, currency=Currency.USD,
         price=494.51, previous_close=484.0, change=10.51, change_percent=2.17,
         day_high=497.0, day_low=485.0, volume=1_000_000,
-        quoted_at=datetime(2026, 8, 13, 20, 0, tzinfo=timezone.utc),
-        fetched_at=datetime(2026, 8, 13, 20, 0, 1, tzinfo=timezone.utc),
+        quoted_at=datetime(2026, 8, 13, 20, 0, tzinfo=UTC),
+        fetched_at=datetime(2026, 8, 13, 20, 0, 1, tzinfo=UTC),
         provider="Yahoo Finance",
     )
     defaults.update(overrides)

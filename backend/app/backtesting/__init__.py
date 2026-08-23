@@ -9,6 +9,7 @@ Carlo simulation exist anywhere in this package.
 
 from __future__ import annotations
 
+from app.backtesting.engine import BacktestingService
 from app.backtesting.exceptions import (
     BacktestingError,
     BacktestRequestNotFoundError,
@@ -27,7 +28,6 @@ from app.backtesting.models import (
     HistoricalSnapshot,
     ReplayMode,
 )
-from app.backtesting.engine import BacktestingService
 
 __all__ = [
     "BacktestingService",

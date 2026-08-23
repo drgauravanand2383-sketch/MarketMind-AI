@@ -6,14 +6,14 @@ regardless of which service produced it."""
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = ["ValidationSeverity", "ValidationCheck", "ValidationReport"]
 
 
-class ValidationSeverity(str, Enum):
+class ValidationSeverity(StrEnum):
     INFO = "INFO"
     WARNING = "WARNING"
     ERROR = "ERROR"

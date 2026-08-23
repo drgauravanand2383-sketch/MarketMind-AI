@@ -5,7 +5,7 @@ Purely structural mapping in both directions — no business logic.
 from __future__ import annotations
 
 from app.repositories.signals.postgres.models import SignalDefinitionModel
-from app.signals.models import SignalCondition, SignalConditionGroup, SignalDefinition
+from app.signals.models import SignalCategory, SignalCondition, SignalConditionGroup, SignalDefinition, SignalPriority
 
 __all__ = ["definition_to_model", "model_to_definition"]
 
@@ -32,9 +32,9 @@ def model_to_definition(model: SignalDefinitionModel) -> SignalDefinition:
         id=model.id,
         name=model.name,
         description=model.description,
-        category=model.category,
+        category=SignalCategory(model.category),
         enabled=model.enabled,
-        priority=model.priority,
+        priority=SignalPriority(model.priority),
         conditions=tuple(SignalCondition.model_validate(c) for c in model.conditions),
         groups=tuple(SignalConditionGroup.model_validate(g) for g in model.groups),
         created_at=model.created_at,

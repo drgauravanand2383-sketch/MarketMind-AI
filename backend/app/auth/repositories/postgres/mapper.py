@@ -10,7 +10,7 @@ a separate concern (`user_to_model` takes it as an explicit parameter;
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.auth.models.role import Role
 from app.auth.models.user import User, UserStatus
@@ -20,7 +20,7 @@ __all__ = ["user_to_model", "model_to_user", "role_to_model", "model_to_role"]
 
 
 def _ensure_aware(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def user_to_model(user: User, password_hash: str) -> UserModel:

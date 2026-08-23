@@ -34,7 +34,7 @@ a maximum filter count) cannot be pydantic field constraints and live in
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -51,7 +51,7 @@ __all__ = [
 ]
 
 
-class ScreenOperator(str, Enum):
+class ScreenOperator(StrEnum):
     EQUALS = "EQUALS"
     NOT_EQUALS = "NOT_EQUALS"
     GREATER_THAN = "GREATER_THAN"
@@ -63,7 +63,7 @@ class ScreenOperator(str, Enum):
     NOT_IN = "NOT_IN"
 
 
-class LogicType(str, Enum):
+class LogicType(StrEnum):
     AND = "AND"
     OR = "OR"
 

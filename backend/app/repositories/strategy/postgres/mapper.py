@@ -8,7 +8,7 @@ here since these are independent modules with no shared base to place it in.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.repositories.strategy.postgres.models import (
     InvestmentStrategyModel,
@@ -20,6 +20,7 @@ from app.strategy.models import (
     StrategyMatch,
     StrategyRule,
     StrategySummary,
+    StrategyType,
     StrategyWeighting,
 )
 
@@ -27,7 +28,7 @@ __all__ = ["strategy_to_model", "model_to_strategy", "evaluation_to_model", "mod
 
 
 def _ensure_aware(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def strategy_to_model(strategy: InvestmentStrategy) -> InvestmentStrategyModel:
@@ -51,7 +52,7 @@ def model_to_strategy(model: InvestmentStrategyModel) -> InvestmentStrategy:
         id=model.id,
         name=model.name,
         description=model.description,
-        strategy_type=model.strategy_type,
+        strategy_type=StrategyType(model.strategy_type),
         enabled=model.enabled,
         weightings=StrategyWeighting.model_validate(model.weightings),
         rules=tuple(StrategyRule.model_validate(r) for r in model.rules),

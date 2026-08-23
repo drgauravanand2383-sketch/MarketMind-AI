@@ -4,7 +4,7 @@ invalid URLs, and unknown provider names."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.config.models import (
     AnthropicSettings,
@@ -18,7 +18,7 @@ from app.config.models import (
 from app.operations.validation.configuration import ConfigurationValidationService
 from app.operations.validation.models import ValidationSeverity
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 def _service() -> ConfigurationValidationService:

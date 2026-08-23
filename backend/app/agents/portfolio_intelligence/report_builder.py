@@ -9,7 +9,7 @@ already produced by CompanyResearchAgent, one report per holding.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.agents.company_research.models import CompanyResearchReport
 from app.agents.portfolio_intelligence.models import (
@@ -45,7 +45,7 @@ def build_portfolio_report(
     Returns:
         A PortfolioResearchReport covering all ten required sections.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     matched_count = sum(1 for report in company_reports if report.company_overview.matched)
 
     portfolio_overview = PortfolioOverview(
@@ -166,7 +166,7 @@ def _detect_shared_relationships(reports: list[CompanyResearchReport]) -> list[S
             company_b = ref.related_label
             if company_b == company_a or company_b not in portfolio_companies:
                 continue
-            pair = tuple(sorted((company_a, company_b)))
+            pair = (company_a, company_b) if company_a < company_b else (company_b, company_a)
             if pair in seen:
                 continue
             seen.add(pair)

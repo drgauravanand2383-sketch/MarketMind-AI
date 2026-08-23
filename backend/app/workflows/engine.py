@@ -14,7 +14,7 @@ exposed on WorkflowExecutionResult.
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Protocol, runtime_checkable
 
 from app.core.context import ExecutionContext
@@ -111,7 +111,7 @@ class WorkflowEngine:
         if workflow is None:
             raise WorkflowNotRegisteredError(workflow_id)
 
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
         started_monotonic = time.monotonic()
 
         try:
@@ -121,7 +121,7 @@ class WorkflowEngine:
                 workflow_id=workflow_id,
                 execution_id=context.execution_id,
                 started_at=started_at,
-                completed_at=datetime.now(timezone.utc),
+                completed_at=datetime.now(UTC),
                 duration=time.monotonic() - started_monotonic,
                 success=False,
                 output=None,
@@ -132,7 +132,7 @@ class WorkflowEngine:
             workflow_id=workflow_id,
             execution_id=context.execution_id,
             started_at=started_at,
-            completed_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(UTC),
             duration=time.monotonic() - started_monotonic,
             success=True,
             output=output,

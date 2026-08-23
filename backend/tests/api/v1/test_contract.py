@@ -9,7 +9,7 @@ service/database call).
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -41,7 +41,7 @@ from app.api.v1.watchlists.schemas import (
     RenameWatchlistRequest,
 )
 
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 
 
 def _signal_kwargs() -> dict:

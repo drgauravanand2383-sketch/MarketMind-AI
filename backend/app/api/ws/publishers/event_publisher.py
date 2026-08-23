@@ -8,7 +8,7 @@ method here computes, scores, or evaluates anything itself.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.agents.portfolio_intelligence.models import PortfolioIntelligenceReport
 from app.alerts.models import Alert
@@ -45,7 +45,7 @@ def _new_event_id() -> str:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class EventPublisher:

@@ -16,8 +16,9 @@ reachability itself, only calls and aggregates.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
-from typing import Callable, Protocol
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Protocol
 
 from app.operations.health.models import (
     ApplicationHealth,
@@ -36,7 +37,7 @@ class _HealthCheckable(Protocol):
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class HealthCheckService:
@@ -132,7 +133,12 @@ def _aggregate_state(
     service_health: tuple[ServiceHealth, ...],
     dependencies: tuple[DependencyHealth, ...],
 ) -> HealthState:
-    states = [item.state for item in (*repository_health, *service_health, *dependencies)]
+    all_health: tuple[RepositoryHealth | ServiceHealth | DependencyHealth, ...] = (
+        *repository_health,
+        *service_health,
+        *dependencies,
+    )
+    states = [item.state for item in all_health]
     if not states:
         return HealthState.HEALTHY
     if any(state == HealthState.UNHEALTHY for state in states):

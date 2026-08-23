@@ -12,7 +12,7 @@ writing only within pytest's `tmp_path`.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -40,7 +40,7 @@ def context() -> ExecutionContext:
         workflow_type="morning_brief",
         trigger=TriggerType.SCHEDULED,
         initiated_by="test",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
         trace_id="trace-1",
         participating_agents=("AGT-003",),
         status=WorkflowStatus.RUNNING,
@@ -60,7 +60,7 @@ def news_item(item_id: str, title: str, summary: str) -> NewsItem:
 
 def news_collection_result(items: list[NewsItem]) -> NewsCollectionResult:
     return NewsCollectionResult(
-        items=items, provider_summary=[], collected_at=datetime.now(timezone.utc)
+        items=items, provider_summary=[], collected_at=datetime.now(UTC)
     )
 
 
@@ -79,7 +79,7 @@ def knowledge_record(record_id: str, title: str, text: str) -> KnowledgeRecord:
 def save_result(relational_count: int) -> SaveResult:
     return SaveResult(
         batch_id="batch-1",
-        saved_at=datetime.now(timezone.utc),
+        saved_at=datetime.now(UTC),
         vector_count=0,
         relational_count=relational_count,
         success=True,
@@ -89,7 +89,7 @@ def save_result(relational_count: int) -> SaveResult:
 def embedding_result(total_succeeded: int) -> EmbeddingResult:
     return EmbeddingResult(
         batch_id="embed-batch-1",
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         model="test-model",
         chunk_results=[],
         success=True,

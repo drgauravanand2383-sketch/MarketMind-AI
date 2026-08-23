@@ -33,7 +33,8 @@ spurious rejections.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from app.auth.exceptions import (
     InvalidCredentialsError,
@@ -219,7 +220,7 @@ class JwtAuthenticationProvider(AuthenticationProvider):
             issued_at=now, expires_at=expires_at,
         )
 
-    def _decode_and_check_expiry(self, token: str, *, expected_type: str) -> dict:
+    def _decode_and_check_expiry(self, token: str, *, expected_type: str) -> dict[str, Any]:
         claims = self._jwt_signer.decode(token)
         actual_type = claims.get("typ")
         if actual_type != expected_type:
@@ -230,15 +231,15 @@ class JwtAuthenticationProvider(AuthenticationProvider):
         return claims
 
 
-def _require_str_claim(claims: dict, name: str) -> str:
+def _require_str_claim(claims: dict[str, Any], name: str) -> str:
     value = claims.get(name)
     if not isinstance(value, str) or not value:
         raise TokenMalformedError(f"missing or invalid {name!r} claim.")
     return value
 
 
-def _expires_at_of(claims: dict) -> datetime:
+def _expires_at_of(claims: dict[str, Any]) -> datetime:
     exp = claims.get("exp")
     if not isinstance(exp, (int, float)):
         raise TokenMalformedError("missing or invalid 'exp' claim.")
-    return datetime.fromtimestamp(exp, tz=timezone.utc)
+    return datetime.fromtimestamp(exp, tz=UTC)

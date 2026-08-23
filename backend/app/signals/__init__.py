@@ -9,6 +9,7 @@ alert generation exist anywhere in this package.
 
 from __future__ import annotations
 
+from app.signals.engine import SignalDetectionService
 from app.signals.exceptions import (
     DuplicateSignalNameError,
     MaxConditionsExceededError,
@@ -28,7 +29,6 @@ from app.signals.models import (
     SignalPriority,
     SignalResult,
 )
-from app.signals.engine import SignalDetectionService
 
 __all__ = [
     "SignalDetectionService",

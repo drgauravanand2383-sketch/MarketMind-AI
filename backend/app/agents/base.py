@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 __all__ = ["AgentLayer", "MemoryInterface", "BaseAgent"]
 
 
-class AgentLayer(str, Enum):
+class AgentLayer(StrEnum):
     """Architectural layers an agent may belong to.
 
     Values correspond to the approved multi-agent layer design: every agent

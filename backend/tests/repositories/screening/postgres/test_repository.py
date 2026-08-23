@@ -9,7 +9,7 @@ max filters) are enforced at this layer.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -18,7 +18,7 @@ from app.repositories.screening.postgres.models import Base
 from app.repositories.screening.postgres.repository import PostgresScreeningRepository
 from app.screening.models import LogicalGroup, LogicType, ScreenFilter, ScreeningProfile, ScreenOperator
 
-NOW = datetime(2026, 8, 6, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 6, tzinfo=UTC)
 
 
 @pytest.fixture

@@ -5,7 +5,7 @@ Postgres mappers' own regression tests)."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.explainability.models import (
     AttributionCategory,
@@ -30,7 +30,7 @@ from app.repositories.explainability.postgres.models import (
 from app.risk.models import PortfolioExposure, RiskCategory, RiskMetric, RiskSeverity
 from app.strategy.models import RuleAlignment, StrategyOperator
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 def test_request_round_trips() -> None:

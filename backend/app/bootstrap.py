@@ -446,7 +446,12 @@ def build_knowledge_repository(
 
         client = chromadb.PersistentClient(path=settings.chroma_persist_directory)
         collection = client.get_or_create_collection(name=settings.chroma_collection_name)
-        return ChromaKnowledgeRepository(collection)
+        # chromadb's own `Collection` (returned here) and the `ChromaCollection`
+        # type `ChromaKnowledgeRepository` declares are two overlapping-but-
+        # not-identical shapes from the same library's own type stubs — a
+        # stub inconsistency, not a real mismatch; already inside this
+        # function's own broad infrastructure-failure handling below.
+        return ChromaKnowledgeRepository(collection)  # type: ignore[arg-type]
     except Exception as exc:  # noqa: BLE001 - an infrastructure failure must not crash startup
         logger.warning("Failed to initialize ChromaDB knowledge repository: %s", exc)
         return None
@@ -663,7 +668,11 @@ def build_llm_service(logger: logging.Logger) -> LLMService | None:
     configured" path.
     """
     try:
-        anthropic_settings = AnthropicSettings()
+        # AnthropicSettings.api_key has no Python-level default but is
+        # sourced from ANTHROPIC_API_KEY by pydantic-settings at
+        # construction time — invisible to mypy; see app/config/models.py's
+        # own AppConfig.anthropic field for the fuller explanation.
+        anthropic_settings = AnthropicSettings()  # type: ignore[call-arg]
         llm_settings = LLMSettings()
     except Exception as exc:  # noqa: BLE001 - missing/invalid config must not crash startup
         logger.warning("Anthropic/LLM settings unavailable; llm_service will be unavailable: %s", exc)
@@ -1863,7 +1872,9 @@ def _run_startup_validation(
     """
     components = tuple((name, getattr(app.state, name, None)) for name in DEFAULT_REQUIRED_COMPONENTS)
     try:
-        anthropic_settings: AnthropicSettings | None = AnthropicSettings()
+        # See build_llm_service's own comment above: AnthropicSettings.api_key
+        # is sourced from an env var at runtime, invisible to mypy.
+        anthropic_settings: AnthropicSettings | None = AnthropicSettings()  # type: ignore[call-arg]
     except Exception:  # noqa: BLE001 - a missing required secret must not crash startup
         anthropic_settings = None
     return startup_validation_service.validate_full(

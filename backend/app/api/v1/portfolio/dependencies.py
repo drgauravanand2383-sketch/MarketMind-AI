@@ -10,8 +10,9 @@ same `request.app.state` lookup pattern.
 
 from __future__ import annotations
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request
 
+from app.api.dependencies.state import resolve_app_state
 from app.recommendations.engine import PortfolioRecommendationService
 from app.risk.engine import RiskAnalyticsService
 from app.services.initial_analysis.service import InitialPortfolioAnalysisService
@@ -26,40 +27,25 @@ __all__ = [
 
 
 def get_risk_service(request: Request) -> RiskAnalyticsService:
-    service = getattr(request.app.state, "risk_service", None)
-    if service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="RiskAnalyticsService is not configured on this application instance.",
-        )
-    return service
+    return resolve_app_state(request, "risk_service", RiskAnalyticsService, label="RiskAnalyticsService")
 
 
 def get_recommendation_service(request: Request) -> PortfolioRecommendationService:
-    service = getattr(request.app.state, "recommendation_service", None)
-    if service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="PortfolioRecommendationService is not configured on this application instance.",
-        )
-    return service
+    return resolve_app_state(
+        request, "recommendation_service", PortfolioRecommendationService, label="PortfolioRecommendationService"
+    )
 
 
 def get_portfolio_market_snapshot_service(request: Request) -> PortfolioMarketSnapshotService:
-    service = getattr(request.app.state, "portfolio_market_snapshot_service", None)
-    if service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="PortfolioMarketSnapshotService is not configured on this application instance.",
-        )
-    return service
+    return resolve_app_state(
+        request,
+        "portfolio_market_snapshot_service",
+        PortfolioMarketSnapshotService,
+        label="PortfolioMarketSnapshotService",
+    )
 
 
 def get_initial_analysis_service(request: Request) -> InitialPortfolioAnalysisService:
-    service = getattr(request.app.state, "initial_analysis_service", None)
-    if service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="InitialPortfolioAnalysisService is not configured on this application instance.",
-        )
-    return service
+    return resolve_app_state(
+        request, "initial_analysis_service", InitialPortfolioAnalysisService, label="InitialPortfolioAnalysisService"
+    )

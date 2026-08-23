@@ -11,8 +11,8 @@ to remember, and independent of KnowledgeHub.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -27,7 +27,7 @@ __all__ = [
 ]
 
 
-class MemoryScope(str, Enum):
+class MemoryScope(StrEnum):
     """Which namespace a memory entry belongs to.
 
     Every scope except GLOBAL requires a `scope_id` identifying which
@@ -43,7 +43,7 @@ class MemoryScope(str, Enum):
     GLOBAL = "global"
 
 
-class MemoryTerm(str, Enum):
+class MemoryTerm(StrEnum):
     """Whether an entry is short-term (working/session state) or long-term
     (meant to persist across sessions).
 
@@ -84,8 +84,8 @@ class MemoryEntry(BaseModel):
     scope: MemoryScope
     scope_id: str | None = None
     term: MemoryTerm = MemoryTerm.SHORT_TERM
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @model_validator(mode="after")
     def _validate_scope(self) -> MemoryEntry:

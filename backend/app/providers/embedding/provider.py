@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.providers.embedding.models import (
     EmbeddingChunkResult,
@@ -109,7 +109,7 @@ class BaseEmbeddingProvider(ABC):
 
         return EmbeddingResult(
             batch_id=batch.batch_metadata.batch_id,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
             model=self._config.model,
             chunk_results=chunk_results,
             success=total_failed == 0,

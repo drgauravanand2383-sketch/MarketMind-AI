@@ -13,16 +13,24 @@ backend is in use underneath.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from app.alerts.models import Alert, AlertCondition, AlertExplanation, AlertRule, NotificationChannel
+from app.alerts.models import (
+    Alert,
+    AlertCondition,
+    AlertExplanation,
+    AlertPriority,
+    AlertRule,
+    AlertStatus,
+    NotificationChannel,
+)
 from app.repositories.alerts.postgres.models import AlertModel, AlertRuleModel
 
 __all__ = ["rule_to_model", "model_to_rule", "alert_to_model", "model_to_alert"]
 
 
 def _ensure_aware(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def rule_to_model(rule: AlertRule) -> AlertRuleModel:
@@ -49,7 +57,7 @@ def model_to_rule(model: AlertRuleModel) -> AlertRule:
         name=model.name,
         description=model.description,
         enabled=model.enabled,
-        priority=model.priority,
+        priority=AlertPriority(model.priority),
         conditions=tuple(AlertCondition.model_validate(c) for c in model.conditions),
         cooldown_minutes=model.cooldown_minutes,
         repeat_allowed=model.repeat_allowed,
@@ -88,8 +96,8 @@ def model_to_alert(model: AlertModel) -> Alert:
         company_name=model.company_name,
         signal_name=model.signal_name,
         alert_type=model.alert_type,
-        priority=model.priority,
-        status=model.status,
+        priority=AlertPriority(model.priority),
+        status=AlertStatus(model.status),
         reason=model.reason,
         confidence=model.confidence,
         score=model.score,

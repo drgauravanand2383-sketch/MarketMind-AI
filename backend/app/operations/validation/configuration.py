@@ -19,8 +19,8 @@ objects the caller passes in.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 from app.config.models import (
@@ -45,7 +45,7 @@ _INSECURE_DEFAULT_SECRETS: frozenset[str] = frozenset({"change-me", "changeme", 
 
 
 def _default_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _is_well_formed_url(value: str) -> bool:
@@ -111,7 +111,13 @@ class ConfigurationValidationService:
                 )
             )
         if postgres.database_url is not None:
-            checks.append(self._check_valid_urls("postgres.database_url", [postgres.database_url], schemes={"postgresql", "postgresql+asyncpg"}))
+            checks.append(
+                self._check_valid_urls(
+                    "postgres.database_url",
+                    [postgres.database_url],
+                    schemes=frozenset({"postgresql", "postgresql+asyncpg"}),
+                )
+            )
         return build_report(checks, self._now_fn())
 
     # --- individual checks -----------------------------------------------------------

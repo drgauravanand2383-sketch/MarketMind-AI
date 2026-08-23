@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.repositories.signals.postgres.mapper import definition_to_model, model_to_definition
 from app.signals.models import (
@@ -15,7 +15,7 @@ from app.signals.models import (
     SignalPriority,
 )
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 def test_definition_with_conditions_and_groups_round_trips() -> None:

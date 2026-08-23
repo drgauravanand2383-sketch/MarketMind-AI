@@ -9,7 +9,7 @@ replay execution) are enforced at this layer.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -25,7 +25,7 @@ from app.backtesting.models import (
 from app.repositories.backtesting.postgres.models import Base
 from app.repositories.backtesting.postgres.repository import PostgresBacktestingRepository
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 @pytest.fixture

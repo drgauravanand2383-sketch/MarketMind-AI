@@ -7,7 +7,7 @@ testability pattern used throughout tests/services/market_snapshot/.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from app.market_data.models import (
     CompanyProfile,
@@ -95,7 +95,7 @@ class _FakeMarketDataProvider(MarketDataProvider):
         return "Fake Provider"
 
     async def health(self) -> ProviderHealth:
-        return ProviderHealth(provider="Fake Provider", status=ProviderHealthStatus.HEALTHY, last_updated=datetime.now(timezone.utc))
+        return ProviderHealth(provider="Fake Provider", status=ProviderHealthStatus.HEALTHY, last_updated=datetime.now(UTC))
 
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities()
@@ -103,17 +103,17 @@ class _FakeMarketDataProvider(MarketDataProvider):
 
 def _quote(ticker: str, price: float) -> MarketQuote:
     return MarketQuote(
-        ticker=ticker, price=price, timestamp=datetime.now(timezone.utc),
+        ticker=ticker, price=price, timestamp=datetime.now(UTC),
         currency=Currency.USD, exchange=Exchange.NYSE,
     )
 
 
 def _item(ticker: str, company_name: str | None = None) -> WatchlistItem:
-    return WatchlistItem(ticker=ticker, company_name=company_name, added_at=datetime.now(timezone.utc))
+    return WatchlistItem(ticker=ticker, company_name=company_name, added_at=datetime.now(UTC))
 
 
 def _watchlist(items: tuple[WatchlistItem, ...], watchlist_id: str = "wl-1") -> Watchlist:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return Watchlist(id=watchlist_id, name="Test Portfolio", created_at=now, updated_at=now, items=items)
 
 

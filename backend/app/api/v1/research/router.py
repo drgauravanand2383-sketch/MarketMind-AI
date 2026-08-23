@@ -21,12 +21,12 @@ registration order matters to FastAPI's route matching.
 from __future__ import annotations
 
 import uuid as uuid_module
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Request, status
 
 from app.agents.company_research.agent import CompanyResearchAgent
-from app.agents.company_research.models import CompanyResearchRequest
+from app.agents.company_research.models import CompanyResearchReport, CompanyResearchRequest
 from app.api.intelligence.dependencies import get_company_research_agent
 from app.api.v1.research.dependencies import get_research_report_store
 from app.api.v1.research.schemas import BatchCompanyResearchRequest, CompanyResearchReportEnvelope
@@ -57,7 +57,7 @@ def _build_execution_context(
         workflow_type=workflow_type,
         trigger=TriggerType.USER_REQUEST,
         initiated_by="api",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
         trace_id=execution_id,
         participating_agents=participating_agents,
         status=WorkflowStatus.RUNNING,
@@ -76,7 +76,7 @@ async def create_company_research(
     request: Request,
     body: CompanyResearchRequest,
     agent: CompanyResearchAgent = Depends(get_company_research_agent),
-    store: InMemoryResultStore = Depends(get_research_report_store),
+    store: InMemoryResultStore[CompanyResearchReport] = Depends(get_research_report_store),
 ) -> SuccessResponse[CompanyResearchReportEnvelope]:
     context = _build_execution_context(
         workflow_id="WF-COMPANY-RESEARCH", workflow_type="company_research", participating_agents=(agent.agent_id,)
@@ -98,7 +98,7 @@ async def create_batch_company_research(
     request: Request,
     body: BatchCompanyResearchRequest,
     agent: CompanyResearchAgent = Depends(get_company_research_agent),
-    store: InMemoryResultStore = Depends(get_research_report_store),
+    store: InMemoryResultStore[CompanyResearchReport] = Depends(get_research_report_store),
 ) -> SuccessResponse[list[CompanyResearchReportEnvelope]]:
     context = _build_execution_context(
         workflow_id="WF-COMPANY-RESEARCH-BATCH",
@@ -123,7 +123,7 @@ async def create_batch_company_research(
 async def get_company_research(
     request: Request,
     request_id: uuid_module.UUID,
-    store: InMemoryResultStore = Depends(get_research_report_store),
+    store: InMemoryResultStore[CompanyResearchReport] = Depends(get_research_report_store),
 ) -> SuccessResponse[CompanyResearchReportEnvelope]:
     report = store.get(str(request_id))
     return build_success_response(CompanyResearchReportEnvelope(request_id=str(request_id), report=report), request)

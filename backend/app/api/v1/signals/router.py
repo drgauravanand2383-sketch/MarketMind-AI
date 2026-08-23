@@ -32,7 +32,7 @@ from app.api.v1.signals.schemas import (
 from app.auth.dependencies.policy_guard import require_policy
 from app.auth.policies import RequirePermission
 from app.signals.engine import SignalDetectionService
-from app.signals.models import SignalDefinition
+from app.signals.models import SignalBatchResult, SignalDefinition
 
 __all__ = ["router"]
 
@@ -135,7 +135,7 @@ async def evaluate_signals(
     request: Request,
     body: EvaluateSignalsRequest,
     service: SignalDetectionService = Depends(get_signal_detection_service),
-    store: InMemoryResultStore = Depends(get_signal_result_store),
+    store: InMemoryResultStore[tuple[str, SignalBatchResult]] = Depends(get_signal_result_store),
 ) -> SuccessResponse[SignalEvaluationEnvelope]:
     definition = await service.get_signal_definition(body.definition_id)
     batch_result = service.evaluate_companies(body.snapshots, definition)
@@ -156,7 +156,7 @@ async def evaluate_signals(
 async def get_signal_result(
     request: Request,
     result_id: uuid_module.UUID,
-    store: InMemoryResultStore = Depends(get_signal_result_store),
+    store: InMemoryResultStore[tuple[str, SignalBatchResult]] = Depends(get_signal_result_store),
 ) -> SuccessResponse[SignalEvaluationEnvelope]:
     definition_id, batch_result = store.get(str(result_id))
     return build_success_response(

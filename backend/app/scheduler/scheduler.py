@@ -17,14 +17,14 @@ does not schedule itself.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.core.context import ExecutionContext, TriggerType, WorkflowStatus
 from app.scheduler.models import (
     Schedule,
     ScheduleExecutionRecord,
-    ScheduleTriggerType,
     SchedulerHealthStatus,
+    ScheduleTriggerType,
 )
 from app.workflows.engine import WorkflowEngine
 
@@ -190,7 +190,7 @@ class Scheduler:
         if last_record is None:
             return True
         assert schedule.interval_seconds is not None  # guaranteed by Schedule's own validation
-        elapsed = (datetime.now(timezone.utc) - last_record.triggered_at).total_seconds()
+        elapsed = (datetime.now(UTC) - last_record.triggered_at).total_seconds()
         return elapsed >= schedule.interval_seconds
 
     async def _execute(self, schedule: Schedule) -> ScheduleExecutionRecord:
@@ -204,7 +204,7 @@ class Scheduler:
         workflow it does not inspect will invoke.
         """
         execution_id = str(uuid.uuid4())
-        triggered_at = datetime.now(timezone.utc)
+        triggered_at = datetime.now(UTC)
         context = ExecutionContext(
             workflow_id=schedule.workflow_id,
             execution_id=execution_id,

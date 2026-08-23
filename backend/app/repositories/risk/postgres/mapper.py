@@ -8,7 +8,7 @@ here since these are independent modules with no shared base to place it in.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.repositories.risk.postgres.models import RiskAssessmentModel, RiskAssessmentRequestModel
 from app.risk.models import (
@@ -18,13 +18,14 @@ from app.risk.models import (
     RiskAssessment,
     RiskAssessmentRequest,
     RiskMetric,
+    RiskSeverity,
 )
 
 __all__ = ["request_to_model", "model_to_request", "assessment_to_model", "model_to_assessment"]
 
 
 def _ensure_aware(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def request_to_model(request: RiskAssessmentRequest) -> RiskAssessmentRequestModel:
@@ -79,7 +80,7 @@ def model_to_assessment(model: RiskAssessmentModel) -> RiskAssessment:
     return RiskAssessment(
         request_id=model.request_id,
         overall_risk_score=model.overall_risk_score,
-        overall_severity=model.overall_severity,
+        overall_severity=RiskSeverity(model.overall_severity),
         risk_metrics=tuple(RiskMetric.model_validate(m) for m in model.risk_metrics),
         exposures=tuple(PortfolioExposure.model_validate(e) for e in model.exposures),
         recommendations=tuple(model.recommendations),

@@ -238,7 +238,7 @@ def test_apply_empty_overlay_is_a_noop() -> None:
 
     apply_reference_overlay(())
 
-    assert COMPANY_KEYWORDS == before_keywords
+    assert before_keywords == COMPANY_KEYWORDS
     assert reference_data_module._cache is before_cache
 
 

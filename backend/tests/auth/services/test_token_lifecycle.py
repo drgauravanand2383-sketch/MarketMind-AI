@@ -19,7 +19,6 @@ from app.auth.exceptions import (
 from app.auth.services.authentication import AuthenticationService
 from tests.auth.conftest import FakeClock, make_active_user
 
-
 # --- validate_token / get_current_user -----------------------------------------------------------
 
 

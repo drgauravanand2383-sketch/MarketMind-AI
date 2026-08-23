@@ -71,8 +71,8 @@ precedent:
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
-from enum import Enum
+from datetime import UTC, date, datetime
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -87,14 +87,14 @@ __all__ = [
 ]
 
 
-class ReplayMode(str, Enum):
+class ReplayMode(StrEnum):
     DAILY = "DAILY"
     WEEKLY = "WEEKLY"
     MONTHLY = "MONTHLY"
     CUSTOM = "CUSTOM"
 
 
-class BacktestStatus(str, Enum):
+class BacktestStatus(StrEnum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
@@ -142,7 +142,7 @@ class HistoricalSnapshot(BaseModel):
     @field_validator("timestamp")
     @classmethod
     def _ensure_timezone_aware(cls, value: datetime) -> datetime:
-        return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 class BacktestPeriod(BaseModel):

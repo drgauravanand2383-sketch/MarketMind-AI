@@ -15,7 +15,7 @@ back whatever was most recently stored, however it got there.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -41,7 +41,7 @@ from app.risk.models import RiskAssessment, RiskSeverity
 from app.strategy.engine import StrategyEvaluationService
 from app.strategy.models import StrategyEvaluationResult, StrategyMatch, StrategySummary
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 async def _sqlite_session_factory(base: type) -> async_sessionmaker:

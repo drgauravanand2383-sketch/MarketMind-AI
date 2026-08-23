@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.agents.company_research.models import (
     CompanyOverview,
@@ -17,7 +17,7 @@ from app.recommendations.models import CandidateEvidence
 from app.screening.models import ScreenResult
 from app.signals.models import SignalCategory, SignalPriority, SignalResult
 
-NOW = datetime(2026, 8, 9, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 9, tzinfo=UTC)
 
 
 def make_signal(

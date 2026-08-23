@@ -9,7 +9,7 @@ prevention) are enforced at this layer.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -22,7 +22,7 @@ from app.recommendations.models import (
 from app.repositories.recommendations.postgres.models import Base
 from app.repositories.recommendations.postgres.repository import PostgresRecommendationRepository
 
-NOW = datetime(2026, 8, 9, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 9, tzinfo=UTC)
 
 
 @pytest.fixture

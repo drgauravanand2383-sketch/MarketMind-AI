@@ -10,7 +10,7 @@ fabricated portfolio market value.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,7 +19,7 @@ from app.services.market_snapshot.models import MarketSnapshotResult
 __all__ = ["ValuationStatus", "PortfolioMarketSnapshot"]
 
 
-class ValuationStatus(str, Enum):
+class ValuationStatus(StrEnum):
     """Whether an aggregate portfolio market value could be computed.
 
     `VALUATION_UNAVAILABLE` is the only value this milestone ever

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 import pytest
 
 from app.planning.exceptions import PlanTemplateAlreadyRegisteredError, UnknownObjectiveError
@@ -47,10 +49,8 @@ def test_duplicate_registration_does_not_replace_existing_template() -> None:
     first = _template("company research", template_id="first")
     registry.register(first)
 
-    try:
+    with contextlib.suppress(PlanTemplateAlreadyRegisteredError):
         registry.register(_template("company research", template_id="second"))
-    except PlanTemplateAlreadyRegisteredError:
-        pass
 
     assert registry.get("company research") is first
 

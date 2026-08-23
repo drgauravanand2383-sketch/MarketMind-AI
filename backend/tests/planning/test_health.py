@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.planning.models import PlanDependency, PlanningHealthStatus, PlanStep, PlanTemplate
+from app.planning.models import PlanningHealthStatus, PlanStep, PlanTemplate
 from app.planning.planner import PlanningEngine
 from app.planning.registry import PlanRegistry
 

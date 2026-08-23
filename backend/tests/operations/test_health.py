@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import asyncio
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.operations.health.models import DependencyHealth, HealthState
 from app.operations.health.service import HealthCheckService
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
 
 class _FakeRepository:

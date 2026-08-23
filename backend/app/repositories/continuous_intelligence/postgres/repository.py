@@ -16,12 +16,12 @@ by both backends.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.repositories.continuous_intelligence.postgres.models import ContinuousIntelligenceStateModel
 from app.repositories.continuous_intelligence.repository import (
@@ -32,7 +32,7 @@ __all__ = ["PostgresContinuousIntelligenceStateRepository"]
 
 
 def _ensure_aware(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 class PostgresContinuousIntelligenceStateRepository(BaseContinuousIntelligenceStateRepository):
@@ -41,7 +41,7 @@ class PostgresContinuousIntelligenceStateRepository(BaseContinuousIntelligenceSt
     `postgres/models.py`'s own docstring for why one table serves all three).
     """
 
-    def __init__(self, session_factory: async_sessionmaker) -> None:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         """Initialize the repository.
 
         Args:

@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.repositories.screening.postgres.mapper import model_to_profile, profile_to_model
 from app.screening.models import LogicalGroup, LogicType, ScreenFilter, ScreeningProfile, ScreenOperator
 
-NOW = datetime(2026, 8, 6, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 6, tzinfo=UTC)
 
 
 def test_profile_with_filters_and_groups_round_trips() -> None:

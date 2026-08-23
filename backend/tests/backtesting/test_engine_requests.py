@@ -16,7 +16,6 @@ from app.backtesting.exceptions import (
 )
 from app.backtesting.models import ReplayMode
 
-
 # --- create_request -----------------------------------------------------------
 
 

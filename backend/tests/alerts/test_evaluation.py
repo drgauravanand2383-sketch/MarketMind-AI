@@ -8,7 +8,7 @@ running against an in-memory SQLite database.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -18,7 +18,7 @@ from app.alerts.models import AlertOperator, AlertPriority, AlertStatus, Notific
 from app.repositories.alerts.postgres.models import Base
 from app.repositories.alerts.postgres.repository import PostgresAlertRepository, PostgresAlertRuleRepository
 from app.signals.models import ConditionEvaluation, SignalCategory, SignalOperator, SignalPriority
-from tests.alerts.conftest import NOW, make_condition, make_rule, make_signal
+from tests.alerts.conftest import NOW, make_condition, make_signal
 
 
 class FakeClock:

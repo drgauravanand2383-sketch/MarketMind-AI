@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -68,7 +68,7 @@ from app.signals.models import SignalCondition, SignalOperator
 from app.strategy.engine import StrategyEvaluationService
 from app.watchlist.service import WatchlistService
 
-NOW = datetime(2026, 8, 15, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 15, tzinfo=UTC)
 
 DELL_REFERENCE = CompanyReference(
     entity_id="dell", canonical_name="Dell Technologies Inc.", ticker="DELL",
@@ -819,7 +819,7 @@ async def test_strategy_evaluation_without_recommendation_linkage_is_never_attri
     arbitrarily to whichever watchlist happens to exist."""
     from app.strategy.models import StrategyEvaluationResult, StrategySummary
 
-    watchlist = await watchlist_service.create_watchlist("Unlinked Portfolio")
+    await watchlist_service.create_watchlist("Unlinked Portfolio")
     legacy_evaluation = StrategyEvaluationResult(
         request_id="legacy-eval", evaluated_at=NOW, overall_alignment=20.0,
         summary=StrategySummary(), recommendation_result_id=None,

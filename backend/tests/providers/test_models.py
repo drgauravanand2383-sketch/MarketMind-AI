@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -32,7 +32,7 @@ def test_provider_config_accepts_provider_specific_settings_via_extra() -> None:
 def test_provider_result_defaults() -> None:
     result = ProviderResult(
         provider_id="rss",
-        fetched_at=datetime.now(timezone.utc),
+        fetched_at=datetime.now(UTC),
         success=True,
     )
     assert result.data is None
@@ -44,7 +44,7 @@ def test_provider_result_rejects_unknown_fields() -> None:
     with pytest.raises(ValidationError):
         ProviderResult(
             provider_id="rss",
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
             success=True,
             unexpected_field="value",
         )

@@ -11,7 +11,7 @@ fabricated zero/null business value.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
@@ -20,7 +20,7 @@ from app.market_data.models import Currency, Exchange
 __all__ = ["MarketSnapshotStatus", "MarketSnapshot", "MarketSnapshotResult"]
 
 
-class MarketSnapshotStatus(str, Enum):
+class MarketSnapshotStatus(StrEnum):
     """Every distinct outcome `MarketSnapshotService.get_snapshot()` can
     report — see `docs/architecture/MARKET_DATA_ARCHITECTURE.md` §7 for
     the full policy.

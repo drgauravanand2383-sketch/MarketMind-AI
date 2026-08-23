@@ -8,7 +8,7 @@ CompanyOverview's new resolved-entity fields.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.agents.company_research.agent import CompanyResearchAgent
 from app.agents.company_research.models import CompanyResearchRequest
@@ -46,7 +46,7 @@ def _context() -> ExecutionContext:
         workflow_type="company_research",
         trigger=TriggerType.USER_REQUEST,
         initiated_by="test",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
         trace_id="trace-1",
         participating_agents=("AGT-004",),
         status=WorkflowStatus.RUNNING,

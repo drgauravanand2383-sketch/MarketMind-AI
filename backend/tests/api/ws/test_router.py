@@ -5,7 +5,7 @@ a real `TestClient.websocket_connect`."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,7 +16,7 @@ from app.api.ws.connection_manager.manager import ConnectionManager
 from app.api.ws.publishers.event_publisher import EventPublisher
 from tests.api.v1._auth_fixtures import make_authenticated_headers
 
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 
 
 def _alert() -> Alert:
@@ -32,15 +32,13 @@ def _alert() -> Alert:
 
 
 def test_connect_without_token_is_rejected(client: TestClient) -> None:
-    with pytest.raises(WebSocketDisconnect):
-        with client.websocket_connect("/ws"):
-            pass
+    with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws"):
+        pass
 
 
 def test_connect_with_garbage_token_is_rejected(client: TestClient) -> None:
-    with pytest.raises(WebSocketDisconnect):
-        with client.websocket_connect("/ws?token=not-a-real-token"):
-            pass
+    with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws?token=not-a-real-token"):
+        pass
 
 
 def test_connect_with_valid_token_succeeds(client: TestClient, token: str) -> None:

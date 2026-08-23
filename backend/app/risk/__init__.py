@@ -9,6 +9,7 @@ anywhere in this package.
 
 from __future__ import annotations
 
+from app.risk.engine import RiskAnalyticsService
 from app.risk.exceptions import (
     DuplicateRiskRequestNameError,
     RiskAnalyticsError,
@@ -25,7 +26,6 @@ from app.risk.models import (
     RiskThresholds,
     RiskWeighting,
 )
-from app.risk.engine import RiskAnalyticsService
 
 __all__ = [
     "RiskAnalyticsService",

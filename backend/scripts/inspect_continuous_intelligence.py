@@ -28,7 +28,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import FastAPI
@@ -63,7 +63,7 @@ async def _inspect(app: FastAPI) -> dict[str, object]:
             ),
         }
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     state_summary: dict[str, object] = {}
     for domain in _STATE_DOMAINS:
         rows = await repository.list_domain(domain)

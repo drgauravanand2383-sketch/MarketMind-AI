@@ -34,7 +34,7 @@ same field, under a valid identifier.
 from __future__ import annotations
 
 from datetime import date, datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -58,7 +58,7 @@ __all__ = [
 ]
 
 
-class Currency(str, Enum):
+class Currency(StrEnum):
     """Supported currency codes (ISO 4217). An unrecognized code is
     rejected by pydantic's own enum-membership check at construction
     time — this satisfies the sprint's "Supported currencies" validation
@@ -79,7 +79,7 @@ class Currency(str, Enum):
     BRL = "BRL"
 
 
-class Exchange(str, Enum):
+class Exchange(StrEnum):
     """Supported exchange codes. `OTHER` is an explicit catch-all so a
     real future provider covering an exchange not yet named here has a
     valid value to report, rather than every unmapped exchange being a
@@ -101,7 +101,7 @@ class Exchange(str, Enum):
     OTHER = "OTHER"
 
 
-class Interval(str, Enum):
+class Interval(StrEnum):
     """Supported historical-price intervals. `capabilities().supports_intraday`
     reports whether a provider serves the sub-daily members of this set."""
 
@@ -124,7 +124,7 @@ _INTRADAY_INTERVALS = frozenset(
 )
 
 
-class DividendFrequency(str, Enum):
+class DividendFrequency(StrEnum):
     MONTHLY = "MONTHLY"
     QUARTERLY = "QUARTERLY"
     SEMI_ANNUAL = "SEMI_ANNUAL"
@@ -132,7 +132,7 @@ class DividendFrequency(str, Enum):
     IRREGULAR = "IRREGULAR"
 
 
-class ProviderHealthStatus(str, Enum):
+class ProviderHealthStatus(StrEnum):
     HEALTHY = "HEALTHY"
     DEGRADED = "DEGRADED"
     UNAVAILABLE = "UNAVAILABLE"
@@ -307,7 +307,7 @@ class HistoricalSeries(BaseModel):
     @model_validator(mode="after")
     def _validate_prices_ordered_and_unique(self) -> HistoricalSeries:
         dates = [bar.date for bar in self.prices]
-        for earlier, later in zip(dates, dates[1:]):
+        for earlier, later in zip(dates, dates[1:], strict=False):
             if later < earlier:
                 raise ValueError("HistoricalSeries.prices must be ordered by date, ascending.")
             if later == earlier:

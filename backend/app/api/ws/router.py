@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
@@ -131,7 +132,7 @@ async def _handle_subscribe(
     policy_evaluator: PolicyEvaluator,
     principal: AuthenticatedPrincipal,
     connection_id: str,
-    payload: dict,
+    payload: dict[str, Any],
 ) -> None:
     try:
         message = SubscribeMessage.model_validate(payload)
@@ -161,7 +162,7 @@ async def _handle_subscribe(
 
 
 async def _handle_unsubscribe(
-    websocket: WebSocket, connection_manager: ConnectionManager, connection_id: str, payload: dict
+    websocket: WebSocket, connection_manager: ConnectionManager, connection_id: str, payload: dict[str, Any]
 ) -> None:
     try:
         message = UnsubscribeMessage.model_validate(payload)

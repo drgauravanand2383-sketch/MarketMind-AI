@@ -21,7 +21,7 @@ import asyncio
 import time
 import uuid
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel
 
@@ -136,7 +136,7 @@ class AgentOrchestrator:
         `SKIPPED`, also without aborting any independent branch.
         """
         execution_id = str(uuid.uuid4())
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
         started_monotonic = time.monotonic()
 
         results: dict[str, AgentExecutionResult] = {}
@@ -155,7 +155,7 @@ class AgentOrchestrator:
                 results[task.task_id] = result
                 del remaining[task.task_id]
 
-        completed_at = datetime.now(timezone.utc)
+        completed_at = datetime.now(UTC)
         ordered_results = tuple(results[task.task_id] for task in plan.tasks)
 
         success_count = sum(1 for result in ordered_results if result.status == ExecutionStatus.SUCCESS)
@@ -212,7 +212,7 @@ class AgentOrchestrator:
             if prior_results[dependency].status != ExecutionStatus.SUCCESS
         ]
         if blocking:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             return AgentExecutionResult(
                 execution_id=execution_id,
                 task_id=task.task_id,
@@ -226,12 +226,12 @@ class AgentOrchestrator:
                 dependencies=task.depends_on,
             )
 
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
         start_monotonic = time.monotonic()
 
         agent = self._agents.get(task.agent_id)
         if agent is None:
-            finish_time = datetime.now(timezone.utc)
+            finish_time = datetime.now(UTC)
             return AgentExecutionResult(
                 execution_id=execution_id,
                 task_id=task.task_id,
@@ -249,7 +249,7 @@ class AgentOrchestrator:
         try:
             output = await agent.run(context, task.input_data)
         except Exception as exc:  # noqa: BLE001 - one failed agent must not crash the orchestrator
-            finish_time = datetime.now(timezone.utc)
+            finish_time = datetime.now(UTC)
             return AgentExecutionResult(
                 execution_id=execution_id,
                 task_id=task.task_id,
@@ -263,7 +263,7 @@ class AgentOrchestrator:
                 dependencies=task.depends_on,
             )
 
-        finish_time = datetime.now(timezone.utc)
+        finish_time = datetime.now(UTC)
         return AgentExecutionResult(
             execution_id=execution_id,
             task_id=task.task_id,
@@ -295,7 +295,7 @@ class AgentOrchestrator:
             workflow_type="orchestrated_task",
             trigger=TriggerType.UPSTREAM_WORKFLOW,
             initiated_by=initiated_by,
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
             trace_id=execution_id,
             participating_agents=(task.agent_id,),
             status=WorkflowStatus.RUNNING,

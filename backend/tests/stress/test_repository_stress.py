@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -37,7 +37,7 @@ from app.repositories.watchlist.postgres.repository import PostgresWatchlistRepo
 from app.risk.models import RiskAssessment, RiskSeverity
 from app.watchlist.models import Watchlist
 
-NOW = datetime(2026, 8, 7, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 7, tzinfo=UTC)
 LARGE_BATCH = 500
 
 

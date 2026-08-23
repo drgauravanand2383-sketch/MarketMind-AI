@@ -5,8 +5,9 @@ in-process result cache backing `GET /signals/results/{result_id}`.
 
 from __future__ import annotations
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request
 
+from app.api.dependencies.state import resolve_app_state
 from app.api.v1.schemas.result_store import InMemoryResultStore
 from app.signals.engine import SignalDetectionService
 from app.signals.models import SignalBatchResult
@@ -15,20 +16,15 @@ __all__ = ["get_signal_detection_service", "get_signal_result_store"]
 
 
 def get_signal_detection_service(request: Request) -> SignalDetectionService:
-    service = getattr(request.app.state, "signal_detection_service", None)
-    if service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="SignalDetectionService is not configured on this application instance.",
-        )
-    return service
+    return resolve_app_state(
+        request, "signal_detection_service", SignalDetectionService, label="SignalDetectionService"
+    )
 
 
 def get_signal_result_store(request: Request) -> InMemoryResultStore[tuple[str, SignalBatchResult]]:
-    store = getattr(request.app.state, "signal_result_store", None)
-    if store is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="The signal result store is not configured on this application instance.",
-        )
-    return store
+    return resolve_app_state(
+        request,
+        "signal_result_store",
+        InMemoryResultStore[tuple[str, SignalBatchResult]],
+        label="The signal result store",
+    )

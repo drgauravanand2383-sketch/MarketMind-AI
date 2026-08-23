@@ -9,7 +9,7 @@ so these tests exercise real persistence, not a hand-rolled fake.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -19,7 +19,7 @@ from app.repositories.watchlist.postgres.repository import PostgresWatchlistRepo
 from app.watchlist.models import WatchlistItem
 from app.watchlist.service import WatchlistService
 
-NOW = datetime(2026, 8, 6, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 6, tzinfo=UTC)
 
 
 @pytest.fixture

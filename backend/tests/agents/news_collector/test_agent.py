@@ -6,7 +6,7 @@ provider failure isolation, and empty-result collection.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.agents.news_collector.agent import NewsCollectorAgent
 from app.agents.news_collector.models import NewsCollectionRequest, NewsItem
@@ -45,7 +45,7 @@ class _MockRSSProvider(BaseProvider):
         feed = RSSFeedData(feed_url="https://example.com/feed.xml", entries=[entry])
         return ProviderResult(
             provider_id=self.provider_id,
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
             success=True,
             data=[feed],
         )
@@ -72,7 +72,7 @@ class _MockSecondaryProvider(BaseProvider):
     async def fetch(self, **kwargs: object) -> ProviderResult:
         return ProviderResult(
             provider_id=self.provider_id,
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
             success=True,
             data=[],
         )
@@ -99,7 +99,7 @@ class _EmptyMockProvider(BaseProvider):
     async def fetch(self, **kwargs: object) -> ProviderResult:
         return ProviderResult(
             provider_id=self.provider_id,
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
             success=True,
             data=[],
         )
@@ -147,7 +147,7 @@ def _context() -> ExecutionContext:
         workflow_type="news_ingestion",
         trigger=TriggerType.SCHEDULED,
         initiated_by="test",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
         trace_id="trace-1",
         participating_agents=("AGT-003",),
         status=WorkflowStatus.RUNNING,
@@ -262,7 +262,7 @@ async def test_run_reports_provider_reported_failure_without_raising() -> None:
         async def fetch(self, **kwargs: object) -> ProviderResult:
             return ProviderResult(
                 provider_id=self.provider_id,
-                fetched_at=datetime.now(timezone.utc),
+                fetched_at=datetime.now(UTC),
                 success=False,
                 data=[],
                 error="upstream returned no data",

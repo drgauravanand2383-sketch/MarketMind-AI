@@ -4,7 +4,7 @@ happens here."""
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, datetime
 
 from app.agents.portfolio_intelligence.models import (
     PortfolioIntelligenceReport,
@@ -28,9 +28,7 @@ from app.strategy.models import StrategyEvaluationResult, StrategySummary
 from app.workflows.market_data_refresh.models import MarketDataRefreshResult
 from tests.api.ws.fakes import FakeWebSocket
 
-import json
-
-NOW = datetime(2026, 8, 8, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 8, tzinfo=UTC)
 
 
 def _principal() -> AuthenticatedPrincipal:

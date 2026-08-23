@@ -5,7 +5,7 @@ and edge cases."""
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -216,7 +216,7 @@ async def test_strategy_component_uses_overall_alignment_when_no_strategy_ids_co
     request = await _request(service, strategy_ids=())
     snapshot = _snapshot(NOW, "rec-1", strategy_evaluation_id="strat-eval-1")
 
-    result = await service.run_backtest(request, [snapshot])
+    await service.run_backtest(request, [snapshot])
 
     run = await service.get_run(request.id)
     # blended average of recommendation_component(0) and strategy_component(100) = 50

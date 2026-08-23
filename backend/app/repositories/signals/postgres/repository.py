@@ -13,10 +13,10 @@ aiosqlite) in tests.
 from __future__ import annotations
 
 import copy as copy_module
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.repositories.signals.postgres.mapper import definition_to_model, model_to_definition
 from app.repositories.signals.postgres.models import SignalDefinitionModel
@@ -27,7 +27,7 @@ __all__ = ["PostgresSignalDefinitionRepository"]
 
 
 class PostgresSignalDefinitionRepository(BaseSignalDefinitionRepository):
-    def __init__(self, session_factory: async_sessionmaker) -> None:
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         """Initialize the repository.
 
         Args:
@@ -87,7 +87,7 @@ class PostgresSignalDefinitionRepository(BaseSignalDefinitionRepository):
             source = await session.get(SignalDefinitionModel, signal_id)
             if source is None:
                 return None
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             new_model = SignalDefinitionModel(
                 id=new_signal_id,
                 name=new_name,

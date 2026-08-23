@@ -11,8 +11,9 @@ its output, exactly the same "thin HTTP-layer concern" precedent Sprint
 
 from __future__ import annotations
 
-from enum import Enum
-from typing import Callable, TypeVar
+from collections.abc import Callable
+from enum import StrEnum
+from typing import Any
 
 from fastapi import HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -29,13 +30,11 @@ __all__ = [
     "build_paginated_response",
 ]
 
-T = TypeVar("T")
-
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
 
 
-class SortDirection(str, Enum):
+class SortDirection(StrEnum):
     ASC = "asc"
     DESC = "desc"
 
@@ -60,12 +59,12 @@ def pagination_params(
     return PaginationParams(page=page, page_size=page_size, sort=sort, direction=direction)
 
 
-def paginate_items(
+def paginate_items[T](
     items: list[T],
     params: PaginationParams,
     *,
     sortable_fields: frozenset[str],
-    key_fn: Callable[[T, str], object] | None = None,
+    key_fn: Callable[[T, str], Any] | None = None,
 ) -> tuple[list[T], int]:
     """Sort (if `params.sort` is set) and slice `items` for the requested
     page. `total` is the count *before* slicing (after any filtering the
@@ -75,13 +74,14 @@ def paginate_items(
         HTTPException(422): `params.sort` is not in `sortable_fields`.
     """
     if params.sort is not None:
-        if params.sort not in sortable_fields:
+        sort_field = params.sort
+        if sort_field not in sortable_fields:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Unknown sort field {params.sort!r}. Must be one of {sorted(sortable_fields)}.",
+                detail=f"Unknown sort field {sort_field!r}. Must be one of {sorted(sortable_fields)}.",
             )
-        resolver: Callable[[T], object] = (
-            (lambda item: key_fn(item, params.sort)) if key_fn is not None else (lambda item: getattr(item, params.sort))
+        resolver: Callable[[T], Any] = (
+            (lambda item: key_fn(item, sort_field)) if key_fn is not None else (lambda item: getattr(item, sort_field))
         )
         items = sorted(items, key=resolver, reverse=(params.direction == SortDirection.DESC))
 
@@ -91,7 +91,7 @@ def paginate_items(
     return page_items, total
 
 
-def build_paginated_response(
+def build_paginated_response[T](
     data: list[T], total: int, params: PaginationParams, request: Request
 ) -> PaginatedResponse[T]:
     return PaginatedResponse(
