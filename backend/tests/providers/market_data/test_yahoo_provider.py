@@ -149,9 +149,11 @@ async def test_get_quote_unmapped_exchange_falls_back_to_other() -> None:
 
 async def test_get_quote_raises_provider_timeout_error_on_timeout() -> None:
     provider = YahooFinanceProvider(_config())
-    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=httpx.ConnectTimeout("timed out"))):
-        with pytest.raises(ProviderTimeoutError):
-            await provider.get_quote("DELL")
+    with (
+        patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=httpx.ConnectTimeout("timed out"))),
+        pytest.raises(ProviderTimeoutError),
+    ):
+        await provider.get_quote("DELL")
 
 
 async def test_get_quote_retries_then_succeeds() -> None:
@@ -181,9 +183,11 @@ async def test_get_quote_exhausts_retries_and_raises() -> None:
         call_count += 1
         raise httpx.ConnectTimeout("persistent failure")
 
-    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=fake_get)):
-        with pytest.raises(ProviderTimeoutError):
-            await provider.get_quote("DELL")
+    with (
+        patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=fake_get)),
+        pytest.raises(ProviderTimeoutError),
+    ):
+        await provider.get_quote("DELL")
 
     assert call_count == 3  # 1 initial + 2 retries
 
@@ -197,9 +201,11 @@ async def test_get_quote_zero_retries_fails_after_one_attempt() -> None:
         call_count += 1
         raise httpx.ConnectTimeout("failure")
 
-    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=fake_get)):
-        with pytest.raises(ProviderTimeoutError):
-            await provider.get_quote("DELL")
+    with (
+        patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=fake_get)),
+        pytest.raises(ProviderTimeoutError),
+    ):
+        await provider.get_quote("DELL")
 
     assert call_count == 1
 
@@ -209,9 +215,11 @@ async def test_get_quote_zero_retries_fails_after_one_attempt() -> None:
 
 async def test_get_quote_raises_rate_limit_error_on_429() -> None:
     provider = YahooFinanceProvider(_config())
-    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response({}, status_code=429))):
-        with pytest.raises(ProviderRateLimitError):
-            await provider.get_quote("DELL")
+    with (
+        patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response({}, status_code=429))),
+        pytest.raises(ProviderRateLimitError),
+    ):
+        await provider.get_quote("DELL")
 
 
 # --- Malformed / unexpected responses --------------------------------
@@ -221,31 +229,39 @@ async def test_get_quote_raises_response_error_on_invalid_json() -> None:
     provider = YahooFinanceProvider(_config())
     request = httpx.Request("GET", URL)
     bad_response = httpx.Response(200, content=b"not json at all", request=request)
-    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=bad_response)):
-        with pytest.raises(ProviderResponseError):
-            await provider.get_quote("DELL")
+    with (
+        patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=bad_response)),
+        pytest.raises(ProviderResponseError),
+    ):
+        await provider.get_quote("DELL")
 
 
 async def test_get_quote_raises_response_error_on_missing_chart_key() -> None:
     provider = YahooFinanceProvider(_config())
-    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response({"unexpected": "shape"}))):
-        with pytest.raises(ProviderResponseError):
-            await provider.get_quote("DELL")
+    with (
+        patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response({"unexpected": "shape"}))),
+        pytest.raises(ProviderResponseError),
+    ):
+        await provider.get_quote("DELL")
 
 
 async def test_get_quote_raises_response_error_on_missing_meta() -> None:
     provider = YahooFinanceProvider(_config())
     payload = {"chart": {"result": [{"no_meta_here": True}], "error": None}}
-    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response(payload))):
-        with pytest.raises(ProviderResponseError):
-            await provider.get_quote("DELL")
+    with (
+        patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response(payload))),
+        pytest.raises(ProviderResponseError),
+    ):
+        await provider.get_quote("DELL")
 
 
 async def test_get_quote_raises_server_error_as_connection_error() -> None:
     provider = YahooFinanceProvider(_config())
-    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response({}, status_code=503))):
-        with pytest.raises(ProviderConnectionError):
-            await provider.get_quote("DELL")
+    with (
+        patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response({}, status_code=503))),
+        pytest.raises(ProviderConnectionError),
+    ):
+        await provider.get_quote("DELL")
 
 
 # --- Unavailable / no data ---------------------------------------------
@@ -253,26 +269,32 @@ async def test_get_quote_raises_server_error_as_connection_error() -> None:
 
 async def test_get_quote_unknown_ticker_raises_no_data_error_on_404() -> None:
     provider = YahooFinanceProvider(_config())
-    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response({}, status_code=404))):
-        with pytest.raises(ProviderNoDataError):
-            await provider.get_quote("NOTAREALTICKER")
+    with (
+        patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response({}, status_code=404))),
+        pytest.raises(ProviderNoDataError),
+    ):
+        await provider.get_quote("NOTAREALTICKER")
 
 
 async def test_get_quote_yahoo_error_shape_raises_no_data_error() -> None:
     provider = YahooFinanceProvider(_config())
     payload = {"chart": {"result": None, "error": {"code": "Not Found", "description": "No data found, symbol may be delisted"}}}
-    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response(payload))):
-        with pytest.raises(ProviderNoDataError):
-            await provider.get_quote("DELISTEDXYZ")
+    with (
+        patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response(payload))),
+        pytest.raises(ProviderNoDataError),
+    ):
+        await provider.get_quote("DELISTEDXYZ")
 
 
 async def test_get_quote_missing_price_raises_no_data_error() -> None:
     provider = YahooFinanceProvider(_config())
     payload = _quote_payload()
     del payload["chart"]["result"][0]["meta"]["regularMarketPrice"]
-    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response(payload))):
-        with pytest.raises(ProviderNoDataError):
-            await provider.get_quote("DELL")
+    with (
+        patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response(payload))),
+        pytest.raises(ProviderNoDataError),
+    ):
+        await provider.get_quote("DELL")
 
 
 # --- Batch quotes --------------------------------------------------------
@@ -290,9 +312,11 @@ async def test_get_quotes_propagates_first_failure() -> None:
     MockMarketDataProvider's own behavior) — partial-failure-tolerant
     batching is MarketSnapshotService's responsibility, one layer up."""
     provider = YahooFinanceProvider(_config())
-    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response({}, status_code=404))):
-        with pytest.raises(ProviderNoDataError):
-            await provider.get_quotes(["DELL"])
+    with (
+        patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response({}, status_code=404))),
+        pytest.raises(ProviderNoDataError),
+    ):
+        await provider.get_quotes(["DELL"])
 
 
 # --- Price history -------------------------------------------------------
@@ -317,9 +341,11 @@ async def test_get_price_history_no_bars_raises_no_data_error() -> None:
             "error": None,
         }
     }
-    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response(payload))):
-        with pytest.raises(ProviderNoDataError):
-            await provider.get_price_history("DELL", Interval.ONE_DAY)
+    with (
+        patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response(payload))),
+        pytest.raises(ProviderNoDataError),
+    ):
+        await provider.get_price_history("DELL", Interval.ONE_DAY)
 
 
 async def test_get_price_history_filters_by_start_and_end() -> None:
@@ -356,9 +382,11 @@ async def test_health_never_makes_a_real_request() -> None:
 
 
 async def _fail_once(provider: YahooFinanceProvider) -> None:
-    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=httpx.ConnectTimeout("down"))):
-        with pytest.raises(ProviderTimeoutError):
-            await provider.get_quote("DELL")
+    with (
+        patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=httpx.ConnectTimeout("down"))),
+        pytest.raises(ProviderTimeoutError),
+    ):
+        await provider.get_quote("DELL")
 
 
 async def test_health_degrades_after_enough_consecutive_failures() -> None:
@@ -400,9 +428,11 @@ async def test_a_ticker_specific_no_data_error_does_not_degrade_health() -> None
     for is a data problem, not a provider-availability problem — must
     never accumulate toward DEGRADED/UNAVAILABLE."""
     provider = YahooFinanceProvider(_config(degraded_after_consecutive_failures=1))
-    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response({}, status_code=404))):
-        with pytest.raises(ProviderNoDataError):
-            await provider.get_quote("NOTATICKER")
+    with (
+        patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response({}, status_code=404))),
+        pytest.raises(ProviderNoDataError),
+    ):
+        await provider.get_quote("NOTATICKER")
 
     assert (await provider.health()).status.value == "HEALTHY"
 
