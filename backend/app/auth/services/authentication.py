@@ -26,13 +26,7 @@ import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-from app.auth.exceptions import (
-    DuplicateEmailError,
-    DuplicateUsernameError,
-    UserNotActiveError,
-    UserNotFoundError,
-    WeakPasswordError,
-)
+from app.auth.exceptions import DuplicateEmailError, DuplicateUsernameError, WeakPasswordError
 from app.auth.models.authentication import AuthenticatedPrincipal, AuthenticationResponse
 from app.auth.models.token import AccessToken
 from app.auth.models.user import User, UserStatus
@@ -109,28 +103,6 @@ class AuthenticationService:
         )
         password_hash = self._password_hasher.hash(password)
         return await self._repository.create_user(user, password_hash)
-
-    async def reset_password(self, username: str, new_password: str) -> User:
-        """Reset an existing, `ACTIVE` user's password to `new_password`.
-
-        Raises:
-            UserNotFoundError: no user exists for `username`.
-            UserNotActiveError: the user exists but is not `ACTIVE`.
-            WeakPasswordError: `new_password` fails the strength policy.
-        """
-        normalized_username = username.strip().lower()
-        user = await self._repository.get_user_by_username(normalized_username)
-        if user is None:
-            raise UserNotFoundError(normalized_username)
-        if user.status is not UserStatus.ACTIVE:
-            raise UserNotActiveError(user.id, user.status.value)
-
-        validate_password_strength(new_password)
-        password_hash = self._password_hasher.hash(new_password)
-        updated = await self._repository.update_password(user.id, password_hash)
-        if not updated:
-            raise UserNotFoundError(user.id)
-        return user
 
     # --- Provider-agnostic pass-through -----------------------------------------------------------
 

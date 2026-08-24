@@ -96,16 +96,6 @@ class PostgresAuthRepository(BaseAuthRepository):
             model = await session.get(UserModel, user_id)
         return model.password_hash if model is not None else None
 
-    async def update_password(self, user_id: str, password_hash: str) -> bool:
-        async with self._session_factory() as session:
-            existing = await session.get(UserModel, user_id)
-            if existing is None:
-                return False
-            existing.password_hash = password_hash
-            existing.updated_at = datetime.now(UTC)
-            await session.commit()
-        return True
-
     async def list_users(self) -> list[User]:
         async with self._session_factory() as session:
             result = await session.execute(select(UserModel))

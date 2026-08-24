@@ -10,9 +10,8 @@ targeting an existing record returns `None` (or `False` for
 every other repository in this codebase.
 
 No plaintext password is ever accepted or returned by this interface —
-`create_user`/`get_password_hash`/`update_password` only ever handle an
-already-hashed string (`app.auth.security.BasePasswordHasher`'s own
-output).
+`create_user`/`get_password_hash` only ever handle an already-hashed
+string (`app.auth.security.BasePasswordHasher`'s own output).
 """
 
 from __future__ import annotations
@@ -41,7 +40,8 @@ class BaseAuthRepository(ABC):
     @abstractmethod
     async def update_user(self, user: User) -> User | None:
         """Replace the stored user record with `user`. Never changes the
-        stored password hash — use `update_password` for that."""
+        stored password hash — use a dedicated credential-update path
+        (out of this sprint's scope) for that."""
         raise NotImplementedError
 
     @abstractmethod
@@ -65,13 +65,6 @@ class BaseAuthRepository(ABC):
     async def get_password_hash(self, user_id: str) -> str | None:
         """The stored password hash for `user_id`, or `None` if the user
         doesn't exist. Never a plaintext password."""
-        raise NotImplementedError
-
-    @abstractmethod
-    async def update_password(self, user_id: str, password_hash: str) -> bool:
-        """Replace `user_id`'s stored password hash with `password_hash`
-        (already hashed — never a plaintext password). Returns whether a
-        user was actually updated."""
         raise NotImplementedError
 
     @abstractmethod
