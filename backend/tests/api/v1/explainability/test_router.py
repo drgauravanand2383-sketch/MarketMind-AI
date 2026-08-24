@@ -79,6 +79,8 @@ async def test_create_explanation_with_invalid_reference_returns_400(
     assert response.status_code == 400
 
 
-def test_create_explanation_missing_required_field_returns_422(client: TestClient, auth_headers: dict[str, str]) -> None:
+def test_create_explanation_missing_required_field_returns_422(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
     response = client.post("/api/v1/explainability", json={"name": "X"}, headers=auth_headers)
     assert response.status_code == 422

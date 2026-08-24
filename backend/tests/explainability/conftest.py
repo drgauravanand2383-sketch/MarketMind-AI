@@ -213,7 +213,9 @@ def make_risk_metric(
     score: float = 40.0,
     severity: RiskSeverity = RiskSeverity.MODERATE,
 ) -> RiskMetric:
-    return RiskMetric(metric_name=metric_name, category=category, value=score / 100, score=score, severity=severity, description="x")
+    return RiskMetric(
+        metric_name=metric_name, category=category, value=score / 100, score=score, severity=severity, description="x"
+    )
 
 
 def make_risk_assessment(

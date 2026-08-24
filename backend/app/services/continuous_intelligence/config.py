@@ -20,23 +20,39 @@ class ContinuousIntelligenceThresholds(BaseModel):
 
     market_change_percent_threshold: float = Field(
         default=3.0, gt=0,
-        description="Minimum |change_percent| (e.g. 3.0 = 3%) versus the previously observed price for a market move to be significant.",
+        description=(
+            "Minimum |change_percent| (e.g. 3.0 = 3%) versus the previously "
+            "observed price for a market move to be significant."
+        ),
     )
     news_significance_threshold: int = Field(
         default=2, ge=1,
-        description="Minimum number of newly-seen knowledge records for one watched entity since the last cycle to be significant.",
+        description=(
+            "Minimum number of newly-seen knowledge records for one watched "
+            "entity since the last cycle to be significant."
+        ),
     )
     news_high_confidence_threshold: float = Field(
         default=0.75, gt=0, le=1,
-        description="MarketIntelligence.group_confidence (0-1) an entity's evidence must newly cross to count as 'new high-confidence evidence.'",
+        description=(
+            "MarketIntelligence.group_confidence (0-1) an entity's evidence must "
+            "newly cross to count as 'new high-confidence evidence.'"
+        ),
     )
     recommendation_score_delta_threshold: float = Field(
         default=10.0, gt=0,
-        description="Minimum |overall_score| delta (0-100 scale) for a recommendation change to be significant, when the RecommendationType itself did not also change.",
+        description=(
+            "Minimum |overall_score| delta (0-100 scale) for a recommendation "
+            "change to be significant, when the RecommendationType itself did "
+            "not also change."
+        ),
     )
     strategy_alignment_delta_threshold: float = Field(
         default=10.0, gt=0,
-        description="Minimum |overall_alignment| delta (0-100 scale) for a strategy evaluation change to be significant.",
+        description=(
+            "Minimum |overall_alignment| delta (0-100 scale) for a strategy "
+            "evaluation change to be significant."
+        ),
     )
     suppression_cooldown_minutes: float = Field(
         default=60.0, ge=0,

@@ -278,7 +278,12 @@ async def test_get_quote_unknown_ticker_raises_no_data_error_on_404() -> None:
 
 async def test_get_quote_yahoo_error_shape_raises_no_data_error() -> None:
     provider = YahooFinanceProvider(_config())
-    payload = {"chart": {"result": None, "error": {"code": "Not Found", "description": "No data found, symbol may be delisted"}}}
+    payload = {
+        "chart": {
+            "result": None,
+            "error": {"code": "Not Found", "description": "No data found, symbol may be delisted"},
+        }
+    }
     with (
         patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response(payload))),
         pytest.raises(ProviderNoDataError),
@@ -444,7 +449,14 @@ def test_unavailable_threshold_below_degraded_threshold_rejected() -> None:
 
 @pytest.mark.parametrize(
     "method_name",
-    ["get_company_profile", "get_fundamentals", "get_financial_ratios", "get_market_cap", "get_earnings", "get_dividends"],
+    [
+        "get_company_profile",
+        "get_fundamentals",
+        "get_financial_ratios",
+        "get_market_cap",
+        "get_earnings",
+        "get_dividends",
+    ],
 )
 async def test_unsupported_single_ticker_methods_raise_configuration_error(method_name: str) -> None:
     provider = YahooFinanceProvider(_config())

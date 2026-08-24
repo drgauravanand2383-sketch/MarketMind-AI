@@ -82,7 +82,9 @@ def test_evaluation_with_matches_round_trips() -> None:
         overall_alignment=80.0,
         best_strategy="s1",
         strategy_matches=(match,),
-        summary=StrategySummary(total_strategies=1, best_alignment=80.0, average_alignment=80.0, highest_confidence=90.0),
+        summary=StrategySummary(
+            total_strategies=1, best_alignment=80.0, average_alignment=80.0, highest_confidence=90.0
+        ),
     )
 
     model = evaluation_to_model(result)

@@ -75,7 +75,9 @@ def test_tampered_payload_is_rejected() -> None:
     token = signer.encode({"sub": "user1", "admin": False})
     header_b64, payload_b64, signature_b64 = token.split(".")
 
-    forged_payload = base64.urlsafe_b64encode(json.dumps({"sub": "user1", "admin": True}).encode()).rstrip(b"=").decode()
+    forged_payload = (
+        base64.urlsafe_b64encode(json.dumps({"sub": "user1", "admin": True}).encode()).rstrip(b"=").decode()
+    )
     forged_token = f"{header_b64}.{forged_payload}.{signature_b64}"
 
     with pytest.raises((TokenInvalidError, TokenMalformedError)):

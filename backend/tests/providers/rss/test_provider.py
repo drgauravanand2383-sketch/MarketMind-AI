@@ -323,7 +323,7 @@ async def test_health_check_false_when_no_feed_urls_configured() -> None:
     assert await provider.health_check() is False
 
 
-# --- v1.2 Priority 6: RSSFeedSource / source metadata / feed health -----------------------------------------------------------
+# --- v1.2 Priority 6: RSSFeedSource / source metadata / feed health ---------------------------------
 
 
 def test_rss_feed_source_accepts_bare_url_string() -> None:

@@ -20,10 +20,14 @@ NOW = datetime(2026, 8, 15, tzinfo=UTC)
 
 
 def _detector(**overrides: object) -> ChangeDetectionService:
-    return ChangeDetectionService(InMemoryContinuousIntelligenceStateStore(), ContinuousIntelligenceThresholds(**overrides))
+    return ChangeDetectionService(
+        InMemoryContinuousIntelligenceStateStore(), ContinuousIntelligenceThresholds(**overrides)
+    )
 
 
-def _snapshot_result(price: float, status: MarketSnapshotStatus = MarketSnapshotStatus.FRESH, fetched_at: datetime = NOW) -> MarketSnapshotResult:
+def _snapshot_result(
+    price: float, status: MarketSnapshotStatus = MarketSnapshotStatus.FRESH, fetched_at: datetime = NOW
+) -> MarketSnapshotResult:
     snapshot = None
     if status in (MarketSnapshotStatus.FRESH, MarketSnapshotStatus.STALE):
         snapshot = MarketSnapshot(
@@ -76,7 +80,9 @@ async def test_market_stale_transition_detected_as_medium_priority() -> None:
     detector = _detector()
     await detector.detect_market_change("dell", "Dell", _snapshot_result(100.0, status=MarketSnapshotStatus.FRESH))
 
-    change = await detector.detect_market_change("dell", "Dell", _snapshot_result(100.0, status=MarketSnapshotStatus.STALE))
+    change = await detector.detect_market_change(
+        "dell", "Dell", _snapshot_result(100.0, status=MarketSnapshotStatus.STALE)
+    )
 
     assert change is not None
     assert change.priority == ChangePriority.MEDIUM
@@ -90,7 +96,9 @@ async def test_market_stale_price_never_compared_as_a_real_move() -> None:
     await detector.detect_market_change("dell", "Dell", _snapshot_result(100.0, status=MarketSnapshotStatus.STALE))
 
     # Provider recovers with the SAME stale-carried price re-marked FRESH - no artificial move.
-    change = await detector.detect_market_change("dell", "Dell", _snapshot_result(100.0, status=MarketSnapshotStatus.STALE))
+    change = await detector.detect_market_change(
+        "dell", "Dell", _snapshot_result(100.0, status=MarketSnapshotStatus.STALE)
+    )
 
     assert change is None
 
@@ -99,7 +107,9 @@ async def test_market_unavailable_never_produces_a_fabricated_price_change() -> 
     detector = _detector()
     await detector.detect_market_change("dell", "Dell", _snapshot_result(100.0))
 
-    change = await detector.detect_market_change("dell", "Dell", _snapshot_result(0.0, status=MarketSnapshotStatus.PROVIDER_UNAVAILABLE))
+    change = await detector.detect_market_change(
+        "dell", "Dell", _snapshot_result(0.0, status=MarketSnapshotStatus.PROVIDER_UNAVAILABLE)
+    )
 
     assert change is not None
     assert change.current_value == "PROVIDER_UNAVAILABLE"
@@ -198,7 +208,9 @@ async def test_signal_unchanged_state_not_detected() -> None:
 
 
 def _risk_assessment(severity: RiskSeverity) -> RiskAssessment:
-    return RiskAssessment(request_id="r1", overall_risk_score=50.0, overall_severity=severity, summary="x", generated_at=NOW)
+    return RiskAssessment(
+        request_id="r1", overall_risk_score=50.0, overall_severity=severity, summary="x", generated_at=NOW
+    )
 
 
 async def test_risk_first_observation_is_never_a_change() -> None:
@@ -273,7 +285,9 @@ async def test_recommendation_small_score_wobble_not_detected() -> None:
 
 
 def _strategy_result(alignment: float) -> StrategyEvaluationResult:
-    return StrategyEvaluationResult(request_id="s1", evaluated_at=NOW, overall_alignment=alignment, summary=StrategySummary())
+    return StrategyEvaluationResult(
+        request_id="s1", evaluated_at=NOW, overall_alignment=alignment, summary=StrategySummary()
+    )
 
 
 async def test_strategy_first_observation_is_never_a_change() -> None:

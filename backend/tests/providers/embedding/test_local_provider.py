@@ -143,7 +143,7 @@ async def test_generate_integrates_with_the_base_class_batch_orchestration() -> 
     assert {vector.document_id for vector in result.chunk_results[0].vectors} == {"doc-1", "doc-2"}
 
 
-# --- Concurrent cold-start construction (real bug, live-observed) -----------------------------------------------------------
+# --- Concurrent cold-start construction (real bug, live-observed) ---------------------------------
 #
 # `BaseEmbeddingProvider.generate()` fires every request in a chunk
 # concurrently (`asyncio.gather`, up to `EmbeddingService.DEFAULT_MAX_BATCH_SIZE`

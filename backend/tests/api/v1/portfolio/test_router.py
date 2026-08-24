@@ -368,7 +368,9 @@ async def test_trigger_analysis_runs_the_job_and_populates_risk_and_recommendati
     status_response = client.get(f"/api/v1/portfolio/{portfolio_id}/analysis-status", headers=auth_headers)
     assert status_response.json()["data"]["status"] in ("READY", "PARTIAL")
 
-    recommendation_requests = [r for r in await recommendation_service.list_requests() if portfolio_id in r.watchlist_ids]
+    recommendation_requests = [
+        r for r in await recommendation_service.list_requests() if portfolio_id in r.watchlist_ids
+    ]
     risk_requests = [r for r in await risk_service.list_requests() if r.portfolio_id == portfolio_id]
     assert len(recommendation_requests) == 1
     assert len(risk_requests) == 1

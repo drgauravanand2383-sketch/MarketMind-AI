@@ -167,7 +167,7 @@ def test_real_jwt_secret_key_not_flagged() -> None:
     assert _check(report, "missing_secret:auth.secret_key").passed is True
 
 
-# --- production-only blocking secret check (Milestone 17 §7) -----------------------------------------------------------
+# --- production-only blocking secret check (Milestone 17 §7) --------------------------------------
 
 
 def test_insecure_jwt_secret_in_production_is_a_blocking_error() -> None:

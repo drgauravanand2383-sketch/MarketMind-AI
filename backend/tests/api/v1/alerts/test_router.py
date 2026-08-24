@@ -48,7 +48,8 @@ async def test_evaluate_alerts_against_all_enabled_rules_then_list_and_get(
     client: TestClient, auth_headers: dict[str, str], alert_service: AlertService
 ) -> None:
     await alert_service.create_rule(
-        "Value Rule", conditions=(AlertCondition(id="c1", field="score", operator=AlertOperator.GREATER_THAN, value=50),)
+        "Value Rule",
+        conditions=(AlertCondition(id="c1", field="score", operator=AlertOperator.GREATER_THAN, value=50),),
     )
 
     response = client.post("/api/v1/alerts/evaluate", json={"signals": [_signal_payload()]}, headers=auth_headers)
@@ -70,7 +71,8 @@ async def test_evaluate_alerts_with_no_matching_conditions_produces_no_alerts(
     client: TestClient, auth_headers: dict[str, str], alert_service: AlertService
 ) -> None:
     await alert_service.create_rule(
-        "Strict Rule", conditions=(AlertCondition(id="c1", field="score", operator=AlertOperator.GREATER_THAN, value=999),)
+        "Strict Rule",
+        conditions=(AlertCondition(id="c1", field="score", operator=AlertOperator.GREATER_THAN, value=999),),
     )
 
     response = client.post("/api/v1/alerts/evaluate", json={"signals": [_signal_payload()]}, headers=auth_headers)

@@ -226,7 +226,12 @@ class StrategyEvaluationService:
             matched_rules=matched_rules,
             failed_rules=failed_rules,
             reasoning=_build_reasoning(
-                avg_component_score, rule_match_score, len(matched_rules), len(failed_rules), alignment_score, confidence
+                avg_component_score,
+                rule_match_score,
+                len(matched_rules),
+                len(failed_rules),
+                alignment_score,
+                confidence,
             ),
         )
 
@@ -301,7 +306,10 @@ def _evaluate_rule_population(
 
     if evaluable:
         pass_rate = round(passed / len(evaluable), 4)
-        reason = f"{rule.field} {rule.operator.value} {rule.value!r}: {passed}/{len(evaluable)} evaluable candidates passed."
+        reason = (
+            f"{rule.field} {rule.operator.value} {rule.value!r}: "
+            f"{passed}/{len(evaluable)} evaluable candidates passed."
+        )
     else:
         pass_rate = 0.0
         reason = f"{rule.field} was not present on any candidate in this recommendation result."

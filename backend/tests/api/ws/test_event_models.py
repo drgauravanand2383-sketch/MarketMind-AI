@@ -47,7 +47,9 @@ def test_event_id_must_be_non_blank() -> None:
 
 def test_backtest_event_accepts_either_started_or_completed_type() -> None:
     run = BacktestRun(request_id="b1", started_at=NOW, status=BacktestStatus.PENDING)
-    event = BacktestEvent(event_id="e1", timestamp=NOW, correlation_id="b1", event_type=EventType.BACKTEST_STARTED, payload=run)
+    event = BacktestEvent(
+        event_id="e1", timestamp=NOW, correlation_id="b1", event_type=EventType.BACKTEST_STARTED, payload=run
+    )
     assert event.event_type == EventType.BACKTEST_STARTED
 
 

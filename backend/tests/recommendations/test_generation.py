@@ -108,7 +108,7 @@ async def test_list_requests_returns_every_created_request(service: PortfolioRec
     assert names == {"A", "B"}
 
 
-# --- generate_recommendations: filtering / ranking / truncation -----------------------------------------------------------
+# --- generate_recommendations: filtering / ranking / truncation -------------------------------------
 
 
 async def test_generate_recommendations_ranks_by_score_descending(

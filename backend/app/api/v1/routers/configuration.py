@@ -25,7 +25,9 @@ router = APIRouter(tags=["System"])
     "/configuration",
     response_model=SuccessResponse[ConfigurationResponse],
     summary="Non-secret application configuration",
-    description="Non-secret configuration values only — no credential-bearing settings section is ever read by this endpoint.",
+    description=(
+        "Non-secret configuration values only — no credential-bearing settings section is ever read by this endpoint."
+    ),
 )
 async def get_configuration(
     request: Request, settings: AppSettings = Depends(get_app_settings)

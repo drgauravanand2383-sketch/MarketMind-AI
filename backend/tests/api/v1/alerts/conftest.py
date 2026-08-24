@@ -54,7 +54,9 @@ async def alert_rule_repository() -> AsyncIterator[PostgresAlertRuleRepository]:
 
 
 @pytest.fixture
-async def alert_repository(alert_rule_repository: PostgresAlertRuleRepository) -> AsyncIterator[PostgresAlertRepository]:
+async def alert_repository(
+    alert_rule_repository: PostgresAlertRuleRepository,
+) -> AsyncIterator[PostgresAlertRepository]:
     # Both repositories share one `AlertsBase` schema/engine; reuse the
     # same session factory the rule repository was built from.
     yield PostgresAlertRepository(alert_rule_repository._session_factory)  # type: ignore[attr-defined]

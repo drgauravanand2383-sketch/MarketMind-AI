@@ -58,7 +58,9 @@ def test_request_with_no_strategy_ids_round_trips() -> None:
 
 
 def test_run_with_periods_round_trips() -> None:
-    period = BacktestPeriod(timestamp=NOW, portfolio_value=105000.0, benchmark_value=102.0, return_percent=5.0, notes="x")
+    period = BacktestPeriod(
+        timestamp=NOW, portfolio_value=105000.0, benchmark_value=102.0, return_percent=5.0, notes="x"
+    )
     run = BacktestRun(
         request_id="r1", started_at=NOW, completed_at=NOW, status=BacktestStatus.COMPLETED,
         processed_snapshots=1, results=(period,),

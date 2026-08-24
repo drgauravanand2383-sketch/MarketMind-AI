@@ -490,7 +490,9 @@ async def test_full_platform_workflow_chains_every_domain_with_live_notification
             json={
                 "name": "RC1 Smoke Backtest", "start_date": "2026-01-01", "end_date": "2026-03-31",
                 "initial_capital": 100000.0, "benchmark": "SPY",
-                "snapshots": [{"timestamp": "2026-01-15T00:00:00Z", "recommendation_result_id": recommendation_result_id}],
+                "snapshots": [
+                    {"timestamp": "2026-01-15T00:00:00Z", "recommendation_result_id": recommendation_result_id}
+                ],
             },
             headers=headers,
         )

@@ -307,12 +307,19 @@ async def test_unsubscribed_connection_does_not_receive_event(
 async def test_targeted_delivery_reaches_only_the_target_user(
     client: TestClient, auth_repository, auth_service, connection_manager: ConnectionManager
 ) -> None:
-    headers_a = await make_authenticated_headers(auth_repository, auth_service, permissions=("alerts:read",), username="alice")
-    headers_b = await make_authenticated_headers(auth_repository, auth_service, permissions=("alerts:read",), username="bob2")
+    headers_a = await make_authenticated_headers(
+        auth_repository, auth_service, permissions=("alerts:read",), username="alice"
+    )
+    headers_b = await make_authenticated_headers(
+        auth_repository, auth_service, permissions=("alerts:read",), username="bob2"
+    )
     token_a = headers_a["Authorization"].removeprefix("Bearer ")
     token_b = headers_b["Authorization"].removeprefix("Bearer ")
 
-    with client.websocket_connect(f"/ws?token={token_a}") as ws_a, client.websocket_connect(f"/ws?token={token_b}") as ws_b:
+    with (
+        client.websocket_connect(f"/ws?token={token_a}") as ws_a,
+        client.websocket_connect(f"/ws?token={token_b}") as ws_b,
+    ):
         connected_a = ws_a.receive_json()
         ws_b.receive_json()
 
@@ -335,12 +342,19 @@ async def test_targeted_delivery_reaches_only_the_target_user(
 async def test_concurrent_connections_both_receive_a_matching_broadcast(
     client: TestClient, auth_repository, auth_service
 ) -> None:
-    headers_a = await make_authenticated_headers(auth_repository, auth_service, permissions=("alerts:read",), username="conn-a")
-    headers_b = await make_authenticated_headers(auth_repository, auth_service, permissions=("alerts:read",), username="conn-b")
+    headers_a = await make_authenticated_headers(
+        auth_repository, auth_service, permissions=("alerts:read",), username="conn-a"
+    )
+    headers_b = await make_authenticated_headers(
+        auth_repository, auth_service, permissions=("alerts:read",), username="conn-b"
+    )
     token_a = headers_a["Authorization"].removeprefix("Bearer ")
     token_b = headers_b["Authorization"].removeprefix("Bearer ")
 
-    with client.websocket_connect(f"/ws?token={token_a}") as ws_a, client.websocket_connect(f"/ws?token={token_b}") as ws_b:
+    with (
+        client.websocket_connect(f"/ws?token={token_a}") as ws_a,
+        client.websocket_connect(f"/ws?token={token_b}") as ws_b,
+    ):
         ws_a.receive_json()
         ws_b.receive_json()
         for ws in (ws_a, ws_b):

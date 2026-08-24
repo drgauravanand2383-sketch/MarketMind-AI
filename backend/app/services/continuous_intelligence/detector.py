@@ -223,7 +223,10 @@ class ChangeDetectionService:
             entity_id=portfolio_id,
             label=label,
             priority=priority_from_risk_severity(assessment.overall_severity),
-            summary=f"Portfolio risk for {label} transitioned from {previous_severity.value} to {assessment.overall_severity.value}.",
+            summary=(
+                f"Portfolio risk for {label} transitioned from "
+                f"{previous_severity.value} to {assessment.overall_severity.value}."
+            ),
             previous_value=previous_severity.value,
             current_value=assessment.overall_severity.value,
             portfolio_id=portfolio_id,
@@ -256,7 +259,10 @@ class ChangeDetectionService:
         summary = (
             f"{candidate.ticker} recommendation changed from {previous_type.value} to {candidate.recommendation.value}."
             if type_changed
-            else f"{candidate.ticker} recommendation score moved {score_delta:.1f} points to {candidate.overall_score:.1f}."
+            else (
+                f"{candidate.ticker} recommendation score moved {score_delta:.1f} "
+                f"points to {candidate.overall_score:.1f}."
+            )
         )
         fingerprint = f"RECOMMENDATION:{key}:{candidate.recommendation.value}:{candidate.overall_score:.0f}"
         return DetectedChange(

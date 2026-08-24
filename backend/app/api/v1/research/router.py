@@ -117,7 +117,9 @@ async def create_batch_company_research(
     "/{request_id}",
     response_model=SuccessResponse[CompanyResearchReportEnvelope],
     summary="Get a cached company research report",
-    description="Looks up a previously computed report by the id returned from POST /research/company or /research/batch.",
+    description=(
+        "Looks up a previously computed report by the id returned from POST /research/company or /research/batch."
+    ),
     dependencies=[Depends(require_policy(RequirePermission("research:read")))],
 )
 async def get_company_research(

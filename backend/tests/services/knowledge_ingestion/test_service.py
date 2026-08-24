@@ -378,7 +378,9 @@ def test_with_entity_resolver_unrelated_item_stays_unresolved() -> None:
 
 def test_entity_enrichment_never_alters_document_text() -> None:
     service = KnowledgeIngestionService(entity_resolver=_resolver())
-    result = _collection_result([_item(title="Acme Corporation reports earnings", summary="Acme Corporation posted results.")])
+    result = _collection_result(
+        [_item(title="Acme Corporation reports earnings", summary="Acme Corporation posted results.")]
+    )
 
     batch = service.prepare_batch(result)
 

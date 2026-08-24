@@ -128,7 +128,10 @@ async def delete_signal_definition(
     response_model=SuccessResponse[SignalEvaluationEnvelope],
     status_code=status.HTTP_201_CREATED,
     summary="Evaluate a signal definition against market data",
-    description="Evaluates the supplied market data snapshots against a signal definition and caches the result for later lookup.",
+    description=(
+        "Evaluates the supplied market data snapshots against a signal definition and caches the result for later "
+        "lookup."
+    ),
     dependencies=[Depends(require_policy(RequirePermission("signals:evaluate")))],
 )
 async def evaluate_signals(

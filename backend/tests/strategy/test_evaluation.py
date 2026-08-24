@@ -198,7 +198,15 @@ def test_custom_weighting_changes_component_score() -> None:
     instance = StrategyEvaluationService.__new__(StrategyEvaluationService)
     strategy = make_strategy(
         rules=(),
-        weightings=StrategyWeighting(overall_score=9.0, screening_score=1.0, planning_score=1.0, research_score=1.0, portfolio_score=1.0, signal_score=1.0, alert_score=1.0),
+        weightings=StrategyWeighting(
+            overall_score=9.0,
+            screening_score=1.0,
+            planning_score=1.0,
+            research_score=1.0,
+            portfolio_score=1.0,
+            signal_score=1.0,
+            alert_score=1.0,
+        ),
     )
     result = make_recommendation_result((make_candidate("A", overall_score=100, screening_score=0),))
 
@@ -222,7 +230,8 @@ def test_component_score_averaged_across_population(service: StrategyEvaluationS
 
 
 def test_alignment_blends_component_and_rule_scores_equally(service: StrategyEvaluationService) -> None:
-    strategy = make_strategy(rules=(make_rule(operator=StrategyOperator.GREATER_THAN, value=1000),))  # always fails -> rule_score 0
+    # always fails -> rule_score 0
+    strategy = make_strategy(rules=(make_rule(operator=StrategyOperator.GREATER_THAN, value=1000),))
     result = make_recommendation_result((make_candidate("A", overall_score=100),))  # component_score=100
 
     match = service.evaluate_strategy(result, strategy)

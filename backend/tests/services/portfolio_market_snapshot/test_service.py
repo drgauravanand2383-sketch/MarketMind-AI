@@ -51,7 +51,9 @@ CRM_REFERENCE = CompanyReference(
 class _FakeMarketDataProvider(MarketDataProvider):
     """Returns a fixed quote per ticker, or raises for tickers in `errors`."""
 
-    def __init__(self, quotes: dict[str, MarketQuote] | None = None, errors: dict[str, Exception] | None = None) -> None:
+    def __init__(
+        self, quotes: dict[str, MarketQuote] | None = None, errors: dict[str, Exception] | None = None
+    ) -> None:
         self._quotes = quotes or {}
         self._errors = errors or {}
         self.requested_tickers: list[str] = []
@@ -95,7 +97,9 @@ class _FakeMarketDataProvider(MarketDataProvider):
         return "Fake Provider"
 
     async def health(self) -> ProviderHealth:
-        return ProviderHealth(provider="Fake Provider", status=ProviderHealthStatus.HEALTHY, last_updated=datetime.now(UTC))
+        return ProviderHealth(
+            provider="Fake Provider", status=ProviderHealthStatus.HEALTHY, last_updated=datetime.now(UTC)
+        )
 
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities()
@@ -121,7 +125,9 @@ def _resolver() -> EntityResolutionService:
     return EntityResolutionService((DELL_REFERENCE, CRM_REFERENCE))
 
 
-def _service(provider: MarketDataProvider, resolver: EntityResolutionService | None = None) -> PortfolioMarketSnapshotService:
+def _service(
+    provider: MarketDataProvider, resolver: EntityResolutionService | None = None
+) -> PortfolioMarketSnapshotService:
     market_snapshot_service = MarketSnapshotService(
         provider, resolver if resolver is not None else _resolver(), InMemoryMarketSnapshotCache(60.0)
     )
@@ -141,7 +147,8 @@ async def test_valuation_is_always_unavailable() -> None:
     result = await service.get_portfolio_snapshot(watchlist)
 
     assert result.valuation_status == ValuationStatus.VALUATION_UNAVAILABLE
-    assert "quantity" in result.valuation_unavailable_reason.lower() or "position" in result.valuation_unavailable_reason.lower()
+    reason = result.valuation_unavailable_reason.lower()
+    assert "quantity" in reason or "position" in reason
 
 
 # --- Fresh market data -------------------------------------------------

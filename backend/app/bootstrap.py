@@ -506,7 +506,9 @@ def build_entity_resolution_service(
             max_candidates=settings.entity_max_candidates,
         )
     except ValueError as exc:
-        logger.warning("Invalid entity resolution configuration; entity_resolution_service will be unavailable: %s", exc)
+        logger.warning(
+            "Invalid entity resolution configuration; entity_resolution_service will be unavailable: %s", exc
+        )
         return None
 
 
@@ -1502,7 +1504,9 @@ def build_explainability_service(
         or backtesting_service is None
     ):
         return None
-    return ExplainabilityService(repository, recommendation_service, strategy_service, risk_service, backtesting_service)
+    return ExplainabilityService(
+        repository, recommendation_service, strategy_service, risk_service, backtesting_service
+    )
 
 
 def build_structured_logger(logger: logging.Logger) -> StdlibStructuredLogger:
@@ -1843,7 +1847,9 @@ async def bootstrap_application_state(app: FastAPI) -> None:
     app.state.health_check_service = health_check_service
     app.state.configuration_validation_service = configuration_validation_service
     app.state.startup_validation_service = startup_validation_service
-    app.state.startup_validation_report = _run_startup_validation(app, startup_validation_service, settings, auth_settings)
+    app.state.startup_validation_report = _run_startup_validation(
+        app, startup_validation_service, settings, auth_settings
+    )
 
     duration_seconds = time.perf_counter() - started_at
     metrics_recorder.record_duration(METRIC_STARTUP_DURATION_SECONDS, duration_seconds)

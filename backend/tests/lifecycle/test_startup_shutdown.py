@@ -259,7 +259,9 @@ async def test_bootstrap_registers_the_continuous_intelligence_workflow_and_sche
         assert CONTINUOUS_INTELLIGENCE_WORKFLOW_ID in schedules
         # CONTINUOUS_INTELLIGENCE_ENABLED defaults to False, same rationale
         # as INGESTION_ENABLED/MARKET_DATA_ENABLED.
-        assert schedules[CONTINUOUS_INTELLIGENCE_WORKFLOW_ID].enabled is app.state.settings.continuous_intelligence_enabled
+        assert (
+            schedules[CONTINUOUS_INTELLIGENCE_WORKFLOW_ID].enabled is app.state.settings.continuous_intelligence_enabled
+        )
         assert schedules[CONTINUOUS_INTELLIGENCE_WORKFLOW_ID].enabled is False
     finally:
         await shutdown_application_state(app)

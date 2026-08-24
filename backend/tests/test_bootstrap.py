@@ -151,7 +151,7 @@ def test_settings_configuration_returns_default_for_unknown_key() -> None:
     assert config.get("does_not_exist", "fallback") == "fallback"
 
 
-# --- build_embedding_provider (Milestone 11: LocalEmbeddingProvider) -----------------------------------------------------------
+# --- build_embedding_provider (Milestone 11: LocalEmbeddingProvider) ------------------------------
 
 
 def test_build_embedding_provider_returns_a_local_provider_by_default() -> None:
@@ -378,7 +378,7 @@ def test_build_screening_engine_wires_the_configured_max_filters() -> None:
     assert engine._max_filters == 7
 
 
-# --- build_market_data_provider / build_normalization_service -----------------------------------------------------------
+# --- build_market_data_provider / build_normalization_service -------------------------------------
 
 
 def test_build_market_data_provider_returns_a_mock_provider_by_default() -> None:
@@ -423,7 +423,7 @@ def test_build_normalization_service_returns_a_service() -> None:
     assert isinstance(service, NormalizationService)
 
 
-# --- build_signal_repository / build_signal_detection_service -----------------------------------------------------------
+# --- build_signal_repository / build_signal_detection_service -------------------------------------
 
 
 def test_build_signal_repository_does_not_raise() -> None:
@@ -459,7 +459,7 @@ def test_build_signal_detection_service_wires_the_configured_max_conditions() ->
     assert service._max_conditions == 9
 
 
-# --- build_alert_rule_repository / build_alert_repository / build_alert_service -----------------------------------------------------------
+# --- build_alert_rule_repository / build_alert_repository / build_alert_service -------------------
 
 
 def test_build_alert_rule_repository_does_not_raise() -> None:
@@ -513,7 +513,7 @@ def test_build_alert_service_wires_the_configured_max_rules() -> None:
     assert service._max_rules == 13
 
 
-# --- build_recommendation_repository / build_recommendation_service -----------------------------------------------------------
+# --- build_recommendation_repository / build_recommendation_service -------------------------------
 
 
 def test_build_recommendation_repository_does_not_raise() -> None:
@@ -682,7 +682,7 @@ def test_build_initial_analysis_service_returns_a_service_when_every_dependency_
     assert service is not None
 
 
-# --- build_backtesting_repository / build_backtesting_service -----------------------------------------------------------
+# --- build_backtesting_repository / build_backtesting_service -------------------------------------
 
 
 def test_build_backtesting_repository_does_not_raise() -> None:
@@ -754,7 +754,7 @@ def test_build_backtesting_service_returns_a_service_when_every_dependency_is_av
     assert service is not None
 
 
-# --- build_explainability_repository / build_explainability_service -----------------------------------------------------------
+# --- build_explainability_repository / build_explainability_service -------------------------------
 
 
 def test_build_explainability_repository_does_not_raise() -> None:
@@ -847,7 +847,7 @@ def test_build_explainability_service_returns_a_service_when_every_dependency_is
     assert service is not None
 
 
-# --- build_structured_logger / build_metrics_recorder / build_profiler -----------------------------------------------------------
+# --- build_structured_logger / build_metrics_recorder / build_profiler ----------------------------
 
 
 def test_build_structured_logger_wraps_the_given_logger() -> None:
@@ -874,7 +874,7 @@ def test_build_profiler_returns_an_in_memory_profiler() -> None:
     assert isinstance(result, InMemoryProfiler)
 
 
-# --- build_health_check_service / build_configuration_validation_service / build_startup_validation_service -----------------------------------------------------------
+# --- build_health_check_service / build_configuration_validation_service / build_startup_validation_service ---
 
 
 def test_build_health_check_service_returns_a_service() -> None:
@@ -897,7 +897,7 @@ def test_build_startup_validation_service_composes_the_configuration_service() -
     assert result is not None
 
 
-# --- build_auth_repository / build_clock / build_password_hasher / build_jwt_signer -----------------------------------------------------------
+# --- build_auth_repository / build_clock / build_password_hasher / build_jwt_signer ---------------
 
 
 def test_build_auth_repository_does_not_raise() -> None:
@@ -937,7 +937,8 @@ def test_build_jwt_signer_does_not_require_a_real_secret() -> None:
     assert signer.decode(token) == {"sub": "x"}
 
 
-# --- build_authorization_service / build_authentication_provider / build_authentication_service / build_policy_evaluator -----------------------------------------------------------
+# --- build_authorization_service / build_authentication_provider /
+# build_authentication_service / build_policy_evaluator ---
 
 
 def test_build_authorization_service_returns_none_without_a_repository() -> None:
@@ -1032,7 +1033,7 @@ def test_build_policy_evaluator_returns_an_evaluator() -> None:
     assert isinstance(build_policy_evaluator(), PolicyEvaluator)
 
 
-# --- build_prompt_registry / build_knowledge_hub / build_llm_service / agent builders (Sprint 57) -----------------------------------------------------------
+# --- build_prompt_registry / build_knowledge_hub / build_llm_service / agent builders (Sprint 57) --
 
 
 def test_build_prompt_registry_registers_every_agent_template() -> None:

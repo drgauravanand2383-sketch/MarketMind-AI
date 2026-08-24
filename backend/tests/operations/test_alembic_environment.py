@@ -96,7 +96,7 @@ def test_current_revision_is_the_head_after_upgrade(alembic_config: Config, sqli
     assert version == "0006_alert_explanation"
 
 
-# --- Milestone 16 regression: revision id width vs alembic_version column -----------------------------------------------------------
+# --- Milestone 16 regression: revision id width vs alembic_version column -------------------------
 
 # Alembic's own `alembic_version.version_num` column is `VARCHAR(32)` by
 # default (not something this codebase configures — Alembic's own

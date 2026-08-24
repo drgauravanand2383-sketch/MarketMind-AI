@@ -125,7 +125,9 @@ class ContinuousIntelligenceService:
         self._strategy_service = strategy_service
         self._thresholds = thresholds or ContinuousIntelligenceThresholds()
         self._state = state or InMemoryContinuousIntelligenceStateStore()
-        self._suppression = suppression or SuppressionService(self._thresholds.suppression_cooldown_minutes, now_fn=now_fn)
+        self._suppression = suppression or SuppressionService(
+            self._thresholds.suppression_cooldown_minutes, now_fn=now_fn
+        )
         self._lock = lock or InMemoryCycleLock()
         self._decision_impact = DecisionImpactService(watchlist_service)
         self._detector = ChangeDetectionService(self._state, self._thresholds)
@@ -309,7 +311,7 @@ class ContinuousIntelligenceService:
         )
         return result
 
-    # --- Per-category detection, each returning (count_detected, emitted, suppressed) -----------------------------------------------------------
+    # --- Per-category detection, each returning (count_detected, emitted, suppressed) -----------------------------
 
     async def _detect_news(
         self, entity_id: str, label: str, ticker: str | None
@@ -371,7 +373,9 @@ class ContinuousIntelligenceService:
 
         return detected, emitted, suppressed
 
-    async def _detect_risk(self, portfolio_id: str, label: str) -> tuple[int, list[DetectedChange], list[DetectedChange]]:
+    async def _detect_risk(
+        self, portfolio_id: str, label: str
+    ) -> tuple[int, list[DetectedChange], list[DetectedChange]]:
         requests = [r for r in await self._risk_service.list_requests() if r.portfolio_id == portfolio_id]
         if not requests:
             return 0, [], []
@@ -384,7 +388,9 @@ class ContinuousIntelligenceService:
         routed = await self._route(change, None)
         return 1, routed[0], routed[1]
 
-    async def _detect_recommendations(self, portfolio_id: str) -> tuple[int, list[DetectedChange], list[DetectedChange]]:
+    async def _detect_recommendations(
+        self, portfolio_id: str
+    ) -> tuple[int, list[DetectedChange], list[DetectedChange]]:
         requests = [r for r in await self._recommendation_service.list_requests() if portfolio_id in r.watchlist_ids]
         if not requests:
             return 0, [], []
@@ -404,7 +410,9 @@ class ContinuousIntelligenceService:
             suppressed.extend(routed[1])
         return detected, emitted, suppressed
 
-    async def _detect_strategy(self, portfolio_id: str, label: str) -> tuple[int, list[DetectedChange], list[DetectedChange]]:
+    async def _detect_strategy(
+        self, portfolio_id: str, label: str
+    ) -> tuple[int, list[DetectedChange], list[DetectedChange]]:
         """Strategy change detection (§16, wired in per Milestone 16 §12):
         finds the most-recently-stored `StrategyEvaluationResult` whose
         `recommendation_result_id` traces back (via

@@ -64,6 +64,8 @@ class DecisionImpactService:
         if change.portfolio_id is not None or not portfolio_ids:
             return (change,)
         return tuple(
-            change.model_copy(update={"portfolio_id": portfolio_id, "fingerprint": f"{change.fingerprint}:{portfolio_id}"})
+            change.model_copy(
+                update={"portfolio_id": portfolio_id, "fingerprint": f"{change.fingerprint}:{portfolio_id}"}
+            )
             for portfolio_id in portfolio_ids
         )

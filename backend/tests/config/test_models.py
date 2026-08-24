@@ -203,7 +203,8 @@ def test_rss_feed_urls_loads_json_list_with_source_metadata(monkeypatch: pytest.
     coexist in the same `RSS_FEED_URLS` value."""
     monkeypatch.setenv(
         "RSS_FEED_URLS",
-        '["https://a.example.com/feed", {"url": "https://b.example.com/feed", "name": "B News", "category": "Markets"}]',
+        '["https://a.example.com/feed", '
+        '{"url": "https://b.example.com/feed", "name": "B News", "category": "Markets"}]',
     )
 
     settings = RSSSettings(_env_file=None)

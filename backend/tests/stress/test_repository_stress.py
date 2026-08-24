@@ -72,7 +72,11 @@ def _assessment(request_id: str, score: float) -> RiskAssessment:
 
 def _recommendation_result(request_id: str) -> RecommendationResult:
     return RecommendationResult(
-        request_id=request_id, generated_at=NOW, total_candidates=0, recommendations=(), summary=RecommendationSummary(),
+        request_id=request_id,
+        generated_at=NOW,
+        total_candidates=0,
+        recommendations=(),
+        summary=RecommendationSummary(),
     )
 
 

@@ -88,7 +88,9 @@ class _FakeMarketDataProvider(MarketDataProvider):
     async def get_quote(self, ticker: str) -> MarketQuote:
         if ticker in self.errors:
             raise self.errors[ticker]
-        return MarketQuote(ticker=ticker, price=self.prices[ticker], timestamp=NOW, currency=Currency.USD, exchange=Exchange.NYSE)
+        return MarketQuote(
+            ticker=ticker, price=self.prices[ticker], timestamp=NOW, currency=Currency.USD, exchange=Exchange.NYSE
+        )
 
     async def get_quotes(self, tickers: list[str]) -> list[MarketQuote]:
         return [await self.get_quote(t) for t in tickers]
@@ -111,7 +113,9 @@ class _FakeMarketDataProvider(MarketDataProvider):
     async def get_dividends(self, ticker: str) -> list[Dividend]:
         raise NotImplementedError
 
-    async def get_price_history(self, ticker: str, interval: Interval, start: date | None = None, end: date | None = None) -> HistoricalSeries:
+    async def get_price_history(
+        self, ticker: str, interval: Interval, start: date | None = None, end: date | None = None
+    ) -> HistoricalSeries:
         raise NotImplementedError
 
     async def search_symbol(self, query: str) -> list[SearchResult]:
@@ -190,7 +194,9 @@ async def alert_service() -> AsyncIterator[AlertService]:
         await connection.run_sync(AlertBase.metadata.create_all)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     try:
-        yield AlertService(PostgresAlertRuleRepository(session_factory), PostgresAlertRepository(session_factory), now_fn=lambda: NOW)
+        yield AlertService(
+            PostgresAlertRuleRepository(session_factory), PostgresAlertRepository(session_factory), now_fn=lambda: NOW
+        )
     finally:
         await engine.dispose()
 
@@ -260,7 +266,7 @@ def service(
     )
 
 
-# --- First cycle establishes baseline, never a flood (§4/§20 regression #6) -----------------------------------------------------------
+# --- First cycle establishes baseline, never a flood (§4/§20 regression #6) -----------------------
 
 
 async def test_first_cycle_detects_nothing(service: ContinuousIntelligenceService) -> None:
@@ -357,10 +363,12 @@ async def test_newly_triggered_signal_feeds_existing_alert_pathway(
     market_provider: _FakeMarketDataProvider,
 ) -> None:
     await signal_service.create_signal_definition(
-        "Breakout", conditions=(SignalCondition(id="c1", field="quote.price", operator=SignalOperator.GREATER_THAN, value=105.0),)
+        "Breakout",
+        conditions=(SignalCondition(id="c1", field="quote.price", operator=SignalOperator.GREATER_THAN, value=105.0),),
     )
     await alert_service.create_rule(
-        "Breakout Alert", conditions=(AlertCondition(id="c1", field="triggered", operator=AlertOperator.EQUALS, value=True),)
+        "Breakout Alert",
+        conditions=(AlertCondition(id="c1", field="triggered", operator=AlertOperator.EQUALS, value=True),),
     )
     await service.run_cycle("exec-1")  # price 100 -> not triggered, baseline
     market_provider.prices["DELL"] = 110.0
@@ -379,7 +387,8 @@ async def test_alert_cooldown_still_applies_to_continuous_intelligence_triggered
 ) -> None:
     """§20 regression #1: existing alert cooldown remains unchanged."""
     await signal_service.create_signal_definition(
-        "Breakout", conditions=(SignalCondition(id="c1", field="quote.price", operator=SignalOperator.GREATER_THAN, value=50.0),)
+        "Breakout",
+        conditions=(SignalCondition(id="c1", field="quote.price", operator=SignalOperator.GREATER_THAN, value=50.0),),
     )
     await alert_service.create_rule(
         "Breakout Alert", cooldown_minutes=60,
@@ -398,7 +407,9 @@ async def test_alert_cooldown_still_applies_to_continuous_intelligence_triggered
 
 
 async def test_market_change_scoped_to_watchlists_that_track_the_ticker(
-    service: ContinuousIntelligenceService, market_provider: _FakeMarketDataProvider, watchlist_service: WatchlistService
+    service: ContinuousIntelligenceService,
+    market_provider: _FakeMarketDataProvider,
+    watchlist_service: WatchlistService,
 ) -> None:
     from app.watchlist.models import WatchlistItem
 
@@ -416,7 +427,9 @@ async def test_market_change_scoped_to_watchlists_that_track_the_ticker(
 
 
 async def test_market_change_notifies_every_watching_portfolio_independently(
-    service: ContinuousIntelligenceService, market_provider: _FakeMarketDataProvider, watchlist_service: WatchlistService
+    service: ContinuousIntelligenceService,
+    market_provider: _FakeMarketDataProvider,
+    watchlist_service: WatchlistService,
 ) -> None:
     """A shared-fingerprint bug would let the first portfolio's copy
     suppress every other portfolio's copy of the same underlying change —
@@ -564,7 +577,8 @@ async def test_oscillating_risk_severity_is_suppressed_within_cooldown(
     risk_changes = [c for result in results for c in result.changes if c.domain.value == "RISK"]
     risk_suppressed = [c for result in results for c in result.suppressed if c.domain.value == "RISK"]
 
-    # LOW->HIGH (emitted), HIGH->LOW (emitted, different fingerprint), LOW->HIGH again (same "HIGH" fingerprint as the first -> suppressed)
+    # LOW->HIGH (emitted), HIGH->LOW (emitted, different fingerprint), LOW->HIGH
+    # again (same "HIGH" fingerprint as the first -> suppressed)
     assert len(risk_changes) == 2
     assert len(risk_suppressed) == 1
 
@@ -693,7 +707,7 @@ async def test_postgres_backed_lock_prevents_concurrent_cycles_across_service_in
     assert len(ran) == 1
 
 
-# --- Persistent state/suppression survive a restart (§2/§3/§17 regressions #1/#2/#4) -----------------------------------------------------------
+# --- Persistent state/suppression survive a restart (§2/§3/§17 regressions #1/#2/#4) ---------------
 
 
 async def test_postgres_backed_service_restart_does_not_duplicate_and_still_detects_new_change(
@@ -841,7 +855,7 @@ async def test_strategy_evaluation_without_recommendation_linkage_is_never_attri
     assert not any(c.domain.value == "STRATEGY" for c in result_2.changes)
 
 
-# --- v1.2 Priority 2: cross-portfolio notification grouping (§_route) -----------------------------------------------------------
+# --- v1.2 Priority 2: cross-portfolio notification grouping (§_route) -------------------------------
 
 
 class _SelectiveFakeSuppression:
@@ -863,7 +877,9 @@ class _SelectiveFakeSuppression:
 
 
 async def test_three_watching_portfolios_are_all_present_in_the_grouped_impacted_list(
-    service: ContinuousIntelligenceService, market_provider: _FakeMarketDataProvider, watchlist_service: WatchlistService
+    service: ContinuousIntelligenceService,
+    market_provider: _FakeMarketDataProvider,
+    watchlist_service: WatchlistService,
 ) -> None:
     """§2 item 1: same event_fingerprint, 3 impacted portfolios -> every
     emitted copy carries all 3 in impacted_portfolio_ids (the grouping
@@ -889,7 +905,9 @@ async def test_three_watching_portfolios_are_all_present_in_the_grouped_impacted
 
 
 async def test_single_watching_portfolio_reports_an_impacted_list_of_one(
-    service: ContinuousIntelligenceService, market_provider: _FakeMarketDataProvider, watchlist_service: WatchlistService
+    service: ContinuousIntelligenceService,
+    market_provider: _FakeMarketDataProvider,
+    watchlist_service: WatchlistService,
 ) -> None:
     """§2 item 2: exactly one impacted portfolio -> a 1-tuple, not empty
     and not padded with anything else."""
@@ -956,9 +974,13 @@ async def test_two_different_companies_produce_independent_impacted_groups(
     market_provider.prices["AAPL"] = 100.0
 
     dell_watchlist = await watchlist_service.create_watchlist("Dell Holders")
-    await watchlist_service.add_company(dell_watchlist.id, WatchlistItem(ticker="DELL", company_name="Dell", added_at=NOW))
+    await watchlist_service.add_company(
+        dell_watchlist.id, WatchlistItem(ticker="DELL", company_name="Dell", added_at=NOW)
+    )
     aapl_watchlist = await watchlist_service.create_watchlist("Apple Holders")
-    await watchlist_service.add_company(aapl_watchlist.id, WatchlistItem(ticker="AAPL", company_name="Apple", added_at=NOW))
+    await watchlist_service.add_company(
+        aapl_watchlist.id, WatchlistItem(ticker="AAPL", company_name="Apple", added_at=NOW)
+    )
 
     market_snapshot_service = MarketSnapshotService(market_provider, resolver, InMemoryMarketSnapshotCache(60.0))
     service = ContinuousIntelligenceService(
@@ -981,7 +1003,9 @@ async def test_two_different_companies_produce_independent_impacted_groups(
 
 
 async def test_portfolio_tracking_a_different_ticker_never_appears_in_the_impacted_list(
-    service: ContinuousIntelligenceService, market_provider: _FakeMarketDataProvider, watchlist_service: WatchlistService
+    service: ContinuousIntelligenceService,
+    market_provider: _FakeMarketDataProvider,
+    watchlist_service: WatchlistService,
 ) -> None:
     """§2 item 6: a portfolio that does not actually track the changed
     entity must never appear in impacted_portfolio_ids - not "excluded by
@@ -994,7 +1018,9 @@ async def test_portfolio_tracking_a_different_ticker_never_appears_in_the_impact
     tracking = await watchlist_service.create_watchlist("Tracks Dell")
     await watchlist_service.add_company(tracking.id, WatchlistItem(ticker="DELL", company_name="Dell", added_at=NOW))
     unrelated = await watchlist_service.create_watchlist("Tracks Something Else")
-    await watchlist_service.add_company(unrelated.id, WatchlistItem(ticker="MSFT", company_name="Microsoft", added_at=NOW))
+    await watchlist_service.add_company(
+        unrelated.id, WatchlistItem(ticker="MSFT", company_name="Microsoft", added_at=NOW)
+    )
 
     await service.run_cycle("exec-1")
     market_provider.prices["DELL"] = 110.0
@@ -1048,7 +1074,9 @@ async def test_per_portfolio_suppression_remains_independent_after_grouping(
 
 
 async def test_grouped_change_preserves_summary_priority_and_timestamp(
-    service: ContinuousIntelligenceService, market_provider: _FakeMarketDataProvider, watchlist_service: WatchlistService
+    service: ContinuousIntelligenceService,
+    market_provider: _FakeMarketDataProvider,
+    watchlist_service: WatchlistService,
 ) -> None:
     """§2 item 11: attaching impacted_portfolio_ids must never clobber
     any of the change's other real, already-computed fields."""

@@ -105,7 +105,9 @@ class _FakeMarketDataProvider(MarketDataProvider):
         return "Fake Provider"
 
     async def health(self) -> ProviderHealth:
-        return ProviderHealth(provider="Fake Provider", status=ProviderHealthStatus.HEALTHY, last_updated=datetime.now(UTC))
+        return ProviderHealth(
+            provider="Fake Provider", status=ProviderHealthStatus.HEALTHY, last_updated=datetime.now(UTC)
+        )
 
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities()
@@ -139,8 +141,12 @@ def _resolver() -> EntityResolutionService:
     return EntityResolutionService(references)
 
 
-def _service(provider: MarketDataProvider, ttl_seconds: float = 60.0, resolver: EntityResolutionService | None = None) -> MarketSnapshotService:
-    return MarketSnapshotService(provider, resolver if resolver is not None else _resolver(), InMemoryMarketSnapshotCache(ttl_seconds))
+def _service(
+    provider: MarketDataProvider, ttl_seconds: float = 60.0, resolver: EntityResolutionService | None = None
+) -> MarketSnapshotService:
+    return MarketSnapshotService(
+        provider, resolver if resolver is not None else _resolver(), InMemoryMarketSnapshotCache(ttl_seconds)
+    )
 
 
 # --- Successful snapshot -------------------------------------------------
@@ -217,7 +223,9 @@ async def test_no_entity_resolver_configured_returns_entity_not_mapped() -> None
         (ProviderConnectionError("connection failed"), MarketSnapshotStatus.PROVIDER_UNAVAILABLE),
     ],
 )
-async def test_provider_errors_map_to_distinct_statuses(error: Exception, expected_status: MarketSnapshotStatus) -> None:
+async def test_provider_errors_map_to_distinct_statuses(
+    error: Exception, expected_status: MarketSnapshotStatus
+) -> None:
     provider = _FakeMarketDataProvider(error=error)
     service = _service(provider)
 

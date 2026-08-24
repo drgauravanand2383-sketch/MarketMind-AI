@@ -113,7 +113,9 @@ def test_sector_exposure_differs_from_diversification_for_uneven_distribution(
 
 
 def test_geographic_exposure_reflects_largest_single_country(service: RiskAnalyticsService) -> None:
-    candidates = (make_candidate("A", country="US"), make_candidate("B", country="US"), make_candidate("C", country="India"))
+    candidates = (
+        make_candidate("A", country="US"), make_candidate("B", country="US"), make_candidate("C", country="India")
+    )
     metric = service.calculate_geographic_exposure(candidates)
     assert metric.score == pytest.approx(66.67, abs=0.01)
     assert metric.category == RiskCategory.GEOGRAPHIC
@@ -162,7 +164,9 @@ def test_volatility_high_score_dispersion_increases_score(service: RiskAnalytics
 
 def test_volatility_triggered_signal_contributes_to_score(service: RiskAnalyticsService) -> None:
     candidates = (
-        make_candidate("A", overall_score=50, supporting_signals=(make_signal(SignalCategory.VOLATILITY, triggered=True),)),
+        make_candidate(
+            "A", overall_score=50, supporting_signals=(make_signal(SignalCategory.VOLATILITY, triggered=True),)
+        ),
         make_candidate("B", overall_score=50),
     )
     metric = service.estimate_volatility(candidates)
@@ -171,7 +175,9 @@ def test_volatility_triggered_signal_contributes_to_score(service: RiskAnalytics
 
 def test_volatility_untriggered_signal_does_not_contribute(service: RiskAnalyticsService) -> None:
     candidates = (
-        make_candidate("A", overall_score=50, supporting_signals=(make_signal(SignalCategory.VOLATILITY, triggered=False),)),
+        make_candidate(
+            "A", overall_score=50, supporting_signals=(make_signal(SignalCategory.VOLATILITY, triggered=False),)
+        ),
     )
     metric = service.estimate_volatility(candidates)
     assert metric.score == 0.0
@@ -179,7 +185,9 @@ def test_volatility_untriggered_signal_does_not_contribute(service: RiskAnalytic
 
 def test_volatility_non_volatility_category_signal_does_not_contribute(service: RiskAnalyticsService) -> None:
     candidates = (
-        make_candidate("A", overall_score=50, supporting_signals=(make_signal(SignalCategory.MOMENTUM, triggered=True),)),
+        make_candidate(
+            "A", overall_score=50, supporting_signals=(make_signal(SignalCategory.MOMENTUM, triggered=True),)
+        ),
     )
     metric = service.estimate_volatility(candidates)
     assert metric.score == 0.0
@@ -234,7 +242,9 @@ def test_calculate_exposures_produces_sector_country_industry_buckets(
 
 
 def test_calculate_exposures_weight_is_equal_per_candidate(service: RiskAnalyticsService) -> None:
-    candidates = (make_candidate("A", sector="Tech"), make_candidate("B", sector="Tech"), make_candidate("C", sector="Energy"))
+    candidates = (
+        make_candidate("A", sector="Tech"), make_candidate("B", sector="Tech"), make_candidate("C", sector="Energy")
+    )
     exposures = service.calculate_exposures(candidates)
     tech_exposure = next(e for e in exposures if e.sector == "Tech")
     assert tech_exposure.weight == pytest.approx(0.6667, abs=0.001)

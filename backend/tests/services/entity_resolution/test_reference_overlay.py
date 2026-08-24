@@ -99,7 +99,10 @@ def test_entry_missing_required_field_raises(tmp_path: Path) -> None:
 
     with pytest.raises(OverlayValidationError, match="malformed"):
         load_reference_overlay(
-            path, existing_entity_ids=EMPTY_SETS[0], existing_tickers=EMPTY_SETS[1], existing_canonical_names=EMPTY_SETS[2],
+            path,
+            existing_entity_ids=EMPTY_SETS[0],
+            existing_tickers=EMPTY_SETS[1],
+            existing_canonical_names=EMPTY_SETS[2],
         )
 
 
@@ -108,7 +111,10 @@ def test_entry_with_unknown_field_raises(tmp_path: Path) -> None:
 
     with pytest.raises(OverlayValidationError, match="malformed"):
         load_reference_overlay(
-            path, existing_entity_ids=EMPTY_SETS[0], existing_tickers=EMPTY_SETS[1], existing_canonical_names=EMPTY_SETS[2],
+            path,
+            existing_entity_ids=EMPTY_SETS[0],
+            existing_tickers=EMPTY_SETS[1],
+            existing_canonical_names=EMPTY_SETS[2],
         )
 
 
@@ -120,7 +126,10 @@ def test_entity_id_collision_with_existing_set_raises(tmp_path: Path) -> None:
 
     with pytest.raises(OverlayValidationError, match="collides"):
         load_reference_overlay(
-            path, existing_entity_ids=frozenset({"aapl"}), existing_tickers=EMPTY_SETS[1], existing_canonical_names=EMPTY_SETS[2],
+            path,
+            existing_entity_ids=frozenset({"aapl"}),
+            existing_tickers=EMPTY_SETS[1],
+            existing_canonical_names=EMPTY_SETS[2],
         )
 
 
@@ -129,7 +138,10 @@ def test_ticker_collision_with_existing_set_raises(tmp_path: Path) -> None:
 
     with pytest.raises(OverlayValidationError, match="collides"):
         load_reference_overlay(
-            path, existing_entity_ids=EMPTY_SETS[0], existing_tickers=frozenset({"AAPL"}), existing_canonical_names=EMPTY_SETS[2],
+            path,
+            existing_entity_ids=EMPTY_SETS[0],
+            existing_tickers=frozenset({"AAPL"}),
+            existing_canonical_names=EMPTY_SETS[2],
         )
 
 
@@ -148,7 +160,10 @@ def test_duplicate_entity_id_within_the_file_itself_raises(tmp_path: Path) -> No
 
     with pytest.raises(OverlayValidationError, match="Duplicate overlay entity_id"):
         load_reference_overlay(
-            path, existing_entity_ids=EMPTY_SETS[0], existing_tickers=EMPTY_SETS[1], existing_canonical_names=EMPTY_SETS[2],
+            path,
+            existing_entity_ids=EMPTY_SETS[0],
+            existing_tickers=EMPTY_SETS[1],
+            existing_canonical_names=EMPTY_SETS[2],
         )
 
 
@@ -160,7 +175,10 @@ def test_too_short_canonical_name_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(OverlayValidationError, match="too short or too generic"):
         load_reference_overlay(
-            path, existing_entity_ids=EMPTY_SETS[0], existing_tickers=EMPTY_SETS[1], existing_canonical_names=EMPTY_SETS[2],
+            path,
+            existing_entity_ids=EMPTY_SETS[0],
+            existing_tickers=EMPTY_SETS[1],
+            existing_canonical_names=EMPTY_SETS[2],
         )
 
 
@@ -169,7 +187,10 @@ def test_generic_alias_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(OverlayValidationError, match="too short or too generic"):
         load_reference_overlay(
-            path, existing_entity_ids=EMPTY_SETS[0], existing_tickers=EMPTY_SETS[1], existing_canonical_names=EMPTY_SETS[2],
+            path,
+            existing_entity_ids=EMPTY_SETS[0],
+            existing_tickers=EMPTY_SETS[1],
+            existing_canonical_names=EMPTY_SETS[2],
         )
 
 
@@ -178,7 +199,10 @@ def test_too_short_alias_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(OverlayValidationError, match="too short or too generic"):
         load_reference_overlay(
-            path, existing_entity_ids=EMPTY_SETS[0], existing_tickers=EMPTY_SETS[1], existing_canonical_names=EMPTY_SETS[2],
+            path,
+            existing_entity_ids=EMPTY_SETS[0],
+            existing_tickers=EMPTY_SETS[1],
+            existing_canonical_names=EMPTY_SETS[2],
         )
 
 
@@ -211,7 +235,11 @@ def test_valid_entry_loads_successfully(tmp_path: Path) -> None:
 
 
 def test_apply_merges_into_company_keywords_and_additional_facts() -> None:
-    overlay = (OverlayEntity(entity_id="acme", canonical_name="Acme Corporation Overlay Test", ticker="ACMEX", aliases=("Acme Overlay",)),)
+    overlay = (
+        OverlayEntity(
+            entity_id="acme", canonical_name="Acme Corporation Overlay Test", ticker="ACMEX", aliases=("Acme Overlay",)
+        ),
+    )
 
     apply_reference_overlay(overlay)
 

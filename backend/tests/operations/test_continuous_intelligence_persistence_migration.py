@@ -140,7 +140,7 @@ def test_postgres_continuous_intelligence_repository_works_against_the_migrated_
     assert value == {"price": 100.0}
 
 
-# --- 0004: strategy_evaluation_results.recommendation_result_id -----------------------------------------------------------
+# --- 0004: strategy_evaluation_results.recommendation_result_id -----------------------------------
 
 
 def test_upgrade_head_adds_recommendation_result_id_to_strategy_results(

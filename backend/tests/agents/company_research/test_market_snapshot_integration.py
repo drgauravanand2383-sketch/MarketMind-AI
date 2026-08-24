@@ -100,7 +100,9 @@ class _FakeMarketDataProvider(MarketDataProvider):
         return "Fake Provider"
 
     async def health(self) -> ProviderHealth:
-        return ProviderHealth(provider="Fake Provider", status=ProviderHealthStatus.HEALTHY, last_updated=datetime.now(UTC))
+        return ProviderHealth(
+            provider="Fake Provider", status=ProviderHealthStatus.HEALTHY, last_updated=datetime.now(UTC)
+        )
 
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities()

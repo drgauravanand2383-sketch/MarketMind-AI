@@ -37,7 +37,11 @@ class _FakeRateLimiter(RateLimiter):
 
 def _rule(scope: RateLimitScope = RateLimitScope.PER_USER, burst_limit: int = 2) -> RateLimitRule:
     return RateLimitRule(
-        scope=scope, burst_limit=burst_limit, burst_window_seconds=1.0, sustained_limit=100, sustained_window_seconds=60.0
+        scope=scope,
+        burst_limit=burst_limit,
+        burst_window_seconds=1.0,
+        sustained_limit=100,
+        sustained_window_seconds=60.0,
     )
 
 

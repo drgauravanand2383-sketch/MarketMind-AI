@@ -66,7 +66,9 @@ def service(
 
 
 async def test_equals_operator_pass_and_fail(service: AlertService) -> None:
-    rule = await service.create_rule("R", conditions=(make_condition(field="ticker", operator=AlertOperator.EQUALS, value="AAPL"),))
+    rule = await service.create_rule(
+        "R", conditions=(make_condition(field="ticker", operator=AlertOperator.EQUALS, value="AAPL"),)
+    )
     matched = await service.evaluate_signal(make_signal(ticker="AAPL"), rule)
     unmatched = await service.evaluate_signal(make_signal(ticker="MSFT"), rule)
     assert matched is not None
@@ -74,7 +76,9 @@ async def test_equals_operator_pass_and_fail(service: AlertService) -> None:
 
 
 async def test_not_equals_operator_pass_and_fail(service: AlertService) -> None:
-    rule = await service.create_rule("R", conditions=(make_condition(field="ticker", operator=AlertOperator.NOT_EQUALS, value="AAPL"),))
+    rule = await service.create_rule(
+        "R", conditions=(make_condition(field="ticker", operator=AlertOperator.NOT_EQUALS, value="AAPL"),)
+    )
     assert await service.evaluate_signal(make_signal(ticker="MSFT"), rule) is not None
     assert await service.evaluate_signal(make_signal(ticker="AAPL"), rule) is None
 
@@ -111,13 +115,17 @@ async def test_between_operator_pass_and_fail(service: AlertService) -> None:
 
 
 async def test_in_operator_pass_and_fail(service: AlertService) -> None:
-    rule = await service.create_rule("R", conditions=(make_condition(field="ticker", operator=AlertOperator.IN, value=["AAPL", "MSFT"]),))
+    rule = await service.create_rule(
+        "R", conditions=(make_condition(field="ticker", operator=AlertOperator.IN, value=["AAPL", "MSFT"]),)
+    )
     assert await service.evaluate_signal(make_signal(ticker="AAPL"), rule) is not None
     assert await service.evaluate_signal(make_signal(ticker="TSLA"), rule) is None
 
 
 async def test_not_in_operator_pass_and_fail(service: AlertService) -> None:
-    rule = await service.create_rule("R", conditions=(make_condition(field="ticker", operator=AlertOperator.NOT_IN, value=["AAPL", "MSFT"]),))
+    rule = await service.create_rule(
+        "R", conditions=(make_condition(field="ticker", operator=AlertOperator.NOT_IN, value=["AAPL", "MSFT"]),)
+    )
     assert await service.evaluate_signal(make_signal(ticker="TSLA"), rule) is not None
     assert await service.evaluate_signal(make_signal(ticker="AAPL"), rule) is None
 
@@ -169,7 +177,9 @@ async def test_non_matching_conditions_returns_none(service: AlertService) -> No
 
 
 async def test_missing_field_value_fails_the_condition(service: AlertService) -> None:
-    rule = await service.create_rule("R", conditions=(make_condition(field="company_name", operator=AlertOperator.EQUALS, value="X"),))
+    rule = await service.create_rule(
+        "R", conditions=(make_condition(field="company_name", operator=AlertOperator.EQUALS, value="X"),)
+    )
     assert await service.evaluate_signal(make_signal(company_name=None), rule) is None
 
 
@@ -351,7 +361,9 @@ async def test_low_priority_alert_excludes_interruptive_channels(service: AlertS
         "R",
         priority=AlertPriority.LOW,
         conditions=(make_condition(operator=AlertOperator.GREATER_THAN, value=50),),
-        channels=(NotificationChannel.EMAIL, NotificationChannel.SMS, NotificationChannel.PUSH, NotificationChannel.IN_APP),
+        channels=(
+            NotificationChannel.EMAIL, NotificationChannel.SMS, NotificationChannel.PUSH, NotificationChannel.IN_APP
+        ),
     )
     alert = await service.evaluate_signal(make_signal(score=80, priority=SignalPriority.LOW), rule)
     assert NotificationChannel.SMS not in alert.eligible_channels
@@ -368,7 +380,9 @@ async def test_critical_priority_alert_allows_every_rule_declared_channel(servic
         channels=(NotificationChannel.EMAIL, NotificationChannel.SMS, NotificationChannel.PUSH),
     )
     alert = await service.evaluate_signal(make_signal(score=80, priority=SignalPriority.CRITICAL), rule)
-    assert set(alert.eligible_channels) == {NotificationChannel.EMAIL, NotificationChannel.SMS, NotificationChannel.PUSH}
+    assert set(alert.eligible_channels) == {
+        NotificationChannel.EMAIL, NotificationChannel.SMS, NotificationChannel.PUSH
+    }
 
 
 async def test_eligible_channels_never_exceed_rule_declared_channels(service: AlertService) -> None:
@@ -384,7 +398,9 @@ async def test_eligible_channels_never_exceed_rule_declared_channels(service: Al
 
 async def test_no_channels_declared_means_no_eligible_channels(service: AlertService) -> None:
     rule = await service.create_rule(
-        "R", priority=AlertPriority.CRITICAL, conditions=(make_condition(operator=AlertOperator.GREATER_THAN, value=50),)
+        "R",
+        priority=AlertPriority.CRITICAL,
+        conditions=(make_condition(operator=AlertOperator.GREATER_THAN, value=50),),
     )
     alert = await service.evaluate_signal(make_signal(score=80), rule)
     assert alert.eligible_channels == ()
@@ -394,7 +410,9 @@ async def test_no_channels_declared_means_no_eligible_channels(service: AlertSer
 
 
 async def test_generated_alert_reason_mentions_rule_and_signal(service: AlertService) -> None:
-    rule = await service.create_rule("My Rule", conditions=(make_condition(operator=AlertOperator.GREATER_THAN, value=50),))
+    rule = await service.create_rule(
+        "My Rule", conditions=(make_condition(operator=AlertOperator.GREATER_THAN, value=50),)
+    )
     alert = await service.evaluate_signal(make_signal(score=80), rule)
     assert "My Rule" in alert.reason
     assert "Value Signal" in alert.reason
@@ -417,7 +435,9 @@ async def test_alert_reason_uses_the_signals_own_weighted_match_description(serv
     ("Rule X matched signal Y for TICKER.") regardless of what actually
     happened — this proves the real, signal-specific weighted-match
     description is now present instead."""
-    rule = await service.create_rule("My Rule", conditions=(make_condition(operator=AlertOperator.GREATER_THAN, value=50),))
+    rule = await service.create_rule(
+        "My Rule", conditions=(make_condition(operator=AlertOperator.GREATER_THAN, value=50),)
+    )
     signal = make_signal(score=80, reason="Triggered: 2 of 3 conditions matched (weighted score 80.0%).")
 
     alert = await service.evaluate_signal(signal, rule)
@@ -471,7 +491,9 @@ async def test_notification_payload_is_complete(service: AlertService) -> None:
     inputs: priority + ticker; summary input: reason; plus company and
     timestamp) must be present on the persisted `Alert` a caller reads
     back — nothing missing, nothing requiring a second lookup."""
-    rule = await service.create_rule("My Rule", conditions=(make_condition(operator=AlertOperator.GREATER_THAN, value=50),))
+    rule = await service.create_rule(
+        "My Rule", conditions=(make_condition(operator=AlertOperator.GREATER_THAN, value=50),)
+    )
     alert = await service.evaluate_signal(make_signal(score=80, company_name="Apple"), rule)
 
     assert alert.ticker

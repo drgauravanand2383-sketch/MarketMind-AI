@@ -38,7 +38,9 @@ def _change(entity_id: str = "dell", portfolio_id: str | None = None) -> Detecte
 
 async def test_finds_every_watchlist_tracking_the_ticker() -> None:
     service = DecisionImpactService(
-        _FakeWatchlistService([_watchlist("wl-1", ["DELL", "AAPL"]), _watchlist("wl-2", ["MSFT"]), _watchlist("wl-3", ["dell"])])
+        _FakeWatchlistService(
+            [_watchlist("wl-1", ["DELL", "AAPL"]), _watchlist("wl-2", ["MSFT"]), _watchlist("wl-3", ["dell"])]
+        )
     )
 
     portfolios = await service.find_impacted_portfolios("DELL")
@@ -108,7 +110,8 @@ def test_attach_portfolio_context_preserves_event_fingerprint_across_expansion()
     suppression still treats them independently."""
     service = DecisionImpactService(_FakeWatchlistService([]))
     change = _change()
-    assert change.event_fingerprint == change.fingerprint  # sanity: set at construction, matches the pilot's real detector behavior
+    # sanity: set at construction, matches the pilot's real detector behavior
+    assert change.event_fingerprint == change.fingerprint
 
     expanded = service.attach_portfolio_context(change, ("wl-1", "wl-2", "wl-3"))
 

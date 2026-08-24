@@ -42,7 +42,11 @@ class ConnectionManager:
         connection_id = str(uuid.uuid4())
         now = datetime.now(UTC)
         self._connections[connection_id] = WebSocketConnection(
-            connection_id=connection_id, websocket=websocket, principal=principal, connected_at=now, last_heartbeat_at=now
+            connection_id=connection_id,
+            websocket=websocket,
+            principal=principal,
+            connected_at=now,
+            last_heartbeat_at=now,
         )
         return connection_id
 

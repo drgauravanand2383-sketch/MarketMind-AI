@@ -86,7 +86,10 @@ def test_alert_condition_in_rejects_non_list_value() -> None:
 
 @pytest.mark.parametrize(
     "field",
-    ["ticker", "company_name", "signal_name", "category", "triggered", "confidence", "score", "priority", "reason", "timestamp"],
+    [
+        "ticker", "company_name", "signal_name", "category", "triggered",
+        "confidence", "score", "priority", "reason", "timestamp",
+    ],
 )
 def test_alert_condition_accepts_every_valid_signal_result_field(field: str) -> None:
     condition = AlertCondition(id="c1", field=field, operator=AlertOperator.EQUALS, value="x")

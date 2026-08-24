@@ -36,7 +36,9 @@ def test_equals_operator_pass_and_fail(engine: ScreeningEngine) -> None:
 
 
 def test_not_equals_operator_pass_and_fail(engine: ScreeningEngine) -> None:
-    profile = make_profile(filters=(make_filter(field="sector", operator=ScreenOperator.NOT_EQUALS, value="Technology"),))
+    profile = make_profile(
+        filters=(make_filter(field="sector", operator=ScreenOperator.NOT_EQUALS, value="Technology"),)
+    )
     assert engine.evaluate_company(profile, metrics(sector="Energy")).passed is True
     assert engine.evaluate_company(profile, metrics(sector="Technology")).passed is False
 
@@ -82,7 +84,9 @@ def test_in_operator_pass_and_fail(engine: ScreeningEngine) -> None:
 
 
 def test_not_in_operator_pass_and_fail(engine: ScreeningEngine) -> None:
-    profile = make_profile(filters=(make_filter(field="country", operator=ScreenOperator.NOT_IN, value=["US", "Canada"]),))
+    profile = make_profile(
+        filters=(make_filter(field="country", operator=ScreenOperator.NOT_IN, value=["US", "Canada"]),)
+    )
     assert engine.evaluate_company(profile, metrics(country="Germany")).passed is True
     assert engine.evaluate_company(profile, metrics(country="US")).passed is False
 

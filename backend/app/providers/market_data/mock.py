@@ -62,7 +62,9 @@ _SEARCH_CATALOG: tuple[SearchResult, ...] = (
     SearchResult(ticker="AMZN", company_name="Amazon.com Inc.", exchange=Exchange.NASDAQ, country="US"),
     SearchResult(ticker="TSLA", company_name="Tesla Inc.", exchange=Exchange.NASDAQ, country="US"),
     SearchResult(ticker="NVDA", company_name="NVIDIA Corporation", exchange=Exchange.NASDAQ, country="US"),
-    SearchResult(ticker="TSM", company_name="Taiwan Semiconductor Manufacturing", exchange=Exchange.NYSE, country="Taiwan"),
+    SearchResult(
+        ticker="TSM", company_name="Taiwan Semiconductor Manufacturing", exchange=Exchange.NYSE, country="Taiwan"
+    ),
     SearchResult(ticker="RELIANCE", company_name="Reliance Industries Limited", exchange=Exchange.NSE, country="India"),
 )
 
@@ -370,7 +372,8 @@ def _scaled_int(seed: int, salt: int, *, low: int, high: int) -> int:
 
 
 def _fraction(seed: int, salt: int, *, low: float, high: float) -> float:
-    return round(_scaled(seed, salt, low=low, high=high) / 100 if high > 1 else _scaled(seed, salt, low=low, high=high), 6)
+    scaled = _scaled(seed, salt, low=low, high=high)
+    return round(scaled / 100 if high > 1 else scaled, 6)
 
 
 def _pick[T](seed: int, salt: int, options: tuple[T, ...]) -> T:

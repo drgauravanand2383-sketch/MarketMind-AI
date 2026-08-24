@@ -45,12 +45,16 @@ class WatchlistFilterParams(BaseModel):
 
 
 def watchlist_filter_params(
-    name: str | None = Query(None, description="Match watchlists whose name contains this substring (case-insensitive)."),
+    name: str | None = Query(
+        None, description="Match watchlists whose name contains this substring (case-insensitive)."
+    ),
     sector: str | None = Query(None, description="Match watchlists containing a holding in this sector."),
     country: str | None = Query(None, description="Match watchlists containing a holding in this country."),
     theme: str | None = Query(None, description="Match watchlists containing a holding tagged with this theme."),
     ticker: str | None = Query(None, description="Match watchlists containing this ticker."),
-    company: str | None = Query(None, description="Match watchlists containing a company name substring (case-insensitive)."),
+    company: str | None = Query(
+        None, description="Match watchlists containing a company name substring (case-insensitive)."
+    ),
     created_after: datetime | None = Query(None, description="Only watchlists created at or after this time."),
     created_before: datetime | None = Query(None, description="Only watchlists created at or before this time."),
 ) -> WatchlistFilterParams:

@@ -28,7 +28,9 @@ def test_definition_with_conditions_and_groups_round_trips() -> None:
         priority=SignalPriority.HIGH,
         enabled=True,
         conditions=(
-            SignalCondition(id="c1", field="ratios.pe", operator=SignalOperator.LESS_THAN, value=20, weight=2.0, group="g1"),
+            SignalCondition(
+                id="c1", field="ratios.pe", operator=SignalOperator.LESS_THAN, value=20, weight=2.0, group="g1"
+            ),
             SignalCondition(id="c2", field="profile.sector", operator=SignalOperator.IN, value=["Tech", "Energy"]),
         ),
         groups=(group,),
@@ -91,7 +93,9 @@ def test_condition_weight_round_trips() -> None:
         name="Weighted",
         created_at=NOW,
         updated_at=NOW,
-        conditions=(SignalCondition(id="c1", field="ratios.pe", operator=SignalOperator.LESS_THAN, value=20, weight=4.25),),
+        conditions=(
+            SignalCondition(id="c1", field="ratios.pe", operator=SignalOperator.LESS_THAN, value=20, weight=4.25),
+        ),
     )
 
     model = definition_to_model(definition)

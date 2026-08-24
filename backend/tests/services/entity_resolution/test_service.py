@@ -76,7 +76,9 @@ def test_resolve_exact_canonical_name_is_high_confidence() -> None:
 
 def test_resolve_alias_match() -> None:
     service = _service()
-    result = service.resolve("Acme unveiled a new product line today.", EntityResolutionContext(title="Acme unveiled a new product line"))
+    result = service.resolve(
+        "Acme unveiled a new product line today.", EntityResolutionContext(title="Acme unveiled a new product line")
+    )
 
     assert result.primary is not None
     assert result.primary.entity_id == "acme"
@@ -236,7 +238,9 @@ def test_resolve_max_candidates_caps_returned_candidates() -> None:
 
 def test_resolve_is_case_insensitive_for_names_and_aliases() -> None:
     service = _service()
-    result = service.resolve("acme corporation reported earnings.", EntityResolutionContext(title="acme corporation reported earnings"))
+    result = service.resolve(
+        "acme corporation reported earnings.", EntityResolutionContext(title="acme corporation reported earnings")
+    )
 
     assert result.primary is not None
     assert result.primary.entity_id == "acme"
@@ -247,7 +251,10 @@ def test_resolve_tolerates_possessive_punctuation_immediately_after_the_name() -
     stock..." — the alias must still match with a possessive `'s`
     (or a curly Unicode apostrophe) directly appended, no space."""
     service = _service()
-    result = service.resolve("Acme's stock rallied on strong earnings.", EntityResolutionContext(title="Acme’s stock rallied on strong earnings"))
+    result = service.resolve(
+        "Acme's stock rallied on strong earnings.",
+        EntityResolutionContext(title="Acme’s stock rallied on strong earnings"),
+    )
 
     assert result.primary is not None
     assert result.primary.entity_id == "acme"
@@ -260,7 +267,9 @@ def test_resolve_matches_a_suffix_variant_not_in_the_reference_set_via_alias() -
     because the suffix-free alias matches as a substring at a word
     boundary, without needing every possible suffix spelled out."""
     service = _service()
-    result = service.resolve("Acme Corp. shares rose today.", EntityResolutionContext(title="Acme Corp. shares rose today"))
+    result = service.resolve(
+        "Acme Corp. shares rose today.", EntityResolutionContext(title="Acme Corp. shares rose today")
+    )
 
     assert result.primary is not None
     assert result.primary.entity_id == "acme"
@@ -279,7 +288,9 @@ def test_confidence_tier_low_when_below_medium_threshold() -> None:
 
 def test_result_is_explainable_with_reason_and_matched_terms() -> None:
     service = _service()
-    result = service.resolve("Acme Corporation reported earnings.", EntityResolutionContext(title="Acme Corporation reported earnings"))
+    result = service.resolve(
+        "Acme Corporation reported earnings.", EntityResolutionContext(title="Acme Corporation reported earnings")
+    )
 
     assert result.reason
     assert result.primary is not None

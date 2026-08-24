@@ -94,7 +94,9 @@ def test_every_require_policy_protected_endpoint_advertises_bearer_auth(client: 
         if not path.startswith("/api/v1") or path in unauthenticated_paths:
             continue
         for method, operation in methods.items():
-            assert operation.get("security") == [{"BearerAuth": []}], f"{method.upper()} {path} is missing Bearer security metadata"
+            assert operation.get("security") == [
+                {"BearerAuth": []}
+            ], f"{method.upper()} {path} is missing Bearer security metadata"
 
 
 def test_every_v1_endpoint_is_tagged(client: TestClient) -> None:

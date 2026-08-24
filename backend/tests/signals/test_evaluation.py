@@ -124,7 +124,9 @@ def test_missing_source_model_fails_the_condition(engine: SignalDetectionService
 
 
 def test_missing_field_within_present_source_fails_the_condition(engine: SignalDetectionService) -> None:
-    definition = make_definition(conditions=(make_condition(field="ratios.roe", operator=SignalOperator.GREATER_THAN, value=0.1),))
+    definition = make_definition(
+        conditions=(make_condition(field="ratios.roe", operator=SignalOperator.GREATER_THAN, value=0.1),)
+    )
     result = engine.evaluate_company(snapshot(ratios=ratios(pe=10)), definition)  # ratios present, roe absent
     assert result.triggered is False
 
@@ -164,7 +166,9 @@ def test_or_group_passes_if_any_child_passes(engine: SignalDetectionService) -> 
     group = SignalConditionGroup(id="g1", logic=SignalLogicType.OR)
     definition = make_definition(
         conditions=(
-            make_condition("c1", field="profile.sector", operator=SignalOperator.EQUALS, value="Technology", group="g1"),
+            make_condition(
+                "c1", field="profile.sector", operator=SignalOperator.EQUALS, value="Technology", group="g1"
+            ),
             make_condition("c2", field="profile.sector", operator=SignalOperator.EQUALS, value="Energy", group="g1"),
         ),
         groups=(group,),
@@ -184,7 +188,9 @@ def test_nested_group_three_levels(engine: SignalDetectionService) -> None:
     definition = make_definition(
         conditions=(
             make_condition("vol", field="quote.volume", operator=SignalOperator.GREATER_THAN, value=1000),
-            make_condition("tech", field="profile.sector", operator=SignalOperator.EQUALS, value="Technology", group="outer"),
+            make_condition(
+                "tech", field="profile.sector", operator=SignalOperator.EQUALS, value="Technology", group="outer"
+            ),
             make_condition("pe", field="ratios.pe", operator=SignalOperator.LESS_THAN, value=20, group="inner"),
             make_condition("roe", field="ratios.roe", operator=SignalOperator.GREATER_THAN, value=0.1, group="inner"),
         ),
@@ -267,7 +273,8 @@ def test_weighted_score_dominated_by_high_weight_condition(engine: SignalDetecti
     definition = make_definition(
         conditions=(
             make_condition("c1", operator=SignalOperator.LESS_THAN, value=5, weight=3.0),  # will fail
-            make_condition("c2", field="ratios.roe", operator=SignalOperator.GREATER_THAN, value=0.01, weight=1.0),  # will pass
+            # will pass
+            make_condition("c2", field="ratios.roe", operator=SignalOperator.GREATER_THAN, value=0.01, weight=1.0),
         )
     )
     result = engine.evaluate_company(snapshot(ratios=ratios(pe=50, roe=0.5)), definition)
@@ -278,7 +285,9 @@ def test_disabled_conditions_excluded_from_score_denominator(engine: SignalDetec
     definition = make_definition(
         conditions=(
             make_condition("c1", operator=SignalOperator.LESS_THAN, value=20),
-            make_condition("c2", field="ratios.roe", operator=SignalOperator.GREATER_THAN, value=0.99, enabled=False, weight=100.0),
+            make_condition(
+                "c2", field="ratios.roe", operator=SignalOperator.GREATER_THAN, value=0.99, enabled=False, weight=100.0
+            ),
         )
     )
     result = engine.evaluate_company(snapshot(ratios=ratios(pe=15, roe=0.0)), definition)
@@ -292,7 +301,9 @@ def test_score_can_be_high_even_when_not_triggered(engine: SignalDetectionServic
             make_condition("c1", operator=SignalOperator.LESS_THAN, value=20, group="g1"),
             make_condition("c2", field="ratios.roe", operator=SignalOperator.GREATER_THAN, value=0.15, group="g1"),
             make_condition("c3", field="ratios.pb", operator=SignalOperator.LESS_THAN, value=1.5, group="g1"),
-            make_condition("c4", field="ratios.current_ratio", operator=SignalOperator.GREATER_THAN, value=100, group="g1"),
+            make_condition(
+                "c4", field="ratios.current_ratio", operator=SignalOperator.GREATER_THAN, value=100, group="g1"
+            ),
         ),
         groups=(group,),
     )
@@ -412,14 +423,16 @@ def test_result_carries_ticker_company_name_signal_name_category(engine: SignalD
     definition = make_definition(
         conditions=(make_condition(),), category=SignalCategory.VALUATION, name="P/E Screen"
     )
-    result = engine.evaluate_company(snapshot(ticker="MSFT", company_name="Microsoft", ratios=ratios(pe=15)), definition)
+    result = engine.evaluate_company(
+        snapshot(ticker="MSFT", company_name="Microsoft", ratios=ratios(pe=15)), definition
+    )
     assert result.ticker == "MSFT"
     assert result.company_name == "Microsoft"
     assert result.signal_name == "P/E Screen"
     assert result.category == SignalCategory.VALUATION
 
 
-# --- Batch evaluation (evaluate_companies / evaluate_definitions / evaluate_batch) -----------------------------------------------------------
+# --- Batch evaluation (evaluate_companies / evaluate_definitions / evaluate_batch) ------------------
 
 
 def test_evaluate_companies_returns_one_result_per_company(engine: SignalDetectionService) -> None:
@@ -442,7 +455,11 @@ def test_evaluate_companies_with_empty_list(engine: SignalDetectionService) -> N
 def test_evaluate_batch_cross_product_count(engine: SignalDetectionService) -> None:
     conditions = (make_condition(operator=SignalOperator.LESS_THAN, value=20),)
     definitions = [make_definition("d1", "A", conditions=conditions), make_definition("d2", "B", conditions=conditions)]
-    snapshots = [snapshot(ticker="X", ratios=ratios(pe=10)), snapshot(ticker="Y", ratios=ratios(pe=10)), snapshot(ticker="Z", ratios=ratios(pe=10))]
+    snapshots = [
+        snapshot(ticker="X", ratios=ratios(pe=10)),
+        snapshot(ticker="Y", ratios=ratios(pe=10)),
+        snapshot(ticker="Z", ratios=ratios(pe=10)),
+    ]
     batch = engine.evaluate_batch(snapshots, definitions)
     assert batch.evaluated == 6  # 2 definitions x 3 companies
 

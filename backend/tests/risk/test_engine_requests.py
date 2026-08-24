@@ -287,7 +287,9 @@ async def test_list_assessments_empty_initially(service: RiskAnalyticsService) -
 async def test_assess_large_portfolio(service: RiskAnalyticsService) -> None:
     request = await service.create_request("Large", "p1", "rec-1")
     candidates = tuple(
-        make_candidate(f"T{i}", sector=f"S{i % 30}", country=f"C{i % 10}", overall_score=(i % 101), confidence=(i % 101))
+        make_candidate(
+            f"T{i}", sector=f"S{i % 30}", country=f"C{i % 10}", overall_score=(i % 101), confidence=(i % 101)
+        )
         for i in range(1000)
     )
     result = make_recommendation_result(candidates)

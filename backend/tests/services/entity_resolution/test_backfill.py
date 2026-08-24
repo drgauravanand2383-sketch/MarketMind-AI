@@ -28,10 +28,14 @@ class _FakeChromaCollection:
         self._store: dict[str, dict[str, Any]] = {}
         self._order: list[str] = []
 
-    def add(self, ids: list[str], documents: list[str] | None = None, metadatas: list[dict[str, Any]] | None = None) -> None:
+    def add(
+        self, ids: list[str], documents: list[str] | None = None, metadatas: list[dict[str, Any]] | None = None
+    ) -> None:
         self.upsert(ids, documents, metadatas)
 
-    def upsert(self, ids: list[str], documents: list[str] | None = None, metadatas: list[dict[str, Any]] | None = None) -> None:
+    def upsert(
+        self, ids: list[str], documents: list[str] | None = None, metadatas: list[dict[str, Any]] | None = None
+    ) -> None:
         documents = documents or [None] * len(ids)  # type: ignore[list-item]
         metadatas = metadatas or [{} for _ in ids]
         for index, doc_id in enumerate(ids):
@@ -39,7 +43,9 @@ class _FakeChromaCollection:
                 self._order.append(doc_id)
             self._store[doc_id] = {"document": documents[index], "metadata": metadatas[index]}
 
-    def query(self, query_texts: list[str] | None = None, n_results: int = 10, where: dict[str, Any] | None = None) -> dict[str, Any]:
+    def query(
+        self, query_texts: list[str] | None = None, n_results: int = 10, where: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         return {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
 
     def get(
@@ -117,8 +123,16 @@ async def test_backfill_resolves_and_persists_entity_metadata() -> None:
     await _save(
         repo,
         [
-            VectorDocument(id="1", text="Acme Corporation reported record profits.", metadata={"title": "Acme Corporation reported record profits", "entity_resolved": False}),
-            VectorDocument(id="2", text="Local weather update for the region.", metadata={"title": "Local weather update", "entity_resolved": False}),
+            VectorDocument(
+                id="1",
+                text="Acme Corporation reported record profits.",
+                metadata={"title": "Acme Corporation reported record profits", "entity_resolved": False},
+            ),
+            VectorDocument(
+                id="2",
+                text="Local weather update for the region.",
+                metadata={"title": "Local weather update", "entity_resolved": False},
+            ),
         ],
     )
     backfill = EntityResolutionBackfillService(repo, EntityResolutionService(_references()))
@@ -137,7 +151,16 @@ async def test_backfill_resolves_and_persists_entity_metadata() -> None:
 
 async def test_backfill_dry_run_does_not_write() -> None:
     repo = ChromaKnowledgeRepository(_FakeChromaCollection())
-    await _save(repo, [VectorDocument(id="1", text="Acme Corporation reported record profits.", metadata={"title": "Acme Corporation reported record profits"})])
+    await _save(
+        repo,
+        [
+            VectorDocument(
+                id="1",
+                text="Acme Corporation reported record profits.",
+                metadata={"title": "Acme Corporation reported record profits"},
+            )
+        ],
+    )
     backfill = EntityResolutionBackfillService(repo, EntityResolutionService(_references()))
 
     result = await backfill.run(dry_run=True)
@@ -153,7 +176,9 @@ async def test_backfill_dry_run_does_not_write() -> None:
 
 async def test_backfill_never_rewrites_document_text() -> None:
     repo = ChromaKnowledgeRepository(_FakeChromaCollection())
-    await _save(repo, [VectorDocument(id="1", text="Acme Corporation reported record profits.", metadata={"title": "t"})])
+    await _save(
+        repo, [VectorDocument(id="1", text="Acme Corporation reported record profits.", metadata={"title": "t"})]
+    )
     backfill = EntityResolutionBackfillService(repo, EntityResolutionService(_references()))
 
     await backfill.run()
@@ -217,7 +242,18 @@ async def test_backfill_preserves_non_entity_metadata() -> None:
     repo = ChromaKnowledgeRepository(_FakeChromaCollection())
     await _save(
         repo,
-        [VectorDocument(id="1", text="Acme Corporation reported record profits.", metadata={"title": "t", "url": "http://x", "published_at": "2026-01-01", "ingested_at": "2026-01-01T00:00:00Z"})],
+        [
+            VectorDocument(
+                id="1",
+                text="Acme Corporation reported record profits.",
+                metadata={
+                    "title": "t",
+                    "url": "http://x",
+                    "published_at": "2026-01-01",
+                    "ingested_at": "2026-01-01T00:00:00Z",
+                },
+            )
+        ],
     )
     backfill = EntityResolutionBackfillService(repo, EntityResolutionService(_references()))
 
@@ -245,7 +281,10 @@ async def test_backfill_paginates_across_multiple_batches() -> None:
     repo = ChromaKnowledgeRepository(_FakeChromaCollection())
     await _save(
         repo,
-        [VectorDocument(id=str(i), text="Acme Corporation earnings update.", metadata={"title": "t"}) for i in range(5)],
+        [
+            VectorDocument(id=str(i), text="Acme Corporation earnings update.", metadata={"title": "t"})
+            for i in range(5)
+        ],
     )
     backfill = EntityResolutionBackfillService(repo, EntityResolutionService(_references()))
 

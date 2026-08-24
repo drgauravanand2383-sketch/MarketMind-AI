@@ -36,7 +36,15 @@ def test_strategy_weighting_defaults_are_all_positive() -> None:
 
 @pytest.mark.parametrize(
     "field",
-    ["overall_score", "screening_score", "planning_score", "research_score", "portfolio_score", "signal_score", "alert_score"],
+    [
+        "overall_score",
+        "screening_score",
+        "planning_score",
+        "research_score",
+        "portfolio_score",
+        "signal_score",
+        "alert_score",
+    ],
 )
 def test_strategy_weighting_rejects_zero(field: str) -> None:
     with pytest.raises(ValidationError):
@@ -45,7 +53,15 @@ def test_strategy_weighting_rejects_zero(field: str) -> None:
 
 @pytest.mark.parametrize(
     "field",
-    ["overall_score", "screening_score", "planning_score", "research_score", "portfolio_score", "signal_score", "alert_score"],
+    [
+        "overall_score",
+        "screening_score",
+        "planning_score",
+        "research_score",
+        "portfolio_score",
+        "signal_score",
+        "alert_score",
+    ],
 )
 def test_strategy_weighting_rejects_negative(field: str) -> None:
     with pytest.raises(ValidationError):
@@ -250,7 +266,7 @@ def test_strategy_evaluation_request_defaults() -> None:
     assert request.strategy_ids == ()
 
 
-# --- StrategyMatch / StrategySummary / StrategyEvaluationResult -----------------------------------------------------------
+# --- StrategyMatch / StrategySummary / StrategyEvaluationResult -----------------------------------
 
 
 def test_strategy_match_alignment_and_confidence_must_be_in_range() -> None:

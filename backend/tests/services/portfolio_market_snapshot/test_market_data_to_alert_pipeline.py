@@ -147,10 +147,12 @@ async def test_market_driven_alert_cooldown_and_dedup_behave_normally(
     assert third is not None and third.status == AlertStatus.GENERATED
 
 
-# --- v1.2 Priority 1: graduated signal + selectivity, end-to-end -----------------------------------------------------------
+# --- v1.2 Priority 1: graduated signal + selectivity, end-to-end ------------------------------------
 
 
-def _snapshot_result_with_change(price: float, change_percent: float | None, status: MarketSnapshotStatus = MarketSnapshotStatus.FRESH) -> MarketSnapshotResult:
+def _snapshot_result_with_change(
+    price: float, change_percent: float | None, status: MarketSnapshotStatus = MarketSnapshotStatus.FRESH
+) -> MarketSnapshotResult:
     snapshot = None
     if status in (MarketSnapshotStatus.FRESH, MarketSnapshotStatus.STALE):
         snapshot = MarketSnapshot(

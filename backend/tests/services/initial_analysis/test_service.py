@@ -142,7 +142,9 @@ def resolver() -> EntityResolutionService:
 
 @pytest.fixture
 def portfolio_market_snapshot_service(resolver: EntityResolutionService) -> PortfolioMarketSnapshotService:
-    market_snapshot_service = MarketSnapshotService(MockMarketDataProvider(), resolver, InMemoryMarketSnapshotCache(60.0))
+    market_snapshot_service = MarketSnapshotService(
+        MockMarketDataProvider(), resolver, InMemoryMarketSnapshotCache(60.0)
+    )
     return PortfolioMarketSnapshotService(market_snapshot_service, resolver)
 
 
@@ -182,7 +184,7 @@ async def _make_watchlist(watchlist_service: WatchlistService, tickers: tuple[st
     return watchlist.id
 
 
-# --- Trigger produces real Risk + Recommendation from full evidence coverage (§9.1/§9.2/§9.3) -----------------------------------------------------------
+# --- Trigger produces real Risk + Recommendation from full evidence coverage (§9.1/§9.2/§9.3) -----
 
 
 async def test_new_watchlist_with_valid_companies_triggers_initial_analysis(
@@ -195,7 +197,9 @@ async def test_new_watchlist_with_valid_companies_triggers_initial_analysis(
 
     await service.ensure_initial_analysis(portfolio_id)
 
-    recommendation_requests = [r for r in await recommendation_service.list_requests() if portfolio_id in r.watchlist_ids]
+    recommendation_requests = [
+        r for r in await recommendation_service.list_requests() if portfolio_id in r.watchlist_ids
+    ]
     risk_requests = [r for r in await risk_service.list_requests() if r.portfolio_id == portfolio_id]
     assert len(recommendation_requests) == 1
     assert len(risk_requests) == 1
@@ -221,7 +225,9 @@ async def test_risk_assessment_is_computed_from_the_generated_recommendation(
     await service.ensure_initial_analysis(portfolio_id)
 
     risk_requests = [r for r in await risk_service.list_requests() if r.portfolio_id == portfolio_id]
-    recommendation_requests = [r for r in await recommendation_service.list_requests() if portfolio_id in r.watchlist_ids]
+    recommendation_requests = [
+        r for r in await recommendation_service.list_requests() if portfolio_id in r.watchlist_ids
+    ]
     assert risk_requests[0].recommendation_result_id == recommendation_requests[0].id
 
     assessment = await risk_service.get_assessment(risk_requests[0].id)
@@ -229,7 +235,7 @@ async def test_risk_assessment_is_computed_from_the_generated_recommendation(
     assert assessment.market_data_coverage is not None
 
 
-# --- Honest partial/unavailable states, never fabricated (§9.4) -----------------------------------------------------------
+# --- Honest partial/unavailable states, never fabricated (§9.4) -----------------------------------
 
 
 async def test_unresolvable_ticker_produces_partial_not_a_fabricated_full_result(
@@ -268,7 +274,7 @@ async def test_status_for_unknown_portfolio_raises_not_found(service: InitialPor
         await service.get_status("does-not-exist")
 
 
-# --- Idempotency: never duplicates a settled result, even under concurrency (§9.5/§9.6) -----------------------------------------------------------
+# --- Idempotency: never duplicates a settled result, even under concurrency (§9.5/§9.6) ------------
 
 
 async def test_repeated_trigger_is_idempotent(
@@ -304,7 +310,7 @@ async def test_concurrent_triggers_never_duplicate_assessments(
     assert len([r for r in await risk_service.list_requests() if r.portfolio_id == portfolio_id]) == 1
 
 
-# --- Real signals/alerts, never duplicated by a repeated trigger (§9.9) -----------------------------------------------------------
+# --- Real signals/alerts, never duplicated by a repeated trigger (§9.9) -----------------------------
 
 
 async def test_triggered_signal_generates_one_alert_and_a_second_trigger_never_re_evaluates(
@@ -335,7 +341,7 @@ async def test_triggered_signal_generates_one_alert_and_a_second_trigger_never_r
     assert len(await alert_service.list_alerts()) == 1
 
 
-# --- Existing WS events reused, published exactly once per settled job (§9.10) -----------------------------------------------------------
+# --- Existing WS events reused, published exactly once per settled job (§9.10) ----------------------
 
 
 async def test_publishes_existing_ws_events_exactly_once(

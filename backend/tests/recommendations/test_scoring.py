@@ -72,7 +72,7 @@ def test_planning_score_passed_through_directly(service: PortfolioRecommendation
     assert candidate.planning_score == 42.0
 
 
-# --- Filtering: only triggered signals / generated alerts count -----------------------------------------------------------
+# --- Filtering: only triggered signals / generated alerts count -------------------------------------
 
 
 def test_untriggered_signals_excluded_from_signal_score(service: PortfolioRecommendationService) -> None:
@@ -140,7 +140,9 @@ def test_overall_score_with_no_evidence_is_zero(service: PortfolioRecommendation
 
 def test_custom_weights_change_the_weighted_average() -> None:
     instance = PortfolioRecommendationService.__new__(PortfolioRecommendationService)
-    instance._weights = ScoringWeights(screening=9.0, planning=1.0, signals=1.0, research=1.0, portfolio=1.0, alerts=1.0)
+    instance._weights = ScoringWeights(
+        screening=9.0, planning=1.0, signals=1.0, research=1.0, portfolio=1.0, alerts=1.0
+    )
     instance._thresholds = RecommendationThresholds()
     instance._now_fn = lambda: NOW
 
@@ -219,7 +221,13 @@ def test_confidence_is_independent_of_overall_score(service: PortfolioRecommenda
 
 @pytest.mark.parametrize(
     "score,expected",
-    [(95, RecommendationType.STRONG_BUY), (80, RecommendationType.BUY), (65, RecommendationType.WATCH), (45, RecommendationType.HOLD), (10, RecommendationType.AVOID)],
+    [
+        (95, RecommendationType.STRONG_BUY),
+        (80, RecommendationType.BUY),
+        (65, RecommendationType.WATCH),
+        (45, RecommendationType.HOLD),
+        (10, RecommendationType.AVOID),
+    ],
 )
 def test_candidate_recommendation_matches_thresholds(
     service: PortfolioRecommendationService, score: float, expected: RecommendationType
@@ -263,7 +271,9 @@ def test_reasoning_mentions_component_contributions(service: PortfolioRecommenda
 
 
 def test_candidate_carries_identity_fields(service: PortfolioRecommendationService) -> None:
-    evidence = make_evidence(ticker="AAPL", company_name="Apple", country="US", sector="Technology", industry="Hardware")
+    evidence = make_evidence(
+        ticker="AAPL", company_name="Apple", country="US", sector="Technology", industry="Hardware"
+    )
     candidate = service.score_candidate(evidence)
     assert candidate.ticker == "AAPL"
     assert candidate.company_name == "Apple"

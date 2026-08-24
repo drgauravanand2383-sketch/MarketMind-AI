@@ -80,12 +80,16 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 break
 
             try:
-                await _handle_message(websocket, connection_manager, policy_evaluator, principal, connection_id, raw_message)
+                await _handle_message(
+                    websocket, connection_manager, policy_evaluator, principal, connection_id, raw_message
+                )
             except WebSocketDisconnect:
                 break
             except Exception:  # noqa: BLE001 - one bad message must not crash the connection loop
                 _logger.exception("ws_message_handling_failed", extra={"connection_id": connection_id})
-                await websocket.send_json({"type": "error", "code": "internal_error", "message": "Failed to process message."})
+                await websocket.send_json(
+                    {"type": "error", "code": "internal_error", "message": "Failed to process message."}
+                )
     finally:
         connection_manager.disconnect(connection_id)
 
@@ -101,7 +105,9 @@ async def _handle_message(
     try:
         payload = json.loads(raw_message)
     except (json.JSONDecodeError, TypeError):
-        await websocket.send_json({"type": "error", "code": "malformed_message", "message": "Message must be valid JSON."})
+        await websocket.send_json(
+            {"type": "error", "code": "malformed_message", "message": "Message must be valid JSON."}
+        )
         return
 
     if not isinstance(payload, dict) or "action" not in payload:

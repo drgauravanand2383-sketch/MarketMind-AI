@@ -474,7 +474,9 @@ def _exposure_contributions(assessment: RiskAssessment, contribution_total: floa
                 category=category,
                 weight=exposure.weight,
                 contribution_percent=round(exposure.weight * contribution_total, 4),
-                description=f"{value}: {exposure.holding_count} holding(s), {round(exposure.weight * 100, 2)}% of portfolio.",
+                description=(
+                    f"{value}: {exposure.holding_count} holding(s), {round(exposure.weight * 100, 2)}% of portfolio."
+                ),
             )
         )
     return entries

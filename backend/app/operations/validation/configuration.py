@@ -93,8 +93,12 @@ class ConfigurationValidationService:
             self._check_no_duplicates("rss.feed_urls", [source.url for source in rss.feed_urls]),
             self._check_not_default_secret("postgres.password", postgres.password.get_secret_value()),
             self._check_not_default_secret("auth.secret_key", auth.secret_key.get_secret_value()),
-            self._check_secret_not_default_in_production("postgres.password", postgres.password.get_secret_value(), environment),
-            self._check_secret_not_default_in_production("auth.secret_key", auth.secret_key.get_secret_value(), environment),
+            self._check_secret_not_default_in_production(
+                "postgres.password", postgres.password.get_secret_value(), environment
+            ),
+            self._check_secret_not_default_in_production(
+                "auth.secret_key", auth.secret_key.get_secret_value(), environment
+            ),
             self._check_valid_urls("rss.feed_urls", [source.url for source in rss.feed_urls]),
             self._check_known_provider("llm.provider", llm.provider, self._known_llm_providers),
         ]
@@ -208,7 +212,9 @@ class ConfigurationValidationService:
         self, name: str, values: list[str], *, schemes: frozenset[str] | None = None
     ) -> ValidationCheck:
         if not values:
-            return ValidationCheck(name=f"invalid_url:{name}", passed=True, severity=ValidationSeverity.INFO, message="no URLs configured")
+            return ValidationCheck(
+                name=f"invalid_url:{name}", passed=True, severity=ValidationSeverity.INFO, message="no URLs configured"
+            )
         if schemes is not None:
             malformed = [v for v in values if urlparse(v).scheme not in schemes or not urlparse(v).netloc]
         else:
@@ -227,5 +233,9 @@ class ConfigurationValidationService:
             name=f"unknown_provider:{name}",
             passed=ok,
             severity=ValidationSeverity.WARNING,
-            message=f"{value!r} is a known provider" if ok else f"{value!r} is not among the known providers {sorted(known)}",
+            message=(
+                f"{value!r} is a known provider"
+                if ok
+                else f"{value!r} is not among the known providers {sorted(known)}"
+            ),
         )

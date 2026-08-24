@@ -51,7 +51,9 @@ def _strategy(strategy_id: str = "s1", name: str = "Value", **overrides: object)
     return InvestmentStrategy(**defaults)
 
 
-def _evaluation(request_id: str = "req-1", evaluated_at: datetime = NOW, **overrides: object) -> StrategyEvaluationResult:
+def _evaluation(
+    request_id: str = "req-1", evaluated_at: datetime = NOW, **overrides: object
+) -> StrategyEvaluationResult:
     defaults: dict[str, object] = {
         "request_id": request_id,
         "evaluated_at": evaluated_at,
@@ -230,7 +232,9 @@ async def test_store_evaluation_persists_strategy_matches_and_summary(
         overall_alignment=80.0,
         best_strategy="s1",
         strategy_matches=(match,),
-        summary=StrategySummary(total_strategies=1, best_alignment=80.0, average_alignment=80.0, highest_confidence=90.0),
+        summary=StrategySummary(
+            total_strategies=1, best_alignment=80.0, average_alignment=80.0, highest_confidence=90.0
+        ),
     )
 
     await repository.store_evaluation(result)

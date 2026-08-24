@@ -63,7 +63,9 @@ async def test_successful_request_returns_typed_response() -> None:
 async def test_successful_request_calls_sdk_with_config_defaults() -> None:
     client = mock_client()
     client.messages.create.return_value = sdk_message()
-    provider = AnthropicProvider(provider_config(model="claude-opus-5", max_tokens=2048, temperature=0.3), client=client)
+    provider = AnthropicProvider(
+        provider_config(model="claude-opus-5", max_tokens=2048, temperature=0.3), client=client
+    )
 
     await provider.create_message(MessageRequest(user_prompt="Hello"))
 

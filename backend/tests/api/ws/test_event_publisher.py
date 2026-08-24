@@ -68,7 +68,9 @@ async def test_publish_alert_generated() -> None:
 async def test_publish_recommendation_generated() -> None:
     manager, ws = await _subscribed_connection_manager(EventType.RECOMMENDATION_GENERATED)
     publisher = EventPublisher(manager)
-    result = RecommendationResult(request_id="rec-1", generated_at=NOW, total_candidates=0, summary=RecommendationSummary())
+    result = RecommendationResult(
+        request_id="rec-1", generated_at=NOW, total_candidates=0, summary=RecommendationSummary()
+    )
 
     delivered = await publisher.publish_recommendation_generated(result)
 

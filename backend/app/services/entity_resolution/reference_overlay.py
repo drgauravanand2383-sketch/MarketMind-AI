@@ -181,7 +181,9 @@ def load_reference_overlay(
             existing_canonical_names=existing_canonical_names,
         )
         if entry.entity_id in seen_entity_ids:
-            raise OverlayValidationError(f"Duplicate overlay entity_id {entry.entity_id!r} within the overlay file itself.")
+            raise OverlayValidationError(
+                f"Duplicate overlay entity_id {entry.entity_id!r} within the overlay file itself."
+            )
         if entry.ticker.upper() in seen_tickers:
             raise OverlayValidationError(f"Duplicate overlay ticker {entry.ticker!r} within the overlay file itself.")
         seen_entity_ids.add(entry.entity_id)
