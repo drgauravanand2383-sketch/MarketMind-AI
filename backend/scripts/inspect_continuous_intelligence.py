@@ -134,7 +134,11 @@ async def _run() -> int:
     try:
         repository = getattr(app.state, "continuous_intelligence_repository", None)
         if repository is not None and not await repository.health_check():
-            print(json.dumps({"status": "error", "reason": "Continuous Intelligence repository configured but unreachable."}))
+            print(
+                json.dumps(
+                    {"status": "error", "reason": "Continuous Intelligence repository configured but unreachable."}
+                )
+            )
             return 1
         summary = await _inspect(app)
         print(json.dumps(summary, indent=2, default=str))
