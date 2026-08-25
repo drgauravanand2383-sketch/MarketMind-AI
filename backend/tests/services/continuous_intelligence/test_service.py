@@ -381,11 +381,105 @@ async def test_newly_triggered_signal_feeds_existing_alert_pathway(
     assert alerts[0].status.value == "GENERATED"
 
 
-async def test_alert_cooldown_still_applies_to_continuous_intelligence_triggered_alerts(
+async def test_persistently_true_signal_does_not_repeat_alert_merely_from_cooldown_expiry(
     service: ContinuousIntelligenceService, signal_service: SignalDetectionService, alert_service: AlertService,
     market_provider: _FakeMarketDataProvider,
 ) -> None:
-    """§20 regression #1: existing alert cooldown remains unchanged."""
+    """Transition-based alert semantics, scenario B: FALSE -> TRUE -> ALERT
+    -> TRUE -> TRUE. A condition that stays continuously true must never
+    earn a second alert just because it's evaluated again — regardless of
+    `cooldown_minutes` (deliberately 0 here: even a cooldown that would
+    impose zero time-based suppression on its own must still not produce
+    a second alert, proving this is enforced by transition detection, not
+    by cooldown math)."""
+    await signal_service.create_signal_definition(
+        "Breakout",
+        conditions=(SignalCondition(id="c1", field="quote.price", operator=SignalOperator.GREATER_THAN, value=50.0),),
+    )
+    await alert_service.create_rule(
+        "Breakout Alert", cooldown_minutes=0,
+        conditions=(AlertCondition(id="c1", field="triggered", operator=AlertOperator.EQUALS, value=True),),
+    )
+    market_provider.prices["DELL"] = 40.0
+
+    await service.run_cycle("exec-1")  # FALSE baseline, no alert
+    market_provider.prices["DELL"] = 100.0
+    await service.run_cycle("exec-2")  # FALSE -> TRUE, real transition
+    await service.run_cycle("exec-3")  # TRUE -> TRUE, unchanged
+    await service.run_cycle("exec-4")  # TRUE -> TRUE, unchanged again
+
+    alerts = await alert_service.list_alerts()
+    assert len(alerts) == 1
+    assert alerts[0].status.value == "GENERATED"
+
+
+async def test_signal_resolving_and_recurring_generates_a_new_alert(
+    service: ContinuousIntelligenceService, signal_service: SignalDetectionService, alert_service: AlertService,
+    market_provider: _FakeMarketDataProvider,
+) -> None:
+    """Transition-based alert semantics, scenario C: TRUE -> FALSE -> TRUE
+    is a genuinely new occurrence and must generate a second alert."""
+    await signal_service.create_signal_definition(
+        "Breakout",
+        conditions=(SignalCondition(id="c1", field="quote.price", operator=SignalOperator.GREATER_THAN, value=50.0),),
+    )
+    await alert_service.create_rule(
+        "Breakout Alert", cooldown_minutes=0,
+        conditions=(AlertCondition(id="c1", field="triggered", operator=AlertOperator.EQUALS, value=True),),
+    )
+    market_provider.prices["DELL"] = 40.0
+
+    await service.run_cycle("exec-1")  # FALSE baseline
+    market_provider.prices["DELL"] = 100.0
+    await service.run_cycle("exec-2")  # FALSE -> TRUE, alert #1
+    market_provider.prices["DELL"] = 40.0
+    await service.run_cycle("exec-3")  # TRUE -> FALSE, no alert (not triggered)
+    market_provider.prices["DELL"] = 100.0
+    await service.run_cycle("exec-4")  # FALSE -> TRUE again, alert #2
+
+    alerts = await alert_service.list_alerts()
+    assert len(alerts) == 2
+    assert all(a.status.value == "GENERATED" for a in alerts)
+
+
+async def test_repeated_unchanged_evaluations_do_not_accumulate_alerts(
+    service: ContinuousIntelligenceService, signal_service: SignalDetectionService, alert_service: AlertService,
+    market_provider: _FakeMarketDataProvider,
+) -> None:
+    """Transition-based alert semantics, scenario D: many repeated
+    autonomous evaluations of the same unchanged active condition must
+    never accumulate alerts or duplicate notifications."""
+    await signal_service.create_signal_definition(
+        "Breakout",
+        conditions=(SignalCondition(id="c1", field="quote.price", operator=SignalOperator.GREATER_THAN, value=50.0),),
+    )
+    await alert_service.create_rule(
+        "Breakout Alert", cooldown_minutes=0,
+        conditions=(AlertCondition(id="c1", field="triggered", operator=AlertOperator.EQUALS, value=True),),
+    )
+    market_provider.prices["DELL"] = 40.0
+    await service.run_cycle("exec-baseline")  # FALSE baseline
+    market_provider.prices["DELL"] = 100.0
+    await service.run_cycle("exec-transition")  # FALSE -> TRUE, the one legitimate alert
+
+    for i in range(6):
+        await service.run_cycle(f"exec-repeat-{i}")
+
+    alerts = await alert_service.list_alerts()
+    assert len(alerts) == 1
+    assert alerts[0].status.value == "GENERATED"
+
+
+async def test_cooldown_still_suppresses_rapid_re_transitions_within_window(
+    service: ContinuousIntelligenceService, signal_service: SignalDetectionService, alert_service: AlertService,
+    market_provider: _FakeMarketDataProvider,
+) -> None:
+    """Existing cooldown/rate-limiting remains compatible where
+    appropriate: two genuine transitions (FALSE->TRUE->FALSE->TRUE)
+    landing inside the same cooldown window are still deduplicated by
+    AlertService's own cooldown, layered underneath transition detection
+    — transition-gating narrows *when* AlertService is consulted, it
+    does not remove AlertService's own protection against real flapping."""
     await signal_service.create_signal_definition(
         "Breakout",
         conditions=(SignalCondition(id="c1", field="quote.price", operator=SignalOperator.GREATER_THAN, value=50.0),),
@@ -394,13 +488,50 @@ async def test_alert_cooldown_still_applies_to_continuous_intelligence_triggered
         "Breakout Alert", cooldown_minutes=60,
         conditions=(AlertCondition(id="c1", field="triggered", operator=AlertOperator.EQUALS, value=True),),
     )
+    market_provider.prices["DELL"] = 40.0
 
-    await service.run_cycle("exec-1")
-    await service.run_cycle("exec-2")  # still triggered, second evaluation within cooldown
+    await service.run_cycle("exec-1")  # FALSE baseline
+    market_provider.prices["DELL"] = 100.0
+    await service.run_cycle("exec-2")  # FALSE -> TRUE, alert #1 (GENERATED)
+    market_provider.prices["DELL"] = 40.0
+    await service.run_cycle("exec-3")  # TRUE -> FALSE, no alert
+    market_provider.prices["DELL"] = 100.0
+    await service.run_cycle("exec-4")  # FALSE -> TRUE again, still within cooldown
 
     alerts = await alert_service.list_alerts()
     statuses = [a.status.value for a in alerts]
-    assert "SUPPRESSED" in statuses
+    assert statuses.count("GENERATED") == 1
+    assert statuses.count("SUPPRESSED") == 1
+
+
+async def test_cold_start_already_true_produces_no_alert_on_the_first_ever_evaluation(
+    service: ContinuousIntelligenceService, signal_service: SignalDetectionService, alert_service: AlertService,
+    market_provider: _FakeMarketDataProvider,
+) -> None:
+    """Known, disclosed limitation of transition-gating: the very first
+    evaluation of a signal/entity pair (no prior comparison state exists
+    yet) has nothing to diff against, so `detect_signal_change` reports
+    no change even if the condition is already true — no alert fires.
+    This narrow edge case (a brand-new signal definition whose very
+    first check happens to already be true for an already-watched
+    entity) is accepted, not silently regressed: real "new watchlist"
+    entities get their first alert via the separate, one-shot
+    InitialPortfolioAnalysisService bootstrap (v1.2 Priority 8), not
+    through this recurring per-cycle path."""
+    await signal_service.create_signal_definition(
+        "Breakout",
+        conditions=(SignalCondition(id="c1", field="quote.price", operator=SignalOperator.GREATER_THAN, value=50.0),),
+    )
+    await alert_service.create_rule(
+        "Breakout Alert", cooldown_minutes=0,
+        conditions=(AlertCondition(id="c1", field="triggered", operator=AlertOperator.EQUALS, value=True),),
+    )
+    market_provider.prices["DELL"] = 100.0  # already above threshold on the very first check
+
+    await service.run_cycle("exec-1")
+
+    alerts = await alert_service.list_alerts()
+    assert alerts == []
 
 
 # --- Decision impact scoping (§7) -----------------------------------------------------------

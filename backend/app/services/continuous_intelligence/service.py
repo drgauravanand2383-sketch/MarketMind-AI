@@ -366,9 +366,21 @@ class ContinuousIntelligenceService:
                 emitted.extend(routed[0])
                 suppressed.extend(routed[1])
 
-            if signal_result.triggered and enabled_rules:
-                # The real, existing alert pathway — its own cooldown/dedup
-                # decides GENERATED vs SUPPRESSED, untouched by this milestone.
+            if change is not None and signal_result.triggered and enabled_rules:
+                # v1.2 Priority <transition-based alerts>: only feed the real
+                # alert pathway on a genuine FALSE->TRUE transition (`change`
+                # non-None here means `detect_signal_change` just above found
+                # this cycle's triggered-state differs from last cycle's),
+                # not on "still triggered" alone. A condition that stays
+                # continuously true no longer earns a fresh alert merely
+                # because AlertService's own time-based cooldown has expired
+                # — `detect_signal_change`'s persisted SIGNAL_TRIGGERED
+                # comparison state already distinguishes "still the same
+                # true condition" from "a genuinely new occurrence"; this
+                # reuses that existing state instead of adding new state or
+                # touching AlertService's own cooldown/dedup, which remains
+                # the safety net for two real transitions landing close
+                # together (e.g. rapid False->True->False->True flapping).
                 await self._alert_service.evaluate_rules(signal_result, enabled_rules)
 
         return detected, emitted, suppressed
