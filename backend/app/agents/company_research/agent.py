@@ -37,6 +37,7 @@ through KnowledgeHub.
 from __future__ import annotations
 
 import json
+import re
 
 from pydantic import BaseModel
 from pydantic import ValidationError as PydanticValidationError
@@ -84,6 +85,21 @@ AGENT_NAME = "Company Research"
 AGENT_VERSION = "0.2.0"
 
 DEFAULT_TOP_K = 50
+
+# Claude Sonnet 5 occasionally wraps its JSON response in a markdown code
+# fence even when the system prompt explicitly forbids it (observed
+# against the real API — see _parse_narrative below); this strips one if
+# present so parsing isn't hostage to prompt compliance alone.
+_CODE_FENCE_PATTERN = re.compile(r"^```(?:json)?\s*\n(.*)\n```\s*$", re.DOTALL)
+
+# AnthropicProviderConfig's own default (1024) was observed truncating a
+# real narrative mid-JSON (stop_reason="max_tokens") once retrieved
+# evidence pushed the prompt to real-world size — adaptive thinking plus
+# the structured summary/key_findings/risk_commentary payload can exceed
+# it. This agent knows it always asks for a full structured narrative, so
+# it requests a larger budget explicitly rather than relying on the
+# provider-wide default, which other, shorter LLM calls should keep.
+_NARRATIVE_MAX_TOKENS = 4096
 
 
 class CompanyResearchAgentError(Exception):
@@ -384,7 +400,11 @@ class CompanyResearchAgent(BaseAgent):
 
         try:
             llm_response = await self._llm_service.generate(
-                LLMRequest(system_prompt=rendered.system_prompt, user_prompt=rendered.user_prompt)
+                LLMRequest(
+                    system_prompt=rendered.system_prompt,
+                    user_prompt=rendered.user_prompt,
+                    max_tokens=_NARRATIVE_MAX_TOKENS,
+                )
             )
         except LLMServiceError as exc:
             raise LLMGenerationError(str(exc), company_name=company_name) from exc
@@ -399,8 +419,11 @@ class CompanyResearchAgent(BaseAgent):
                 or JSON that doesn't match CompanyResearchNarrative's schema.
             ReportValidationError: The parsed summary is empty/whitespace-only.
         """
+        fence_match = _CODE_FENCE_PATTERN.match(content.strip())
+        unfenced_content = fence_match.group(1) if fence_match else content
+
         try:
-            payload = json.loads(content)
+            payload = json.loads(unfenced_content)
         except json.JSONDecodeError as exc:
             raise ResponseParsingError(
                 f"LLM response was not valid JSON: {exc}", company_name=company_name

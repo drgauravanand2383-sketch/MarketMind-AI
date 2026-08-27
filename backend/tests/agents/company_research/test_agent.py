@@ -382,6 +382,27 @@ async def test_prompt_includes_company_name_evidence_relationships_and_market_in
     assert "Total records analyzed" in sent_request.user_prompt  # market intelligence
 
 
+async def test_narrative_generation_requests_a_larger_max_tokens_than_the_provider_default() -> None:
+    """Regression test: AnthropicProviderConfig's default max_tokens (1024)
+    was observed truncating a real narrative mid-JSON
+    (stop_reason="max_tokens") once retrieved evidence pushed the prompt
+    to real-world size. CompanyResearchAgent must request a larger,
+    explicit budget rather than relying on the provider-wide default."""
+    llm_service = mock_llm_service()
+    agent = CompanyResearchAgent(
+        runtime=build_runtime(),
+        knowledge_hub=build_knowledge_hub([APPLE_RECORD_1]),
+        llm_service=llm_service,
+        prompt_registry=build_prompt_registry(),
+    )
+
+    await agent.run(_context(), CompanyResearchRequest(company_name="Apple"))
+
+    sent_request = llm_service.generate.call_args.args[0]
+    assert sent_request.max_tokens is not None
+    assert sent_request.max_tokens > 1024
+
+
 async def test_prompt_variables_reflect_no_evidence_and_no_relationships_gracefully() -> None:
     """Even when evidence/relationships are excluded, the prompt renders — never crashes."""
     llm_service = mock_llm_service()
@@ -471,6 +492,37 @@ async def test_missing_required_section_raises_response_parsing_error() -> None:
 
 async def test_json_array_instead_of_object_raises_response_parsing_error() -> None:
     agent = _agent([APPLE_RECORD_1], llm_content="[1, 2, 3]")
+
+    with pytest.raises(ResponseParsingError):
+        await agent.run(_context(), CompanyResearchRequest(company_name="Apple"))
+
+
+async def test_json_wrapped_in_markdown_code_fence_with_json_tag_is_parsed() -> None:
+    """Regression test: Claude Sonnet 5 has been observed wrapping its JSON
+    response in a ```json fence against the real API, despite the system
+    prompt explicitly forbidding markdown fences."""
+    fenced = "```json\n" + narrative_json(summary="Fenced summary.") + "\n```"
+    agent = _agent([APPLE_RECORD_1], llm_content=fenced)
+
+    report = await agent.run(_context(), CompanyResearchRequest(company_name="Apple"))
+
+    assert report.narrative is not None
+    assert report.narrative.summary == "Fenced summary."
+
+
+async def test_json_wrapped_in_markdown_code_fence_without_language_tag_is_parsed() -> None:
+    fenced = "```\n" + narrative_json(summary="Fenced summary, no tag.") + "\n```"
+    agent = _agent([APPLE_RECORD_1], llm_content=fenced)
+
+    report = await agent.run(_context(), CompanyResearchRequest(company_name="Apple"))
+
+    assert report.narrative is not None
+    assert report.narrative.summary == "Fenced summary, no tag."
+
+
+async def test_invalid_json_inside_a_code_fence_still_raises_response_parsing_error() -> None:
+    """Fence-stripping must not mask a genuinely malformed payload."""
+    agent = _agent([APPLE_RECORD_1], llm_content="```json\nnot valid json{{{\n```")
 
     with pytest.raises(ResponseParsingError):
         await agent.run(_context(), CompanyResearchRequest(company_name="Apple"))
