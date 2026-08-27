@@ -63,3 +63,6 @@ backend/data/exports/*
 
 # --- TanStack generated files ---
 frontend/.tanstack/
+
+# --- Local credential file (never commit) ---
+MARKETMIND-AI KEY.txt
