@@ -30,7 +30,9 @@ object, ever leaves this module.
 from __future__ import annotations
 
 import asyncio
+import inspect
 from abc import ABC, abstractmethod
+from functools import cache
 from typing import Any
 
 import anthropic
@@ -58,6 +60,22 @@ PROVIDER_NAME = "Anthropic Claude"
 
 _DEFAULT_MAX_ATTEMPTS = 3
 _DEFAULT_RETRY_BACKOFF_SECONDS = 1.0
+
+
+@cache
+def _create_message_accepts(param_name: str) -> bool:
+    """Whether the installed Anthropic SDK's `AsyncMessages.create()` accepts `param_name`.
+
+    The SDK has removed keyword parameters across major versions —
+    `anthropic` 1.x dropped `temperature`/`top_p`/`top_k` from
+    `messages.create()` entirely, so passing one raises a `TypeError` from
+    the SDK call itself, before any request ever reaches the API. This
+    introspects the real, installed signature (cached — it cannot change
+    within a process) instead of assuming a fixed parameter list, so this
+    provider stops blindly forwarding a parameter the installed SDK no
+    longer declares, whatever version happens to be installed.
+    """
+    return param_name in inspect.signature(anthropic.resources.messages.messages.AsyncMessages.create).parameters
 
 
 class BaseLLMProvider(ABC):
@@ -172,13 +190,18 @@ class AnthropicProvider(BaseLLMProvider):
         kwargs: dict[str, Any] = {
             "model": self._config.model,
             "max_tokens": request.max_tokens if request.max_tokens is not None else self._config.max_tokens,
-            "temperature": (
-                request.temperature if request.temperature is not None else self._config.temperature
-            ),
             "messages": self._build_messages(request),
         }
         if request.system_prompt is not None:
             kwargs["system"] = request.system_prompt
+
+        # Only forward `temperature` when the installed SDK's `create()` still
+        # declares it (see `_create_message_accepts`) — a removed parameter
+        # must never be blindly passed through to the SDK call below.
+        if _create_message_accepts("temperature"):
+            kwargs["temperature"] = (
+                request.temperature if request.temperature is not None else self._config.temperature
+            )
 
         try:
             message = await self._client.messages.create(**kwargs)

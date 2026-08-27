@@ -103,6 +103,83 @@ async def test_system_prompt_is_passed_through_when_provided() -> None:
     assert client.messages.create.call_args.kwargs["system"] == "You are a helpful assistant."
 
 
+# --- SDK parameter compatibility (temperature removed on anthropic 1.x) --------------------
+
+
+def test_create_message_accepts_reflects_the_installed_sdk_signature() -> None:
+    """Direct unit test of the introspection helper against the real,
+    installed `anthropic` SDK (not a mock) — proves it actually reflects
+    the installed signature rather than a hardcoded parameter list."""
+    from app.providers.anthropic.provider import _create_message_accepts
+
+    assert _create_message_accepts("temperature") is True
+    assert _create_message_accepts("model") is True
+    assert _create_message_accepts("max_tokens") is True
+    assert _create_message_accepts("definitely_not_a_real_sdk_parameter") is False
+
+
+async def test_temperature_omitted_when_installed_sdk_does_not_accept_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.providers.anthropic import provider as provider_module
+
+    monkeypatch.setattr(provider_module, "_create_message_accepts", lambda _param: False)
+    client = mock_client()
+    client.messages.create.return_value = sdk_message()
+    provider = AnthropicProvider(provider_config(temperature=0.3), client=client)
+
+    await provider.create_message(MessageRequest(user_prompt="Hello"))
+
+    kwargs = client.messages.create.call_args.kwargs
+    assert "temperature" not in kwargs
+    # Supported parameters are still preserved.
+    assert kwargs["model"] == "claude-sonnet-5"
+    assert kwargs["max_tokens"] == 1024
+    assert kwargs["messages"] == [{"role": "user", "content": "Hello"}]
+
+
+async def test_temperature_included_when_installed_sdk_accepts_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.providers.anthropic import provider as provider_module
+
+    monkeypatch.setattr(provider_module, "_create_message_accepts", lambda _param: True)
+    client = mock_client()
+    client.messages.create.return_value = sdk_message()
+    provider = AnthropicProvider(provider_config(temperature=0.42), client=client)
+
+    await provider.create_message(MessageRequest(user_prompt="Hello"))
+
+    assert client.messages.create.call_args.kwargs["temperature"] == 0.42
+
+
+async def test_create_message_succeeds_against_an_sdk_that_rejects_the_temperature_kwarg(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression test for the production bug: `anthropic` 1.x's
+    `AsyncMessages.create()` has no `temperature` parameter at all, so
+    passing it raises `TypeError: create() got an unexpected keyword
+    argument 'temperature'` — not an API-level rejection. `strict_create`
+    below has that same narrow, real Python signature (no `temperature`),
+    so if the provider ever blindly forwarded `temperature` this test would
+    fail with the exact production `TypeError` instead of a mock silently
+    accepting the extra kwarg.
+    """
+    from app.providers.anthropic import provider as provider_module
+
+    async def strict_create(*, model: str, max_tokens: int, messages: list, system: str | None = None):
+        return sdk_message()
+
+    monkeypatch.setattr(provider_module, "_create_message_accepts", lambda _param: False)
+    client = mock_client()
+    client.messages.create = strict_create
+    provider = AnthropicProvider(provider_config(temperature=0.9), client=client)
+
+    response = await provider.create_message(MessageRequest(user_prompt="Hello"))
+
+    assert response.content == "Hello!"
+
+
 async def test_conversation_history_precedes_the_user_prompt() -> None:
     client = mock_client()
     client.messages.create.return_value = sdk_message()
