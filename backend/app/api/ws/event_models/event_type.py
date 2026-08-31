@@ -47,3 +47,15 @@ class EventType(StrEnum):
     GENERATED`/`RISK_ASSESSMENT_COMPLETED` for the same underlying result
     (see `docs/architecture/CONTINUOUS_INTELLIGENCE.md` §9 for why a new
     type was needed instead of reusing those). Payload: `DetectedChange`."""
+    GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED = "GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED"
+    """Global Market Intelligence, Phase 5: published by
+    `GlobalMarketIntelligenceWorkflow.execute()` once its `IntelligenceRun`
+    reaches a terminal state (`COMPLETED`/`PARTIAL`/`FAILED` — never
+    `RUNNING`) AND is successfully, durably persisted — never before
+    persistence, and never on an idempotent re-execution that returns an
+    already-stored run (no duplicate publish for the same run_date).
+    Payload is the same `IntelligenceRun` `execute()` already returns,
+    never reshaped: its own `status` field is what lets a subscriber tell
+    a completed run apart from a partial/degraded one, so this single
+    event type covers all three terminal outcomes honestly — a `FAILED`
+    run is never announced as if it were a success."""

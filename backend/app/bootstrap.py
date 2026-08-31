@@ -1610,12 +1610,19 @@ def build_global_market_intelligence_workflow(
     research_agent: GlobalMarketsResearchAgent | None = None,
     penny_microcap_agent: PennyMicrocapIntelligenceAgent | None = None,
     report_repository: BaseIntelligenceReportRepository | None = None,
+    event_publisher: EventPublisher | None = None,
 ) -> GlobalMarketIntelligenceWorkflow:
     """Construct the `GlobalMarketIntelligenceWorkflow`. Unconditional —
     `session_resolver` is itself unconditionally constructed, and the
     workflow's own constructor already handles every one of its
     dependencies being `None` gracefully (see its docstring), so there is
-    no failure mode here to degrade against."""
+    no failure mode here to degrade against.
+
+    `event_publisher` (Phase 5) is threaded through so every persisted
+    run publishes `GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED` — the same
+    "optional, degrade to no-op" shape `build_market_data_refresh_workflow`
+    already established for this exact parameter.
+    """
     return GlobalMarketIntelligenceWorkflow(
         session_resolver,
         run_repository,
@@ -1625,6 +1632,7 @@ def build_global_market_intelligence_workflow(
         research_agent=research_agent,
         penny_microcap_agent=penny_microcap_agent,
         report_repository=report_repository,
+        event_publisher=event_publisher,
     )
 
 
@@ -2097,6 +2105,7 @@ async def bootstrap_application_state(app: FastAPI) -> None:
         research_agent=app.state.global_markets_research_agent,
         penny_microcap_agent=app.state.penny_microcap_intelligence_agent,
         report_repository=app.state.global_market_report_repository,
+        event_publisher=getattr(app.state, "event_publisher", None),
     )
     register_global_market_intelligence_schedule(
         workflow_engine, scheduler, app.state.global_market_intelligence_workflow, settings, logger

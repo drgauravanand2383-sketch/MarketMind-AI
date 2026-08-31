@@ -35,6 +35,7 @@ ALL_WS_PERMISSIONS = (
     "portfolio:read",
     "strategy:read",
     "explainability:read",
+    "global_markets:read",
 )
 
 

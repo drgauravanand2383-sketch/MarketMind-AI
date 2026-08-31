@@ -1,12 +1,15 @@
 # Global Market Intelligence
 
 **Phase 1 (foundation) + Phase 2 (deterministic pipeline) + Phase 3
-(narrative interpretation) + Phase 4 (read-only API surface) — pre-release,
-uncommitted until explicitly requested.** Daily, multi-market intelligence
-covering nine reporting categories across five market regions (India, US,
-China, Forex, Crypto), published once daily via a scheduled workflow, now
-readable over `/api/v1/global-markets`. No frontend exists yet — that's
-Phase 5+.
+(narrative interpretation) + Phase 4 (read-only API surface) are committed
+and pushed to `main`. Phase 5 (WebSocket distribution only — see §13) is
+implemented but uncommitted, pending review.** Daily, multi-market
+intelligence covering nine reporting categories across five market regions
+(India, US, China, Forex, Crypto), published once daily via a scheduled
+workflow, readable over `/api/v1/global-markets`, and now announced in
+real time over the existing `/ws` framework. Frontend consumption of
+either surface, and real per-market penny-stock eligibility/screening
+data, remain deliberately deferred — see §10.
 
 **Only two AI agents exist for this feature, exactly as scoped** —
 `GlobalMarketsResearchAgent` (AGT-006, the five main categories) and
@@ -287,14 +290,16 @@ local/system timezone. Gated by `AppSettings.global_markets_enabled`
 codebase) — upgrading an existing deployment never silently starts this
 schedule.
 
-## 10. What's still missing (Phase 5+)
+## 10. What's still missing (Phase 6+)
 
 - Frontend (India/US/China/Forex/Crypto tabs + Penny & Micro-Cap with 4
-  sub-tabs).
+  sub-tabs) — including a WebSocket client consuming
+  `GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED` (§13); `frontend/src/types/
+  websocket.ts`'s `EventType`/`DomainEvent` unions do not yet have a
+  matching arm.
 - Real per-market `PennyStockEligibilityCriteria` and a penny/micro-cap
   screening data source (unblocks non-empty penny/micro-cap universes,
   and therefore real `PennyMicrocapIntelligenceAgent` output).
-- `/ws` distribution events for new reports.
 
 ## 11. LLM narrative interpretation (Phase 3)
 
@@ -412,3 +417,89 @@ No changes to `app/bootstrap.py` were required for this phase — the
 three repositories this router depends on (`global_market_run_repository`/
 `global_market_ranked_asset_repository`/`global_market_report_repository`)
 were already constructed and placed on `app.state` in Phase 2/3.
+
+## 13. WebSocket distribution (Phase 5)
+
+Publishes one new event through the **existing** `/ws` real-time
+framework (`app/api/ws/`, Sprint 59) — no second WebSocket system, no new
+connection registry, no new auth path. Every piece below is an addition
+to the existing five framework modules plus the workflow itself; nothing
+in `app/api/ws/router.py`, `connection_manager/`, or `subscriptions/`
+changed.
+
+**Event**: `GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED`
+(`app/api/ws/event_models/event_type.py`). Schema:
+`GlobalMarketIntelligenceRunEvent(BaseEvent[IntelligenceRun])`
+(`event_models/events.py`) — the payload is the exact same
+`IntelligenceRun` `GlobalMarketIntelligenceWorkflow.execute()` already
+returns, never reshaped or duplicated. This single event type covers all
+three terminal outcomes honestly: the payload's own `status`
+(`COMPLETED`/`PARTIAL`/`FAILED`) is what a subscriber reads to tell them
+apart — a `FAILED` run is never announced as if it were a success.
+`correlation_id` is `IntelligenceRun.id`. `IntelligenceRun` already
+carries everything a subscriber needs to know a report is ready without
+fetching it blind: `id`/`run_date` (what to fetch), `status` (complete/
+degraded/failed), and `category_outcomes` (which categories succeeded,
+each with its own `market_session_context.data_freshness_status`) — the
+`RankedAsset`/`CategoryIntelligenceReport` payloads themselves are
+deliberately **not** embedded; a subscriber fetches those separately via
+`/api/v1/global-markets/runs/{run_id}/...` (§12) once notified.
+
+**Publisher method**: `EventPublisher.publish_global_market_intelligence_run_completed(run: IntelligenceRun) -> int`
+(`app/api/ws/publishers/event_publisher.py`) — the same
+already-computed-result-in, `ConnectionManager.broadcast()`-out shape
+every other publisher method uses.
+
+**Permission**: subscribing requires `global_markets:read`
+(`app/api/ws/dependencies/permissions.py`) — the exact same string the
+REST router (§12) already requires, evaluated by the same
+`PolicyEvaluator`/`RequirePermission` REST uses, at subscribe time (not
+per delivered message — see `WEBSOCKET_FRAMEWORK.md` §3/§4 for how
+subscription-time authorization and topic-based delivery are two
+independent axes in this framework).
+
+**Trigger point & idempotency**: `GlobalMarketIntelligenceWorkflow.execute()`
+(`app/workflows/global_markets/pipeline.py`) publishes exactly once,
+immediately after `create_run` durably persists the run — never before
+persistence (a client fetching the run over REST the instant the event
+arrives always finds it there), and never on either idempotent
+short-circuit path:
+
+```
+execute()
+  |
+  +--> get_run_by_date(run_date) already exists? -> return it, NO publish (already announced the first time)
+  |
+  +--> resolve every category, build `run`
+  |
+  +--> create_run(run) succeeds -> _publish_run_completed(persisted_run) -> return persisted_run
+  |
+  +--> create_run(run) raises DuplicateIntelligenceRunError (a genuine race)
+         -> return the winning execution's own run, NO publish (that execution already published)
+```
+
+`event_publisher: EventPublisher | None = None` is an optional
+constructor parameter on `GlobalMarketIntelligenceWorkflow` — `None` (the
+default) publishes nothing, preserving every Phase 1–4 test and caller
+unchanged, the same "degrade, never crash" shape
+`MarketDataRefreshWorkflow`'s own `event_publisher` parameter already
+established (`docs/architecture/WEBSOCKET_FRAMEWORK.md` §8).
+
+**Reliability**: a delivery failure is caught inside a dedicated
+`_publish_run_completed` helper and logged
+(`global_market_intelligence_publish_failed`), never allowed to fail an
+already-persisted run — mirroring `ContinuousIntelligenceService`'s own
+established "a publish failure must not lose the underlying detected
+state" precedent (`app/services/continuous_intelligence/service.py`).
+Zero connected/subscribed clients is not a failure either:
+`ConnectionManager.broadcast()` returns `0` delivered, and the workflow
+returns its persisted run normally either way. A dead socket encountered
+mid-broadcast is disconnected and skipped by `ConnectionManager` itself
+(existing framework behavior, untouched).
+
+**Bootstrap wiring**: `build_global_market_intelligence_workflow` gained
+one new optional `event_publisher: EventPublisher | None = None`
+parameter, threaded through from `getattr(app.state, "event_publisher",
+None)` at the call site — the exact pattern
+`build_market_data_refresh_workflow`/`build_continuous_intelligence_service`
+already use for this same shared, `app/main.py`-constructed publisher.

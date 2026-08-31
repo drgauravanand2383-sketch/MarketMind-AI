@@ -133,6 +133,35 @@ async def test_subscribe_to_market_snapshot_refreshed_needs_no_special_permissio
         assert response["event_types"] == ["MARKET_SNAPSHOT_REFRESHED"]
 
 
+async def test_subscribe_to_global_market_intelligence_run_completed_with_permission_succeeds(
+    client: TestClient, auth_repository, auth_service
+) -> None:
+    """Phase 5: GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED requires
+    global_markets:read, matching its own REST source
+    (/api/v1/global-markets/*)."""
+    headers = await make_authenticated_headers(auth_repository, auth_service, permissions=("global_markets:read",))
+    token = headers["Authorization"].removeprefix("Bearer ")
+    with client.websocket_connect(f"/ws?token={token}") as ws:
+        ws.receive_json()
+        ws.send_json({"action": "subscribe", "event_types": ["GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED"]})
+        response = ws.receive_json()
+        assert response["type"] == "subscribed"
+        assert response["event_types"] == ["GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED"]
+
+
+async def test_subscribe_to_global_market_intelligence_run_completed_without_permission_is_forbidden(
+    client: TestClient, auth_repository, auth_service
+) -> None:
+    headers = await make_authenticated_headers(auth_repository, auth_service, permissions=())
+    token = headers["Authorization"].removeprefix("Bearer ")
+    with client.websocket_connect(f"/ws?token={token}") as ws:
+        ws.receive_json()
+        ws.send_json({"action": "subscribe", "event_types": ["GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED"]})
+        response = ws.receive_json()
+        assert response["type"] == "error"
+        assert response["code"] == "forbidden"
+
+
 def test_subscribe_to_portfolio_intelligence_changed_with_permission_succeeds(client: TestClient, token: str) -> None:
     """Milestone 15: PORTFOLIO_INTELLIGENCE_CHANGED requires portfolio:read,
     matching PORTFOLIO_INTELLIGENCE_UPDATED and its other portfolio-scoped

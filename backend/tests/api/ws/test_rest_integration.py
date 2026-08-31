@@ -197,6 +197,7 @@ def client(app: FastAPI):
 ALL_PERMISSIONS = (
     "alerts:read", "alerts:evaluate", "backtest:run", "backtest:read", "portfolio:read", "portfolio:recommend",
     "strategy:read", "strategy:update", "strategy:evaluate", "explainability:generate", "explainability:read",
+    "global_markets:read",
 )
 
 

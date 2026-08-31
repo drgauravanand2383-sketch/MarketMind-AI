@@ -21,6 +21,10 @@ _EVENT_TYPE_PERMISSIONS: dict[EventType, str] = {
     EventType.EXPLAINABILITY_COMPLETED: "explainability:read",
     EventType.PORTFOLIO_INTELLIGENCE_UPDATED: "portfolio:read",
     EventType.PORTFOLIO_INTELLIGENCE_CHANGED: "portfolio:read",
+    # GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED (Phase 5): reuses the exact
+    # permission string app.api.v1.global_markets.router already requires
+    # on every REST endpoint for this same data.
+    EventType.GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED: "global_markets:read",
     # HEALTH_STATUS_CHANGED intentionally absent: any authenticated
     # connection may subscribe, matching the unauthenticated-but-public
     # posture of GET /health itself (Sprint 55).

@@ -4,7 +4,7 @@ happens here."""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from app.agents.portfolio_intelligence.models import (
     PortfolioIntelligenceReport,
@@ -20,6 +20,7 @@ from app.api.ws.subscriptions.models import Subscription
 from app.auth.models.authentication import AuthenticatedPrincipal
 from app.backtesting.models import BacktestResult, BacktestRun, BacktestStatus
 from app.explainability.models import ExplainabilityResult
+from app.global_markets.models import IntelligenceRun, IntelligenceRunStatus
 from app.operations.health.models import ApplicationHealth, HealthState
 from app.recommendations.models import RecommendationResult, RecommendationSummary
 from app.risk.models import RiskAssessment, RiskSeverity
@@ -217,6 +218,74 @@ async def test_publish_significant_market_change() -> None:
     assert envelope.event.event_type == EventType.SIGNIFICANT_MARKET_CHANGE
     assert envelope.event.correlation_id == "dell"
     assert envelope.event.payload.summary == "Dell moved up 5%."
+
+
+def _intelligence_run(
+    run_id: str = "run-1", status: IntelligenceRunStatus = IntelligenceRunStatus.COMPLETED
+) -> IntelligenceRun:
+    return IntelligenceRun(
+        id=run_id,
+        run_date=date(2026, 8, 31),
+        status=status,
+        triggered_by="scheduler",
+        started_at=NOW,
+        completed_at=NOW,
+    )
+
+
+async def test_publish_global_market_intelligence_run_completed() -> None:
+    manager, ws = await _subscribed_connection_manager(EventType.GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED)
+    publisher = EventPublisher(manager)
+    run = _intelligence_run()
+
+    delivered = await publisher.publish_global_market_intelligence_run_completed(run)
+
+    assert delivered == 1
+    envelope = _received_envelope(ws)
+    assert envelope.event.event_type == EventType.GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED
+    assert envelope.event.correlation_id == "run-1"
+    assert envelope.event.payload.status == IntelligenceRunStatus.COMPLETED
+    assert envelope.event.payload.run_date.isoformat() == "2026-08-31"
+
+
+async def test_publish_global_market_intelligence_run_completed_carries_partial_status_honestly() -> None:
+    """Event schema/payload validation: a PARTIAL run's own `status` is
+    reused verbatim in the payload — never reshaped, never masked as a
+    plain success."""
+    manager, ws = await _subscribed_connection_manager(EventType.GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED)
+    publisher = EventPublisher(manager)
+    run = _intelligence_run(status=IntelligenceRunStatus.PARTIAL)
+
+    await publisher.publish_global_market_intelligence_run_completed(run)
+
+    envelope = _received_envelope(ws)
+    assert envelope.event.payload.status == IntelligenceRunStatus.PARTIAL
+
+
+async def test_publish_global_market_intelligence_run_completed_carries_failed_status_honestly() -> None:
+    """A FAILED run must never be announced as if it were a success —
+    the payload's own status says FAILED, not COMPLETED."""
+    manager, ws = await _subscribed_connection_manager(EventType.GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED)
+    publisher = EventPublisher(manager)
+    run = _intelligence_run(status=IntelligenceRunStatus.FAILED)
+
+    await publisher.publish_global_market_intelligence_run_completed(run)
+
+    envelope = _received_envelope(ws)
+    assert envelope.event.payload.status == IntelligenceRunStatus.FAILED
+
+
+async def test_publish_global_market_intelligence_run_completed_with_no_subscribers_delivers_zero() -> None:
+    """No connected clients: broadcast delivers to zero connections, and
+    the publisher itself never raises — matches `ConnectionManager
+    .broadcast`'s own "delivered count, never an error for zero
+    recipients" contract."""
+    manager = ConnectionManager()
+    publisher = EventPublisher(manager)
+
+    delivered = await publisher.publish_global_market_intelligence_run_completed(_intelligence_run())
+
+    assert delivered == 0
 
 
 async def test_publish_significant_market_change_prefers_portfolio_id_correlation() -> None:

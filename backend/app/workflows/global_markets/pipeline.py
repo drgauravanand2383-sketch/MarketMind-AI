@@ -32,6 +32,18 @@ workflow back to the next simplest behavior it can still offer, never
 crashing — matching this codebase's established "degrade, never crash"
 convention for an unavailable dependency.
 
+Phase 5: when `event_publisher` is supplied, `execute()` publishes
+`GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED` exactly once, immediately
+after the run is successfully, durably persisted via `create_run` —
+never before persistence (a client fetching the run over REST the
+moment the event arrives must always find it there), and never on the
+idempotent-short-circuit or duplicate-race return paths (no duplicate
+event for a run that was already announced). A delivery failure is
+caught and logged, never allowed to fail an already-persisted run — see
+`execute()`'s own try/except around the publish call, mirroring
+`ContinuousIntelligenceService`'s established "a publish failure must
+not lose the underlying detected state" precedent.
+
 `run_date` is the master scheduler's own IST calendar date (approved
 Decision 1: "the master report scheduler runs at 08:30 Asia/Kolkata") —
 deliberately distinct from any individual category's own
@@ -43,9 +55,11 @@ resolved per market region and may legitimately differ (e.g. China's
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 from app.agents.global_markets_research.agent import GlobalMarketsResearchAgent
@@ -74,9 +88,19 @@ from app.repositories.global_markets.repository import (
     DuplicateIntelligenceRunError,
 )
 
+if TYPE_CHECKING:
+    # Type-checking only: `app.api.ws` is pure API-layer infrastructure —
+    # this module never imports it at runtime, matching `app.bootstrap`'s
+    # own established reasoning for `EventPublisher` (see that module's
+    # `TYPE_CHECKING` block) — `event_publisher` is always injected by the
+    # caller, never constructed here.
+    from app.api.ws.publishers.event_publisher import EventPublisher
+
 __all__ = ["MASTER_SCHEDULER_TIMEZONE", "GlobalMarketIntelligenceWorkflow"]
 
 MASTER_SCHEDULER_TIMEZONE = ZoneInfo("Asia/Kolkata")
+
+_logger = logging.getLogger("marketmind.workflows.global_markets")
 
 
 def _default_now() -> datetime:
@@ -113,6 +137,7 @@ class GlobalMarketIntelligenceWorkflow:
         research_agent: GlobalMarketsResearchAgent | None = None,
         penny_microcap_agent: PennyMicrocapIntelligenceAgent | None = None,
         report_repository: BaseIntelligenceReportRepository | None = None,
+        event_publisher: EventPublisher | None = None,
     ) -> None:
         """Initialize the workflow.
 
@@ -148,6 +173,13 @@ class GlobalMarketIntelligenceWorkflow:
                 `CategoryIntelligenceReport`. `None` skips narrative
                 generation entirely (no agent is ever called without
                 somewhere to persist its result).
+            event_publisher: Publishes `GLOBAL_MARKET_INTELLIGENCE_RUN_
+                COMPLETED` once the run is successfully persisted. `None`
+                (the default) publishes nothing — this workflow's own
+                unit tests (and any caller with no WebSocket infra
+                configured) are unaffected, matching
+                `MarketDataRefreshWorkflow`'s own established convention
+                for this exact parameter.
         """
         self._session_resolver = session_resolver
         self._run_repository = run_repository
@@ -160,6 +192,7 @@ class GlobalMarketIntelligenceWorkflow:
         self._research_agent = research_agent
         self._penny_microcap_agent = penny_microcap_agent
         self._report_repository = report_repository
+        self._event_publisher = event_publisher
 
     async def execute(self, context: ExecutionContext) -> IntelligenceRun:
         as_of = self._now_fn()
@@ -194,7 +227,7 @@ class GlobalMarketIntelligenceWorkflow:
             return run
 
         try:
-            return await self._run_repository.create_run(run)
+            persisted_run = await self._run_repository.create_run(run)
         except DuplicateIntelligenceRunError:
             # A genuine race: another execution's create_run committed
             # between this run's own early-return check above and its own
@@ -204,8 +237,31 @@ class GlobalMarketIntelligenceWorkflow:
             # tradeoff (the original Phase 1 code already discarded the
             # freshly-built IntelligenceRun object itself on this same
             # race); full distributed-lock idempotency is out of scope.
+            # No event publish here either: the execution that actually
+            # won the race already published for this run_date.
             existing = await self._run_repository.get_run_by_date(run_date)
             return existing if existing is not None else run
+
+        await self._publish_run_completed(persisted_run)
+        return persisted_run
+
+    async def _publish_run_completed(self, run: IntelligenceRun) -> None:
+        """Best-effort: publish `GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED`
+        for a run that was just successfully, durably persisted. Never
+        raises — a WebSocket delivery failure must not fail an
+        already-persisted run, mirroring `ContinuousIntelligenceService`'s
+        own "a publish failure must not lose the underlying detected
+        state" precedent (`app/services/continuous_intelligence/service.py`).
+        """
+        if self._event_publisher is None:
+            return
+        try:
+            await self._event_publisher.publish_global_market_intelligence_run_completed(run)
+        except Exception as exc:  # noqa: BLE001 - a publish failure must not fail an already-persisted run
+            _logger.warning(
+                "global_market_intelligence_publish_failed",
+                extra={"run_id": run.id, "run_date": str(run.run_date), "error": str(exc)},
+            )
 
     async def _resolve_category(
         self, context: ExecutionContext, run_id: str, category: ReportCategory, as_of: datetime

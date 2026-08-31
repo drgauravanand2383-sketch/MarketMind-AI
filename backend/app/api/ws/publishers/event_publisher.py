@@ -18,6 +18,7 @@ from app.api.ws.event_models.events import (
     AlertEvent,
     BacktestEvent,
     ExplainabilityEvent,
+    GlobalMarketIntelligenceRunEvent,
     HealthEvent,
     MarketSnapshotEvent,
     PortfolioIntelligenceChangedEvent,
@@ -30,6 +31,7 @@ from app.api.ws.event_models.events import (
 )
 from app.backtesting.models import BacktestResult, BacktestRun
 from app.explainability.models import ExplainabilityResult
+from app.global_markets.models import IntelligenceRun
 from app.operations.health.models import ApplicationHealth
 from app.recommendations.models import RecommendationResult
 from app.risk.models import RiskAssessment
@@ -154,5 +156,16 @@ class EventPublisher:
             timestamp=_now(),
             correlation_id=change.portfolio_id or change.entity_id,
             payload=change,
+        )
+        return await self._connection_manager.broadcast(event)
+
+    async def publish_global_market_intelligence_run_completed(self, run: IntelligenceRun) -> int:
+        """Global Market Intelligence, Phase 5. `correlation_id` is the
+        run's own id — the natural identity a subscriber would filter on.
+        Callers are responsible for only invoking this once per
+        successfully, durably persisted run (see
+        `GlobalMarketIntelligenceWorkflow.execute()`'s own docstring)."""
+        event = GlobalMarketIntelligenceRunEvent(
+            event_id=_new_event_id(), timestamp=_now(), correlation_id=run.id, payload=run
         )
         return await self._connection_manager.broadcast(event)

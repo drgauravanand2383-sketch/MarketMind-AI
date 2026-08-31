@@ -11,6 +11,12 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.agents.global_markets_research.agent import GlobalMarketsResearchAgent
 from app.agents.penny_microcap_intelligence.agent import PennyMicrocapIntelligenceAgent
+from app.api.ws.connection_manager.manager import ConnectionManager
+from app.api.ws.event_models.event_type import EventType
+from app.api.ws.event_models.events import EventEnvelope
+from app.api.ws.publishers.event_publisher import EventPublisher
+from app.api.ws.subscriptions.models import Subscription
+from app.auth.models.authentication import AuthenticatedPrincipal
 from app.core.context import ExecutionContext, TriggerType, WorkflowStatus
 from app.global_markets.calendar.continuous_calendar import CryptoCalendarProvider, ForexCalendarProvider
 from app.global_markets.calendar.pandas_calendar import PandasMarketCalendarProvider
@@ -38,6 +44,7 @@ from tests.agents.global_markets_research.conftest import mock_llm_service as mo
 from tests.agents.penny_microcap_intelligence.conftest import build_prompt_registry as build_penny_prompt_registry
 from tests.agents.penny_microcap_intelligence.conftest import build_runtime as build_penny_runtime
 from tests.agents.penny_microcap_intelligence.conftest import mock_llm_service as mock_penny_llm_service
+from tests.api.ws.fakes import FakeWebSocket
 
 _FIXED_AS_OF = datetime(2026, 8, 24, 3, 0, tzinfo=UTC)  # 08:30 IST
 
@@ -501,3 +508,158 @@ async def test_without_agents_wired_in_no_report_is_persisted(
     ranked = await ranked_asset_repository.list_ranked_assets(run.id, ReportCategory.US_EQUITY)
     assert len(ranked) == 1
     assert await report_repository.list_reports_for_run(run.id) == []
+
+
+# --- Phase 5: WebSocket event publishing -----------------------------------------------------------
+
+
+def _empty_calendar_registry() -> TradingCalendarRegistry:
+    """No provider for any market region -> every category's session
+    resolution fails -> the run's own status is FAILED."""
+    return TradingCalendarRegistry({})
+
+
+async def _subscribed_connection_manager() -> tuple[ConnectionManager, FakeWebSocket]:
+    manager = ConnectionManager()
+    ws = FakeWebSocket()
+    principal = AuthenticatedPrincipal(user_id="u1", username="u1", roles=(), permissions=(), token_id="t1")
+    connection_id = await manager.connect(ws, principal)
+    manager.subscribe(
+        connection_id, Subscription(event_types=frozenset({EventType.GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED}))
+    )
+    return manager, ws
+
+
+class _RaisingEventPublisher:
+    """A fake EventPublisher whose publish call always raises — proves a
+    WebSocket delivery failure never fails an already-persisted run."""
+
+    async def publish_global_market_intelligence_run_completed(self, run: object) -> int:
+        raise RuntimeError("simulated WebSocket delivery failure")
+
+
+async def test_a_completed_run_publishes_the_event(repository: PostgresGlobalMarketRunRepository) -> None:
+    manager, ws = await _subscribed_connection_manager()
+    workflow = GlobalMarketIntelligenceWorkflow(
+        MarketSessionResolutionService(_full_registry()),
+        repository,
+        now_fn=lambda: _FIXED_AS_OF,
+        event_publisher=EventPublisher(manager),
+    )
+
+    run = await workflow.execute(_context())
+
+    assert len(ws.sent) == 1
+    envelope = EventEnvelope.model_validate_json(ws.sent[0])
+    assert envelope.event.event_type == EventType.GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED
+    assert envelope.event.correlation_id == run.id
+    assert envelope.event.payload.status == IntelligenceRunStatus.COMPLETED
+    assert envelope.event.payload.id == run.id
+
+
+async def test_a_partial_run_publishes_the_event_with_partial_status(
+    repository: PostgresGlobalMarketRunRepository,
+) -> None:
+    manager, ws = await _subscribed_connection_manager()
+    incomplete_registry = TradingCalendarRegistry(
+        {
+            MarketRegion.INDIA: PandasMarketCalendarProvider(MarketRegion.INDIA, "NSE"),
+            MarketRegion.US: PandasMarketCalendarProvider(MarketRegion.US, "NYSE"),
+            MarketRegion.FOREX: ForexCalendarProvider(),
+            MarketRegion.CRYPTO: CryptoCalendarProvider(),
+        }
+    )
+    workflow = GlobalMarketIntelligenceWorkflow(
+        MarketSessionResolutionService(incomplete_registry),
+        repository,
+        now_fn=lambda: _FIXED_AS_OF,
+        event_publisher=EventPublisher(manager),
+    )
+
+    run = await workflow.execute(_context())
+
+    assert run.status is IntelligenceRunStatus.PARTIAL
+    envelope = EventEnvelope.model_validate_json(ws.sent[0])
+    assert envelope.event.payload.status == IntelligenceRunStatus.PARTIAL
+
+
+async def test_a_failed_run_publishes_the_event_with_failed_status_never_masked_as_success(
+    repository: PostgresGlobalMarketRunRepository,
+) -> None:
+    """Every category fails (an empty calendar registry) -> the published
+    event honestly carries FAILED — never a misleading 'complete' event
+    for a failed report."""
+    manager, ws = await _subscribed_connection_manager()
+    workflow = GlobalMarketIntelligenceWorkflow(
+        MarketSessionResolutionService(_empty_calendar_registry()),
+        repository,
+        now_fn=lambda: _FIXED_AS_OF,
+        event_publisher=EventPublisher(manager),
+    )
+
+    run = await workflow.execute(_context())
+
+    assert run.status is IntelligenceRunStatus.FAILED
+    envelope = EventEnvelope.model_validate_json(ws.sent[0])
+    assert envelope.event.payload.status == IntelligenceRunStatus.FAILED
+
+
+async def test_no_connected_clients_the_workflow_still_succeeds(
+    repository: PostgresGlobalMarketRunRepository,
+) -> None:
+    manager = ConnectionManager()  # nobody subscribed
+    workflow = GlobalMarketIntelligenceWorkflow(
+        MarketSessionResolutionService(_full_registry()),
+        repository,
+        now_fn=lambda: _FIXED_AS_OF,
+        event_publisher=EventPublisher(manager),
+    )
+
+    run = await workflow.execute(_context())
+
+    assert run.status is IntelligenceRunStatus.COMPLETED
+
+
+async def test_a_publish_failure_never_fails_the_workflow(repository: PostgresGlobalMarketRunRepository) -> None:
+    workflow = GlobalMarketIntelligenceWorkflow(
+        MarketSessionResolutionService(_full_registry()),
+        repository,
+        now_fn=lambda: _FIXED_AS_OF,
+        event_publisher=_RaisingEventPublisher(),  # type: ignore[arg-type]
+    )
+
+    run = await workflow.execute(_context())
+
+    assert run.status is IntelligenceRunStatus.COMPLETED
+    assert await repository.get_run(run.id) is not None
+
+
+async def test_a_second_execution_for_the_same_run_date_does_not_republish(
+    repository: PostgresGlobalMarketRunRepository,
+) -> None:
+    manager, ws = await _subscribed_connection_manager()
+    workflow = GlobalMarketIntelligenceWorkflow(
+        MarketSessionResolutionService(_full_registry()),
+        repository,
+        now_fn=lambda: _FIXED_AS_OF,
+        event_publisher=EventPublisher(manager),
+    )
+
+    first = await workflow.execute(_context())
+    second = await workflow.execute(_context())
+
+    assert first.id == second.id
+    assert len(ws.sent) == 1
+
+
+async def test_without_event_publisher_wired_in_behaves_exactly_as_before(
+    repository: PostgresGlobalMarketRunRepository,
+) -> None:
+    """Backward-compatible degrade: omitting event_publisher publishes nothing."""
+    workflow = GlobalMarketIntelligenceWorkflow(
+        MarketSessionResolutionService(_full_registry()), repository, now_fn=lambda: _FIXED_AS_OF
+    )
+
+    run = await workflow.execute(_context())
+
+    assert run.status is IntelligenceRunStatus.COMPLETED

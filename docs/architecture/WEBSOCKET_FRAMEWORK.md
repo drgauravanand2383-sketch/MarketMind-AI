@@ -25,17 +25,19 @@ app/api/ws/
     manager.py                ConnectionManager — connect/disconnect/heartbeat/
                                 subscribe/unsubscribe/broadcast/targeted delivery
   event_models/
-    event_type.py             EventType enum (13 supported event types as of
-                                Milestone 15 — 8 original + Milestone 14's
+    event_type.py             EventType enum (14 supported event types as of
+                                Phase 5 — 8 original + Milestone 14's
                                 MARKET_SNAPSHOT_REFRESHED/PORTFOLIO_INTELLIGENCE_
                                 UPDATED + Milestone 15's SIGNIFICANT_MARKET_CHANGE/
-                                SIGNIFICANT_NEWS_UPDATE/PORTFOLIO_INTELLIGENCE_CHANGED)
+                                SIGNIFICANT_NEWS_UPDATE/PORTFOLIO_INTELLIGENCE_CHANGED +
+                                Phase 5's GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED)
     base.py                    BaseEvent[payload], EventMetadata
     events.py                  AlertEvent, RecommendationEvent, BacktestEvent,
                                 StrategyEvent, RiskEvent, ExplainabilityEvent,
                                 HealthEvent, MarketSnapshotEvent,
                                 PortfolioIntelligenceEvent, SignificantMarketChangeEvent,
-                                SignificantNewsUpdateEvent, PortfolioIntelligenceChangedEvent
+                                SignificantNewsUpdateEvent, PortfolioIntelligenceChangedEvent,
+                                GlobalMarketIntelligenceRunEvent
   publishers/
     event_publisher.py        EventPublisher — one publish_* method per event
                                 type; wraps an already-computed result, broadcasts
@@ -128,6 +130,7 @@ permission string its equivalent REST resource already requires —
 | `SIGNIFICANT_MARKET_CHANGE` (Milestone 15) | *(none — same reasoning as `MARKET_SNAPSHOT_REFRESHED`)* |
 | `SIGNIFICANT_NEWS_UPDATE` (Milestone 15) | *(none — same reasoning)* |
 | `PORTFOLIO_INTELLIGENCE_CHANGED` (Milestone 15) | `portfolio:read` |
+| `GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED` (Phase 5) | `global_markets:read` |
 
 Checked via the existing `PolicyEvaluator.evaluate(RequirePermission(...), principal)`
 — the exact same policy objects `require_policy` uses for REST endpoints,
@@ -283,6 +286,7 @@ idle-connection cleanup if needed; nothing currently reads it back.
 | `SIGNIFICANT_MARKET_CHANGE` (Milestone 15) | `ContinuousIntelligenceWorkflow.execute()` — the scheduled/on-demand Continuous Intelligence cycle, not a REST endpoint | `DetectedChange.portfolio_id` or `.entity_id` |
 | `SIGNIFICANT_NEWS_UPDATE` (Milestone 15) | same as above | same as above |
 | `PORTFOLIO_INTELLIGENCE_CHANGED` (Milestone 15) | same as above | same as above |
+| `GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED` (Phase 5) | `GlobalMarketIntelligenceWorkflow.execute()` — the scheduled Global Market Intelligence run, not a REST endpoint; published only once the run is successfully, durably persisted, and never on an idempotent-duplicate return | `IntelligenceRun.id` |
 
 **Known gap:** no REST endpoint anywhere calls
 `RiskAnalyticsService.assess_portfolio()` — Sprint 57 designed

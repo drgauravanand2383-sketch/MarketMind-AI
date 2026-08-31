@@ -1330,3 +1330,20 @@ def test_build_global_market_intelligence_workflow_accepts_phase_3_dependencies(
     )
 
     assert isinstance(workflow, GlobalMarketIntelligenceWorkflow)
+
+
+# --- Global Market Intelligence (Phase 5) -----------------------------------------------------------
+
+
+def test_build_global_market_intelligence_workflow_accepts_an_event_publisher() -> None:
+    from app.api.ws.connection_manager.manager import ConnectionManager
+    from app.api.ws.publishers.event_publisher import EventPublisher
+    from app.workflows.global_markets.pipeline import GlobalMarketIntelligenceWorkflow
+
+    registry = build_trading_calendar_registry()
+    resolver = build_global_market_session_resolver(registry)
+    event_publisher = EventPublisher(ConnectionManager())
+
+    workflow = build_global_market_intelligence_workflow(resolver, None, event_publisher=event_publisher)
+
+    assert isinstance(workflow, GlobalMarketIntelligenceWorkflow)

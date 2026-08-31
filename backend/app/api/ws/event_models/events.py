@@ -15,6 +15,7 @@ from app.api.ws.event_models.base import BaseEvent, EventMetadata
 from app.api.ws.event_models.event_type import EventType
 from app.backtesting.models import BacktestResult, BacktestRun
 from app.explainability.models import ExplainabilityResult
+from app.global_markets.models import IntelligenceRun
 from app.operations.health.models import ApplicationHealth
 from app.recommendations.models import RecommendationResult
 from app.risk.models import RiskAssessment
@@ -35,6 +36,7 @@ __all__ = [
     "SignificantMarketChangeEvent",
     "SignificantNewsUpdateEvent",
     "PortfolioIntelligenceChangedEvent",
+    "GlobalMarketIntelligenceRunEvent",
     "AnyEvent",
     "EventEnvelope",
 ]
@@ -110,6 +112,18 @@ class PortfolioIntelligenceChangedEvent(BaseEvent[DetectedChange]):
     event_type: Literal[EventType.PORTFOLIO_INTELLIGENCE_CHANGED] = EventType.PORTFOLIO_INTELLIGENCE_CHANGED
 
 
+class GlobalMarketIntelligenceRunEvent(BaseEvent[IntelligenceRun]):
+    """Global Market Intelligence, Phase 5: published by
+    `GlobalMarketIntelligenceWorkflow.execute()` once its run is
+    persisted — payload is the same `IntelligenceRun` the workflow
+    already returns; its own `status` distinguishes
+    `COMPLETED`/`PARTIAL`/`FAILED`."""
+
+    event_type: Literal[EventType.GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED] = (
+        EventType.GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED
+    )
+
+
 AnyEvent = (
     AlertEvent
     | RecommendationEvent
@@ -123,6 +137,7 @@ AnyEvent = (
     | SignificantMarketChangeEvent
     | SignificantNewsUpdateEvent
     | PortfolioIntelligenceChangedEvent
+    | GlobalMarketIntelligenceRunEvent
 )
 
 
