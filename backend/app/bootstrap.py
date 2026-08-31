@@ -48,7 +48,11 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.agents.company_research.agent import CompanyResearchAgent
 from app.agents.company_research.prompts import register_company_research_prompts
+from app.agents.global_markets_research.agent import GlobalMarketsResearchAgent
+from app.agents.global_markets_research.prompts import register_global_markets_research_prompts
 from app.agents.news_collector.agent import NewsCollectorAgent
+from app.agents.penny_microcap_intelligence.agent import PennyMicrocapIntelligenceAgent
+from app.agents.penny_microcap_intelligence.prompts import register_penny_microcap_intelligence_prompts
 from app.agents.portfolio_intelligence.agent import PortfolioIntelligenceAgent
 from app.agents.portfolio_intelligence.prompts import register_portfolio_intelligence_prompts
 from app.alerts.engine import AlertService
@@ -79,6 +83,14 @@ from app.config.models import (
 from app.config.service import ConfigurationService
 from app.core.runtime import AgentRuntime
 from app.explainability.engine import ExplainabilityService
+from app.global_markets.calendar.continuous_calendar import CryptoCalendarProvider, ForexCalendarProvider
+from app.global_markets.calendar.pandas_calendar import PandasMarketCalendarProvider
+from app.global_markets.calendar.registry import TradingCalendarRegistry
+from app.global_markets.models import MarketRegion
+from app.global_markets.pipeline.category_pipeline import CategoryDataPipeline
+from app.global_markets.session.resolver import MarketSessionResolutionService
+from app.global_markets.universe.defaults import DEFAULT_UNIVERSES
+from app.global_markets.universe.registry import UniverseRegistry
 from app.knowledge.hub import KnowledgeHub
 from app.market_data.normalization import NormalizationService
 from app.operations.health.service import HealthCheckService
@@ -119,6 +131,12 @@ from app.repositories.continuous_intelligence.repository import (
 )
 from app.repositories.explainability.postgres.repository import PostgresExplainabilityRepository
 from app.repositories.explainability.repository import BaseExplainabilityRepository
+from app.repositories.global_markets.postgres.ranked_asset_repository import PostgresRankedAssetRepository
+from app.repositories.global_markets.postgres.report_repository import PostgresIntelligenceReportRepository
+from app.repositories.global_markets.postgres.repository import PostgresGlobalMarketRunRepository
+from app.repositories.global_markets.ranked_asset_repository import BaseRankedAssetRepository
+from app.repositories.global_markets.report_repository import BaseIntelligenceReportRepository
+from app.repositories.global_markets.repository import BaseGlobalMarketRunRepository
 from app.repositories.knowledge.repository import BaseKnowledgeRepository
 from app.repositories.recommendations.postgres.repository import PostgresRecommendationRepository
 from app.repositories.recommendations.repository import BaseRecommendationRepository
@@ -178,6 +196,7 @@ from app.strategy.engine import StrategyEvaluationService
 from app.watchlist.service import WatchlistService
 from app.workflows.continuous_intelligence.workflow import ContinuousIntelligenceWorkflow
 from app.workflows.engine import WorkflowEngine
+from app.workflows.global_markets.pipeline import GlobalMarketIntelligenceWorkflow
 from app.workflows.market_data_refresh.workflow import MarketDataRefreshWorkflow
 from app.workflows.morning_pipeline.pipeline import MorningPipeline
 
@@ -344,6 +363,22 @@ class AppSettings(BaseSettings):
     # canonical entities to merge into COMPANY_KEYWORDS at startup. Unset
     # by default — no overlay, zero behavior change from Milestone 15.
     canonical_entities_overlay_path: str | None = None
+    # --- Global Market Intelligence (Phase 1) ---
+    # Default disabled, like INGESTION_ENABLED/MARKET_DATA_ENABLED/
+    # CONTINUOUS_INTELLIGENCE_ENABLED: this schedule will eventually call
+    # real market-data providers and a real LLM agent, so upgrading an
+    # existing deployment must never silently start doing either. Phase 1
+    # itself performs no live data fetch yet (see
+    # app.workflows.global_markets.pipeline's own docstring) — the switch
+    # exists now so the schedule is off by default from day one, rather
+    # than retrofitted once later phases add real work to it.
+    global_markets_enabled: bool = False
+    # Approved Decision 1: the master scheduler fires at 08:30
+    # Asia/Kolkata every day — a standard 5-field crontab expression,
+    # evaluated in global_markets_report_timezone below (never the
+    # process's own local/system timezone).
+    global_markets_report_cron: str = "30 8 * * *"
+    global_markets_report_timezone: str = "Asia/Kolkata"
 
 
 class InProcessMemory:
@@ -641,6 +676,8 @@ def build_prompt_registry() -> PromptRegistry:
     registry = PromptRegistry()
     register_company_research_prompts(registry)
     register_portfolio_intelligence_prompts(registry)
+    register_global_markets_research_prompts(registry)
+    register_penny_microcap_intelligence_prompts(registry)
     return registry
 
 
@@ -733,6 +770,30 @@ def build_portfolio_intelligence_agent(
         prompt_registry=prompt_registry,
         company_research_agent=company_research_agent,
     )
+
+
+def build_global_markets_research_agent(
+    runtime: AgentRuntime,
+    llm_service: LLMService | None,
+    prompt_registry: PromptRegistry,
+) -> GlobalMarketsResearchAgent | None:
+    """Construct the Global Markets Research agent (AGT-006, Phase 3), or
+    `None` if a hard dependency is unavailable."""
+    if llm_service is None:
+        return None
+    return GlobalMarketsResearchAgent(runtime=runtime, llm_service=llm_service, prompt_registry=prompt_registry)
+
+
+def build_penny_microcap_intelligence_agent(
+    runtime: AgentRuntime,
+    llm_service: LLMService | None,
+    prompt_registry: PromptRegistry,
+) -> PennyMicrocapIntelligenceAgent | None:
+    """Construct the Penny/Micro-cap Intelligence agent (AGT-007, Phase 3),
+    or `None` if a hard dependency is unavailable."""
+    if llm_service is None:
+        return None
+    return PennyMicrocapIntelligenceAgent(runtime=runtime, llm_service=llm_service, prompt_registry=prompt_registry)
 
 
 def build_scheduler_infrastructure(
@@ -1414,6 +1475,207 @@ def register_continuous_intelligence_schedule(
     )
 
 
+GLOBAL_MARKETS_WORKFLOW_ID = "global_market_intelligence"
+
+
+def build_trading_calendar_registry() -> TradingCalendarRegistry:
+    """Construct the `TradingCalendarRegistry` — one `TradingCalendarProvider`
+    per `MarketRegion`, all pure/no-I/O (see
+    `app.global_markets.calendar.provider.TradingCalendarProvider`'s own
+    docstring), so unlike every `build_*_repository`/`build_*_provider`
+    function above, this one cannot fail against a real environment issue
+    and is therefore unconditional — matching `build_clock`/
+    `build_policy_evaluator`'s own "always succeeds" shape, not the
+    graceful-`None`-degradation shape reserved for genuinely fallible
+    external dependencies.
+
+    India/US/China are backed by real `pandas_market_calendars` calendars
+    (`NSE`, `NYSE`, `SSE` — see `PandasMarketCalendarProvider`'s own
+    docstring for why these three names, and the documented China/SSE
+    proxy limitation for Shenzhen). Forex/Crypto are backed by the
+    in-house `ForexCalendarProvider`/`CryptoCalendarProvider`.
+    """
+    return TradingCalendarRegistry(
+        {
+            MarketRegion.INDIA: PandasMarketCalendarProvider(MarketRegion.INDIA, "NSE"),
+            MarketRegion.US: PandasMarketCalendarProvider(MarketRegion.US, "NYSE"),
+            MarketRegion.CHINA: PandasMarketCalendarProvider(MarketRegion.CHINA, "SSE"),
+            MarketRegion.FOREX: ForexCalendarProvider(),
+            MarketRegion.CRYPTO: CryptoCalendarProvider(),
+        }
+    )
+
+
+def build_global_market_session_resolver(
+    calendar_registry: TradingCalendarRegistry,
+) -> MarketSessionResolutionService:
+    """Construct the `MarketSessionResolutionService`. Pure composition
+    over `calendar_registry` — cannot fail, unconditional, same reasoning
+    as `build_trading_calendar_registry` above."""
+    return MarketSessionResolutionService(calendar_registry)
+
+
+def build_global_market_run_repository(logger: logging.Logger) -> BaseGlobalMarketRunRepository | None:
+    """Construct a PostgreSQL-backed Global Market Intelligence Run Repository.
+
+    Same reasoning and same graceful-degradation shape as every other
+    `build_*_repository` function in this module: `PostgreSQLSettings` is
+    read standalone, `create_async_engine` never opens a connection
+    eagerly, and table creation (DDL) is intentionally not performed here.
+    """
+    settings = PostgreSQLSettings()
+    database_url = settings.database_url or (
+        f"postgresql+asyncpg://{settings.user}:{settings.password.get_secret_value()}"
+        f"@{settings.host}:{settings.port}/{settings.db}"
+    )
+    try:
+        engine = create_async_engine(database_url)
+        session_factory = async_sessionmaker(engine, expire_on_commit=False)
+        return PostgresGlobalMarketRunRepository(session_factory)
+    except Exception as exc:  # noqa: BLE001 - an infrastructure failure must not crash startup
+        logger.warning("Failed to initialize PostgreSQL global market run repository: %s", exc)
+        return None
+
+
+def build_global_market_universe_registry() -> UniverseRegistry:
+    """Construct the `UniverseRegistry` from `DEFAULT_UNIVERSES`.
+    Unconditional — pure in-memory composition, no I/O, cannot fail. See
+    `DEFAULT_UNIVERSES`'s own docstring for why the four penny/micro-cap
+    categories are still deliberately empty (never fabricated tickers)."""
+    return UniverseRegistry(DEFAULT_UNIVERSES)
+
+
+def build_global_market_category_pipeline(market_data_provider: MarketDataProvider) -> CategoryDataPipeline:
+    """Construct the `CategoryDataPipeline` (Phase 2). Unconditional —
+    `market_data_provider` is itself always a usable instance (see
+    `build_market_data_provider`'s own docstring: `MockMarketDataProvider`
+    has no failure mode, and `YahooFinanceProvider` construction failure
+    already falls back to it there), so there is no failure mode here to
+    degrade against."""
+    return CategoryDataPipeline(market_data_provider)
+
+
+def build_global_market_ranked_asset_repository(logger: logging.Logger) -> BaseRankedAssetRepository | None:
+    """Construct a PostgreSQL-backed Ranked Asset Repository (Phase 2).
+
+    Same reasoning and same graceful-degradation shape as
+    `build_global_market_run_repository` above: `PostgreSQLSettings` is
+    read standalone, `create_async_engine` never opens a connection
+    eagerly, and table creation (DDL) is intentionally not performed here.
+    """
+    settings = PostgreSQLSettings()
+    database_url = settings.database_url or (
+        f"postgresql+asyncpg://{settings.user}:{settings.password.get_secret_value()}"
+        f"@{settings.host}:{settings.port}/{settings.db}"
+    )
+    try:
+        engine = create_async_engine(database_url)
+        session_factory = async_sessionmaker(engine, expire_on_commit=False)
+        return PostgresRankedAssetRepository(session_factory)
+    except Exception as exc:  # noqa: BLE001 - an infrastructure failure must not crash startup
+        logger.warning("Failed to initialize PostgreSQL global market ranked asset repository: %s", exc)
+        return None
+
+
+def build_global_market_report_repository(logger: logging.Logger) -> BaseIntelligenceReportRepository | None:
+    """Construct a PostgreSQL-backed Intelligence Report Repository (Phase 3).
+
+    Same reasoning and same graceful-degradation shape as
+    `build_global_market_run_repository`/`build_global_market_ranked_asset_repository`
+    above: `PostgreSQLSettings` is read standalone, `create_async_engine`
+    never opens a connection eagerly, and table creation (DDL) is
+    intentionally not performed here.
+    """
+    settings = PostgreSQLSettings()
+    database_url = settings.database_url or (
+        f"postgresql+asyncpg://{settings.user}:{settings.password.get_secret_value()}"
+        f"@{settings.host}:{settings.port}/{settings.db}"
+    )
+    try:
+        engine = create_async_engine(database_url)
+        session_factory = async_sessionmaker(engine, expire_on_commit=False)
+        return PostgresIntelligenceReportRepository(session_factory)
+    except Exception as exc:  # noqa: BLE001 - an infrastructure failure must not crash startup
+        logger.warning("Failed to initialize PostgreSQL global market report repository: %s", exc)
+        return None
+
+
+def build_global_market_intelligence_workflow(
+    session_resolver: MarketSessionResolutionService,
+    run_repository: BaseGlobalMarketRunRepository | None,
+    *,
+    category_pipeline: CategoryDataPipeline | None = None,
+    universe_registry: UniverseRegistry | None = None,
+    ranked_asset_repository: BaseRankedAssetRepository | None = None,
+    research_agent: GlobalMarketsResearchAgent | None = None,
+    penny_microcap_agent: PennyMicrocapIntelligenceAgent | None = None,
+    report_repository: BaseIntelligenceReportRepository | None = None,
+) -> GlobalMarketIntelligenceWorkflow:
+    """Construct the `GlobalMarketIntelligenceWorkflow`. Unconditional —
+    `session_resolver` is itself unconditionally constructed, and the
+    workflow's own constructor already handles every one of its
+    dependencies being `None` gracefully (see its docstring), so there is
+    no failure mode here to degrade against."""
+    return GlobalMarketIntelligenceWorkflow(
+        session_resolver,
+        run_repository,
+        category_pipeline=category_pipeline,
+        universe_registry=universe_registry,
+        ranked_asset_repository=ranked_asset_repository,
+        research_agent=research_agent,
+        penny_microcap_agent=penny_microcap_agent,
+        report_repository=report_repository,
+    )
+
+
+def register_global_market_intelligence_schedule(
+    workflow_engine: WorkflowEngine,
+    scheduler: Scheduler,
+    global_markets_workflow: GlobalMarketIntelligenceWorkflow,
+    settings: AppSettings,
+    logger: logging.Logger,
+) -> None:
+    """Register `GlobalMarketIntelligenceWorkflow` with `WorkflowEngine`
+    and schedule it — the same "always register both the workflow and the
+    Schedule, gated by one enabled switch" pattern every other
+    `register_*_schedule` function in this module already established.
+
+    Unlike every earlier `register_*_schedule` function, this one uses
+    `ScheduleTriggerType.CRON` (approved Decision 1's "08:30 Asia/Kolkata
+    every day," not a fixed interval) — `Schedule.timezone` is set
+    explicitly so `APSchedulerService._build_trigger` evaluates the cron
+    expression in `Asia/Kolkata`, never the container's own local/system
+    timezone (the gap Phase 0's own audit found and this field exists to
+    close).
+
+    `global_markets_workflow` is never `None` — `build_global_market_
+    intelligence_workflow` is unconditional (see its own docstring) —
+    unlike every other `register_*_schedule` function's own `if ... is
+    None: return` guard, which exists only for a genuinely fallible
+    dependency.
+
+    Must be called before `APSchedulerService.start()` — see
+    `register_ingestion_schedule`'s own docstring for why.
+    """
+    workflow_engine.register_workflow(GLOBAL_MARKETS_WORKFLOW_ID, global_markets_workflow)
+    scheduler.register_schedule(
+        Schedule(
+            workflow_id=GLOBAL_MARKETS_WORKFLOW_ID,
+            enabled=settings.global_markets_enabled,
+            trigger_type=ScheduleTriggerType.CRON,
+            cron_expression=settings.global_markets_report_cron,
+            timezone=settings.global_markets_report_timezone,
+            initiated_by="scheduler",
+        )
+    )
+    logger.info(
+        "Global Market Intelligence registered (enabled=%s, cron=%r, timezone=%r).",
+        settings.global_markets_enabled,
+        settings.global_markets_report_cron,
+        settings.global_markets_report_timezone,
+    )
+
+
 def build_backtesting_repository(logger: logging.Logger) -> BaseBacktestingRepository | None:
     """Construct a PostgreSQL-backed Backtesting Repository.
 
@@ -1808,6 +2070,36 @@ async def bootstrap_application_state(app: FastAPI) -> None:
     )
     register_continuous_intelligence_schedule(
         workflow_engine, scheduler, app.state.continuous_intelligence_workflow, settings, logger
+    )
+    app.state.trading_calendar_registry = build_trading_calendar_registry()
+    app.state.global_market_session_resolver = build_global_market_session_resolver(
+        app.state.trading_calendar_registry
+    )
+    app.state.global_market_run_repository = build_global_market_run_repository(logger)
+    app.state.global_market_universe_registry = build_global_market_universe_registry()
+    app.state.global_market_category_pipeline = build_global_market_category_pipeline(
+        app.state.market_data_provider
+    )
+    app.state.global_market_ranked_asset_repository = build_global_market_ranked_asset_repository(logger)
+    app.state.global_markets_research_agent = build_global_markets_research_agent(
+        runtime, app.state.llm_service, app.state.prompt_registry
+    )
+    app.state.penny_microcap_intelligence_agent = build_penny_microcap_intelligence_agent(
+        runtime, app.state.llm_service, app.state.prompt_registry
+    )
+    app.state.global_market_report_repository = build_global_market_report_repository(logger)
+    app.state.global_market_intelligence_workflow = build_global_market_intelligence_workflow(
+        app.state.global_market_session_resolver,
+        app.state.global_market_run_repository,
+        category_pipeline=app.state.global_market_category_pipeline,
+        universe_registry=app.state.global_market_universe_registry,
+        ranked_asset_repository=app.state.global_market_ranked_asset_repository,
+        research_agent=app.state.global_markets_research_agent,
+        penny_microcap_agent=app.state.penny_microcap_intelligence_agent,
+        report_repository=app.state.global_market_report_repository,
+    )
+    register_global_market_intelligence_schedule(
+        workflow_engine, scheduler, app.state.global_market_intelligence_workflow, settings, logger
     )
     if ap_scheduler_service is not None:
         await ap_scheduler_service.start()

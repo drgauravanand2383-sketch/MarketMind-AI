@@ -14,7 +14,11 @@ schedule definitions; APScheduler only executes them.
 
 Trigger translation (Schedule -> APScheduler trigger), see `_build_trigger`:
     - CRON schedules -> CronTrigger, parsed from `Schedule.cron_expression`
-      via `CronTrigger.from_crontab()` (standard 5-field crontab syntax).
+      via `CronTrigger.from_crontab()` (standard 5-field crontab syntax),
+      evaluated in `Schedule.timezone` when set (Global Market
+      Intelligence, Phase 1) — `None` (every pre-existing schedule)
+      preserves the original behavior of evaluating in the process's own
+      local/system timezone, unchanged.
     - INTERVAL schedules -> IntervalTrigger, built from
       `Schedule.interval_seconds`.
     - One-time schedules -> DateTrigger. `Schedule` (Sprint 31) has no
@@ -65,7 +69,7 @@ def _build_trigger(schedule: Schedule) -> BaseTrigger:
         return DateTrigger(run_date=run_date)
     if schedule.trigger_type is ScheduleTriggerType.CRON:
         assert schedule.cron_expression is not None  # guaranteed by Schedule's own validation
-        return CronTrigger.from_crontab(schedule.cron_expression)
+        return CronTrigger.from_crontab(schedule.cron_expression, timezone=schedule.timezone)
     assert schedule.interval_seconds is not None  # guaranteed by Schedule's own validation
     return IntervalTrigger(seconds=schedule.interval_seconds)
 

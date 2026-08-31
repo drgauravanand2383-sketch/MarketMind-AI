@@ -88,6 +88,47 @@ def test_cron_schedule_creates_a_job_with_cron_trigger() -> None:
     assert isinstance(job.trigger, CronTrigger)
 
 
+def test_cron_schedule_with_timezone_creates_a_job_evaluated_in_that_timezone() -> None:
+    """Global Market Intelligence (Phase 1): a `Schedule.timezone` must
+    reach the real `CronTrigger`, not be silently dropped — the exact gap
+    the Phase 0 audit found (a naive cron fires in the container's own
+    local/system timezone, not the requested one)."""
+    from app.scheduler.models import Schedule, ScheduleTriggerType
+
+    service, scheduler = _build_service()
+    schedule = Schedule(
+        workflow_id="global_market_intelligence",
+        trigger_type=ScheduleTriggerType.CRON,
+        cron_expression="30 8 * * *",
+        timezone="Asia/Kolkata",
+        initiated_by="scheduler",
+    )
+    scheduler.register_schedule(schedule)
+
+    service.register_schedule(schedule)
+
+    job = service._ap_scheduler.get_job("global_market_intelligence")
+    assert job is not None
+    assert isinstance(job.trigger, CronTrigger)
+    assert str(job.trigger.timezone) == "Asia/Kolkata"
+
+
+def test_cron_schedule_without_timezone_preserves_pre_existing_behavior() -> None:
+    """A `Schedule` with no `timezone` set (every schedule registered
+    before Global Market Intelligence) must behave exactly as before —
+    `CronTrigger`'s own default (the local/system timezone), never a
+    forced UTC or other implicit change."""
+    service, scheduler = _build_service()
+    schedule = cron_schedule("morning_brief")
+    scheduler.register_schedule(schedule)
+
+    service.register_schedule(schedule)
+
+    job = service._ap_scheduler.get_job("morning_brief")
+    assert job is not None
+    assert isinstance(job.trigger, CronTrigger)
+
+
 def test_interval_schedule_creates_a_job_with_interval_trigger() -> None:
     service, scheduler = _build_service()
     schedule = interval_schedule("morning_brief", interval_seconds=120.0)

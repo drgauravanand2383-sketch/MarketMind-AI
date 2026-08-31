@@ -36,6 +36,27 @@ def test_cron_schedule_constructs_successfully() -> None:
     assert schedule.interval_seconds is None
 
 
+def test_cron_schedule_accepts_an_explicit_timezone() -> None:
+    schedule = Schedule(
+        workflow_id="global_market_intelligence",
+        trigger_type=ScheduleTriggerType.CRON,
+        cron_expression="30 8 * * *",
+        timezone="Asia/Kolkata",
+        initiated_by="scheduler",
+    )
+    assert schedule.timezone == "Asia/Kolkata"
+
+
+def test_timezone_defaults_to_none() -> None:
+    schedule = Schedule(
+        workflow_id="morning_brief",
+        trigger_type=ScheduleTriggerType.CRON,
+        cron_expression="0 6 * * *",
+        initiated_by="scheduler",
+    )
+    assert schedule.timezone is None
+
+
 def test_enabled_defaults_to_true() -> None:
     schedule = Schedule(
         workflow_id="morning_brief",

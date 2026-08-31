@@ -93,7 +93,7 @@ def test_current_revision_is_the_head_after_upgrade(alembic_config: Config, sqli
         (version,) = connection.execute("SELECT version_num FROM alembic_version").fetchone()
     finally:
         connection.close()
-    assert version == "0006_alert_explanation"
+    assert version == "0009_global_market_reports"
 
 
 # --- Milestone 16 regression: revision id width vs alembic_version column -------------------------

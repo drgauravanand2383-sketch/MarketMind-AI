@@ -63,6 +63,14 @@ class Schedule(BaseModel):
     trigger_type: ScheduleTriggerType
     interval_seconds: float | None = Field(default=None, gt=0)
     cron_expression: str | None = Field(default=None, min_length=1)
+    timezone: str | None = Field(default=None, min_length=1)
+    """IANA timezone name (e.g. `"Asia/Kolkata"`) a CRON schedule's
+    `cron_expression` is evaluated in. `None` (the default, unchanged
+    behavior for every pre-existing schedule) means the process's own
+    local/system timezone — `APSchedulerService._build_trigger` passes
+    this straight to `CronTrigger.from_crontab(cron_expression,
+    timezone=...)`. Ignored for INTERVAL schedules (interval firing has
+    no timezone-dependent "time of day" to anchor)."""
     initiated_by: str
     metadata: dict[str, Any] = Field(default_factory=dict)
 

@@ -26,6 +26,16 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "feedparser>=6.0.11",
     "apscheduler>=3.10.0,<4.0.0",
+    # Global Market Intelligence (approved trading-calendar dependency):
+    # audited live before adding — get_calendar_names() confirms real,
+    # unit-tested coverage for NSE/BSE (India), NYSE/NASDAQ (US), and SSE
+    # (China Shanghai). Shenzhen (SZSE) has no dedicated calendar in this
+    # library; app.global_markets.calendar treats it as SSE-equivalent,
+    # documented explicitly there rather than assumed silently. Wrapped
+    # entirely behind app.global_markets.calendar.provider
+    # .TradingCalendarProvider — no other module imports this package
+    # directly.
+    "pandas_market_calendars>=5.4.0",
 ]
 
 [dependency-groups]
@@ -105,6 +115,7 @@ extend-immutable-calls = [
 "tests/api/v1/auth/conftest.py" = ["F811"]
 "tests/api/v1/backtests/conftest.py" = ["F811"]
 "tests/api/v1/explainability/conftest.py" = ["F811"]
+"tests/api/v1/global_markets/conftest.py" = ["F811"]
 "tests/api/v1/research/conftest.py" = ["F811"]
 "tests/api/v1/screening/conftest.py" = ["F811"]
 "tests/api/v1/signals/conftest.py" = ["F811"]
@@ -116,13 +127,17 @@ extend-immutable-calls = [
 python_version = "3.13"
 strict = true
 
-# Both ship no py.typed marker / stub package — mypy cannot analyze their
-# internals regardless of how this codebase uses them, so `strict = true`
-# above degrades to "trust the runtime, don't type-check across this
-# boundary" for these two specific third-party libraries only. Every other
-# dependency remains fully strict-checked.
+# All four ship no py.typed marker / stub package this environment has
+# installed — mypy cannot analyze their internals regardless of how this
+# codebase uses them, so `strict = true` above degrades to "trust the
+# runtime, don't type-check across this boundary" for these specific
+# third-party libraries only. Every other dependency remains fully
+# strict-checked. (pandas/pandas_market_calendars: Global Market
+# Intelligence's trading-calendar dependency — see
+# app.global_markets.calendar.pandas_calendar's own docstring; installing
+# pandas-stubs would be a new dependency of its own, not adopted here.)
 [[tool.mypy.overrides]]
-module = ["feedparser", "apscheduler.*"]
+module = ["feedparser", "apscheduler.*", "pandas", "pandas_market_calendars"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

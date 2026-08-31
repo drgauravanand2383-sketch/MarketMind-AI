@@ -41,9 +41,29 @@ backend/
                                      produced each alert (see
                                      docs/architecture/CONTINUOUS_INTELLIGENCE.md
                                      §18)
+      0007_global_market_runs.py    Global Market Intelligence, Phase 1:
+                                     creates `global_market_intelligence_runs`
+                                     — one row per daily (or manual/retry)
+                                     run, tracking every reporting
+                                     category's own independent outcome
+      0008_global_market_ranked_assets.py
+                                     Global Market Intelligence, Phase 2:
+                                     creates `global_market_ranked_assets`
+                                     — one row per (run, category, ticker)
+                                     ranked result, replaceable per
+                                     category for idempotent retries
+      0009_global_market_reports.py Global Market Intelligence, Phase 3:
+                                     creates `global_market_intelligence_reports`
+                                     — one row per (run, category) LLM-
+                                     generated narrative report, upserted
+                                     in place per category for idempotent
+                                     retries
 ```
 
-Current head: `0006_alert_explanation`. Every migration is column/table-existence-checked (never assumed) and is exercised by a real Alembic upgrade/downgrade cycle in `tests/operations/` — see
+Current head: `0009_global_market_reports` (see the revision-id-length note below for why `0008`'s own
+stored revision id is the shorter `0008_global_market_ranked` rather than its full filename). Every
+migration is column/table-existence-checked (never assumed) and is exercised by a real Alembic
+upgrade/downgrade cycle in `tests/operations/` — see
 `tests/operations/test_alembic_environment.py` and
 `tests/operations/test_continuous_intelligence_persistence_migration.py`.
 

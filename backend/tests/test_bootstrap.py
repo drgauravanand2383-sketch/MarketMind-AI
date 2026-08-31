@@ -31,6 +31,14 @@ from app.bootstrap import (
     build_entity_resolution_service,
     build_explainability_repository,
     build_explainability_service,
+    build_global_market_category_pipeline,
+    build_global_market_intelligence_workflow,
+    build_global_market_ranked_asset_repository,
+    build_global_market_report_repository,
+    build_global_market_run_repository,
+    build_global_market_session_resolver,
+    build_global_market_universe_registry,
+    build_global_markets_research_agent,
     build_health_check_service,
     build_initial_analysis_service,
     build_jwt_signer,
@@ -43,6 +51,7 @@ from app.bootstrap import (
     build_news_collector_agent,
     build_normalization_service,
     build_password_hasher,
+    build_penny_microcap_intelligence_agent,
     build_policy_evaluator,
     build_portfolio_intelligence_agent,
     build_portfolio_market_snapshot_service,
@@ -61,6 +70,7 @@ from app.bootstrap import (
     build_strategy_repository,
     build_strategy_service,
     build_structured_logger,
+    build_trading_calendar_registry,
     build_watchlist_repository,
     build_watchlist_service,
 )
@@ -1138,3 +1148,185 @@ def test_build_portfolio_intelligence_agent_returns_an_agent_when_dependencies_a
     agent = build_portfolio_intelligence_agent(runtime, hub, llm_service, registry, company_research_agent)
 
     assert isinstance(agent, PortfolioIntelligenceAgent)
+
+
+# --- Global Market Intelligence (Phase 1) -----------------------------------------------------------
+
+
+def test_build_trading_calendar_registry_covers_every_market_region() -> None:
+    from app.global_markets.models import MarketRegion
+
+    registry = build_trading_calendar_registry()
+
+    assert set(registry.supported_regions()) == set(MarketRegion)
+
+
+def test_build_global_market_session_resolver_returns_a_resolver() -> None:
+    from app.global_markets.session.resolver import MarketSessionResolutionService
+
+    registry = build_trading_calendar_registry()
+
+    resolver = build_global_market_session_resolver(registry)
+
+    assert isinstance(resolver, MarketSessionResolutionService)
+
+
+def test_build_global_market_run_repository_does_not_raise() -> None:
+    """`create_async_engine` never opens a connection eagerly, so this
+    always succeeds for a syntactically valid URL, regardless of whether a
+    PostgreSQL server is actually reachable."""
+    result = build_global_market_run_repository(_LOGGER)
+    assert result is None or hasattr(result, "create_run")
+
+
+def test_build_global_market_intelligence_workflow_always_returns_a_workflow() -> None:
+    from app.workflows.global_markets.pipeline import GlobalMarketIntelligenceWorkflow
+
+    registry = build_trading_calendar_registry()
+    resolver = build_global_market_session_resolver(registry)
+
+    workflow = build_global_market_intelligence_workflow(resolver, None)
+
+    assert isinstance(workflow, GlobalMarketIntelligenceWorkflow)
+
+
+# --- Global Market Intelligence (Phase 2) -----------------------------------------------------------
+
+
+def test_build_global_market_universe_registry_covers_every_report_category() -> None:
+    from app.global_markets.models import ReportCategory
+    from app.global_markets.universe.registry import UniverseRegistry
+
+    registry = build_global_market_universe_registry()
+
+    assert isinstance(registry, UniverseRegistry)
+    assert registry.get(ReportCategory.US_EQUITY) != ()
+
+
+def test_build_global_market_category_pipeline_returns_a_pipeline() -> None:
+    from app.global_markets.pipeline.category_pipeline import CategoryDataPipeline
+    from app.providers.market_data.mock import MockMarketDataProvider
+
+    pipeline = build_global_market_category_pipeline(MockMarketDataProvider())
+
+    assert isinstance(pipeline, CategoryDataPipeline)
+
+
+def test_build_global_market_ranked_asset_repository_does_not_raise() -> None:
+    """`create_async_engine` never opens a connection eagerly, so this
+    always succeeds for a syntactically valid URL, regardless of whether a
+    PostgreSQL server is actually reachable."""
+    result = build_global_market_ranked_asset_repository(_LOGGER)
+    assert result is None or hasattr(result, "replace_ranked_assets")
+
+
+def test_build_global_market_intelligence_workflow_accepts_phase_2_and_3_dependencies() -> None:
+    from app.global_markets.pipeline.category_pipeline import CategoryDataPipeline
+    from app.providers.market_data.mock import MockMarketDataProvider
+    from app.workflows.global_markets.pipeline import GlobalMarketIntelligenceWorkflow
+
+    registry = build_trading_calendar_registry()
+    resolver = build_global_market_session_resolver(registry)
+    pipeline = CategoryDataPipeline(MockMarketDataProvider())
+    universe_registry = build_global_market_universe_registry()
+
+    workflow = build_global_market_intelligence_workflow(
+        resolver,
+        None,
+        category_pipeline=pipeline,
+        universe_registry=universe_registry,
+        ranked_asset_repository=None,
+    )
+
+    assert isinstance(workflow, GlobalMarketIntelligenceWorkflow)
+
+
+# --- Global Market Intelligence (Phase 3) -----------------------------------------------------------
+
+
+def test_build_global_markets_research_agent_returns_none_without_llm_service() -> None:
+    runtime = _build_test_runtime()
+    registry = build_prompt_registry()
+
+    result = build_global_markets_research_agent(runtime, None, registry)
+
+    assert result is None
+
+
+def test_build_global_markets_research_agent_returns_an_agent_when_dependencies_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.agents.global_markets_research.agent import GlobalMarketsResearchAgent
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-key")
+    runtime = _build_test_runtime()
+    registry = build_prompt_registry()
+    llm_service = build_llm_service(_LOGGER)
+
+    agent = build_global_markets_research_agent(runtime, llm_service, registry)
+
+    assert isinstance(agent, GlobalMarketsResearchAgent)
+
+
+def test_build_penny_microcap_intelligence_agent_returns_none_without_llm_service() -> None:
+    runtime = _build_test_runtime()
+    registry = build_prompt_registry()
+
+    result = build_penny_microcap_intelligence_agent(runtime, None, registry)
+
+    assert result is None
+
+
+def test_build_penny_microcap_intelligence_agent_returns_an_agent_when_dependencies_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.agents.penny_microcap_intelligence.agent import PennyMicrocapIntelligenceAgent
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-key")
+    runtime = _build_test_runtime()
+    registry = build_prompt_registry()
+    llm_service = build_llm_service(_LOGGER)
+
+    agent = build_penny_microcap_intelligence_agent(runtime, llm_service, registry)
+
+    assert isinstance(agent, PennyMicrocapIntelligenceAgent)
+
+
+def test_build_global_market_report_repository_does_not_raise() -> None:
+    """`create_async_engine` never opens a connection eagerly, so this
+    always succeeds for a syntactically valid URL, regardless of whether a
+    PostgreSQL server is actually reachable."""
+    result = build_global_market_report_repository(_LOGGER)
+    assert result is None or hasattr(result, "save_report")
+
+
+def test_build_global_market_intelligence_workflow_accepts_phase_3_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.global_markets.pipeline.category_pipeline import CategoryDataPipeline
+    from app.providers.market_data.mock import MockMarketDataProvider
+    from app.workflows.global_markets.pipeline import GlobalMarketIntelligenceWorkflow
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-key")
+    registry = build_trading_calendar_registry()
+    resolver = build_global_market_session_resolver(registry)
+    pipeline = CategoryDataPipeline(MockMarketDataProvider())
+    universe_registry = build_global_market_universe_registry()
+    runtime = _build_test_runtime()
+    prompt_registry = build_prompt_registry()
+    llm_service = build_llm_service(_LOGGER)
+    research_agent = build_global_markets_research_agent(runtime, llm_service, prompt_registry)
+    penny_agent = build_penny_microcap_intelligence_agent(runtime, llm_service, prompt_registry)
+
+    workflow = build_global_market_intelligence_workflow(
+        resolver,
+        None,
+        category_pipeline=pipeline,
+        universe_registry=universe_registry,
+        ranked_asset_repository=None,
+        research_agent=research_agent,
+        penny_microcap_agent=penny_agent,
+        report_repository=None,
+    )
+
+    assert isinstance(workflow, GlobalMarketIntelligenceWorkflow)

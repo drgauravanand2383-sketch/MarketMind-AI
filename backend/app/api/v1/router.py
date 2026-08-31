@@ -16,6 +16,7 @@ from app.api.v1.alerts import router as alerts_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.backtests import router as backtests_router
 from app.api.v1.explainability import router as explainability_router
+from app.api.v1.global_markets import router as global_markets_router
 from app.api.v1.portfolio import router as portfolio_router
 from app.api.v1.research import router as research_router
 from app.api.v1.routers.capabilities import router as capabilities_router
@@ -46,3 +47,4 @@ router.include_router(alerts_router)
 router.include_router(strategies_router)
 router.include_router(backtests_router)
 router.include_router(explainability_router)
+router.include_router(global_markets_router)

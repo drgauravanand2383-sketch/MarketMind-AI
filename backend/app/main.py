@@ -117,6 +117,15 @@ OPENAPI_TAGS_METADATA = [
         ),
     },
     {
+        "name": "Global Markets",
+        "description": (
+            "Authenticated, read-only Global Market Intelligence data — runs, ranked assets, "
+            "and LLM-generated narrative reports across nine daily reporting categories. "
+            "Every entity is produced by the scheduled GlobalMarketIntelligenceWorkflow; "
+            "this API exposes no trigger/write endpoint."
+        ),
+    },
+    {
         "name": "Real-Time Events",
         "description": (
             "WebSocket delivery of already-completed backend events (`/ws`) — "

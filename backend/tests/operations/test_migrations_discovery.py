@@ -15,7 +15,7 @@ from app.operations.migrations.discovery import (
 
 def test_collect_metadata_returns_one_entry_per_repository_package() -> None:
     metadata = collect_metadata()
-    assert len(metadata) == 12
+    assert len(metadata) == 13
     assert all(isinstance(m, MetaData) for m in metadata)
 
 
@@ -34,6 +34,9 @@ def test_collect_table_names_includes_known_tables() -> None:
     assert "auth_roles" in names
     assert "auth_revoked_tokens" in names
     assert "continuous_intelligence_state" in names
+    assert "global_market_intelligence_runs" in names
+    assert "global_market_ranked_assets" in names
+    assert "global_market_intelligence_reports" in names
 
 
 def test_collect_table_names_is_sorted() -> None:

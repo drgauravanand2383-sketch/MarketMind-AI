@@ -28,6 +28,7 @@ from app.repositories.continuous_intelligence.postgres.models import (
     Base as ContinuousIntelligenceBase,
 )
 from app.repositories.explainability.postgres.models import Base as ExplainabilityBase
+from app.repositories.global_markets.postgres.models import Base as GlobalMarketsBase
 from app.repositories.knowledge.postgres.models import Base as KnowledgeBase
 from app.repositories.recommendations.postgres.models import Base as RecommendationsBase
 from app.repositories.risk.postgres.models import Base as RiskBase
@@ -44,6 +45,7 @@ _BASES: tuple[type[DeclarativeBase], ...] = (
     BacktestingBase,
     ContinuousIntelligenceBase,
     ExplainabilityBase,
+    GlobalMarketsBase,
     KnowledgeBase,
     RecommendationsBase,
     RiskBase,

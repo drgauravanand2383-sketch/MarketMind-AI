@@ -57,6 +57,7 @@ def test_openapi_declares_the_health_and_system_tags() -> None:
         "Strategy Evaluation",
         "Backtesting",
         "Explainability",
+        "Global Markets",
         "Real-Time Events",
     }
     assert all(tag["description"] for tag in OPENAPI_TAGS_METADATA)
