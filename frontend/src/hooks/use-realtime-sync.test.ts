@@ -3,7 +3,8 @@ import { act, waitFor } from "@testing-library/react";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
 import { renderHookWithQueryClient } from "@/test/test-utils";
 import { buildDomainEvent, buildEventEnvelope, installFakeWebSocket } from "@/test/mock-websocket";
-import { buildAlert, buildBacktestResult, buildDetectedChange, testUser } from "@/test/msw/fixtures";
+import { buildAlert, buildBacktestResult, buildDetectedChange, buildIntelligenceRun, testUser } from "@/test/msw/fixtures";
+import { globalMarketsKeys } from "@/hooks/use-global-markets";
 import { useAuthStore } from "@/store/auth-store";
 import { useNotificationStore } from "@/store/notification-store";
 import { usePreferencesStore } from "@/store/preferences-store";
@@ -15,7 +16,9 @@ describe("useRealtimeSync", () => {
 
   beforeEach(() => {
     ({ lastSocket } = installFakeWebSocket());
-    useAuthStore.setState({ user: { ...testUser, permissions: ["alerts:read", "backtest:read", "portfolio:read", "strategy:read", "explainability:read"] } });
+    useAuthStore.setState({
+      user: { ...testUser, permissions: ["alerts:read", "backtest:read", "portfolio:read", "strategy:read", "explainability:read", "global_markets:read"] },
+    });
     useNotificationStore.setState({ notifications: [] });
     usePreferencesStore.getState().resetAll();
     useRealtimeNotificationStore.setState({ entries: [] });
@@ -73,6 +76,58 @@ describe("useRealtimeSync", () => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["backtests", "run", "run-9"] });
     });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["backtests", "results", "run-9"] });
+  });
+
+  it("on a GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED event: invalidates the latest-run and per-run caches, records a notification entry, and fires a success toast for a COMPLETED run", async () => {
+    const { queryClient } = renderHookWithQueryClient(() => {
+      useRealtimeSync();
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    act(() => {
+      lastSocket().simulateOpen();
+      lastSocket().simulateMessage(
+        buildEventEnvelope(buildDomainEvent("GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED", buildIntelligenceRun({ id: "run-9", status: "COMPLETED" }))),
+      );
+    });
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: globalMarketsKeys.latestRun() });
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: globalMarketsKeys.run("run-9") });
+    expect(useRealtimeNotificationStore.getState().entries).toHaveLength(1);
+    expect(useRealtimeNotificationStore.getState().entries[0]?.domain).toBe("global_markets");
+    const toast = useNotificationStore.getState().notifications[0];
+    expect(toast?.type).toBe("success");
+  });
+
+  it("on a GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED event with FAILED status: fires a pinned error toast, never a misleading success", async () => {
+    renderHookWithQueryClient(() => {
+      useRealtimeSync();
+    });
+
+    act(() => {
+      lastSocket().simulateOpen();
+      lastSocket().simulateMessage(
+        buildEventEnvelope(
+          buildDomainEvent(
+            "GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED",
+            buildIntelligenceRun({
+              id: "run-10",
+              status: "FAILED",
+              category_outcomes: [{ category: "INDIA_EQUITY", succeeded: false, error: "provider unavailable" }],
+            }),
+          ),
+        ),
+      );
+    });
+
+    await waitFor(() => {
+      expect(useRealtimeNotificationStore.getState().entries).toHaveLength(1);
+    });
+    expect(useRealtimeNotificationStore.getState().entries[0]?.priority).toBe("CRITICAL");
+    const toast = useNotificationStore.getState().notifications[0];
+    expect(toast?.type).toBe("error");
   });
 
   it("a RISK_ASSESSMENT_COMPLETED event (never sent by the real backend, but simulated here) produces no notification entry", async () => {

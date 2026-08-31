@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { alertsKeys } from "@/hooks/use-alerts";
 import { backtestingKeys } from "@/hooks/use-backtesting";
 import { explainabilityKeys } from "@/hooks/use-explainability";
+import { globalMarketsKeys } from "@/hooks/use-global-markets";
 import { portfolioKeys } from "@/hooks/use-portfolio";
 import { strategyKeys } from "@/hooks/use-strategy";
 import type { DomainEvent } from "@/types/websocket";
@@ -90,6 +91,15 @@ export function invalidateForEvent(queryClient: QueryClient, event: DomainEvent)
       // — the Notification Center still surfaces the change either way.
       break;
     }
+    case "GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED":
+      // The payload carries the full IntelligenceRun, but never its
+      // ranked assets/reports — refetch "latest run" plus this run's own
+      // cache entry so every open category panel picks up fresh data,
+      // rather than trying to patch the cache from a payload that
+      // doesn't carry what those panels need.
+      void queryClient.invalidateQueries({ queryKey: globalMarketsKeys.latestRun() });
+      void queryClient.invalidateQueries({ queryKey: globalMarketsKeys.run(event.payload.id) });
+      break;
     default:
       assertNever(event);
   }

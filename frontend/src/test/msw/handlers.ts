@@ -42,6 +42,8 @@ import { evaluateAlerts, evaluateSignalDefinition, evaluateStrategies } from "@/
 import { getSignalDefinition, getStrategy, listAlerts, listEnabledAlertRules, listSignalDefinitions, listStrategies, nextAlertIdValue, appendAlerts } from "@/test/msw/decision-center-store";
 import { createBacktest, getBacktestResult, getBacktestRun } from "@/test/msw/backtesting-store";
 import { generateExplanation, getExplainabilityResult } from "@/test/msw/explainability-store";
+import { getLatestRun, getRankedAssets, getReport, getRun } from "@/test/msw/global-markets-store";
+import type { ReportCategory } from "@/types/global-markets";
 import type { AddCompanyRequest, CreateWatchlistRequest, RenameWatchlistRequest, UpdateNotesRequest, WatchlistItem } from "@/types/watchlist";
 import type { BatchCompanyResearchRequest, CompanyResearchReport, CompanyResearchReportEnvelope, CompanyResearchRequest } from "@/types/research";
 import type {
@@ -507,5 +509,32 @@ export const handlers = [
     const result = getExplainabilityResult(String(params.requestId));
     if (!result) return notFound();
     return HttpResponse.json(wrapSuccess(result));
+  }),
+
+  // Global Markets — read-only. Literal `/runs/latest` registered before
+  // the bare `/runs/:runId`, same registration-order convention as
+  // `/portfolio/summary` etc. above (and the real backend router's own
+  // `/runs/latest` docstring).
+  http.get(`${API_BASE_URL}/global-markets/runs/latest`, () => {
+    const run = getLatestRun();
+    if (!run) return notFound();
+    return HttpResponse.json(wrapSuccess(run));
+  }),
+
+  http.get(`${API_BASE_URL}/global-markets/runs/:runId`, ({ params }) => {
+    const run = getRun(String(params.runId));
+    if (!run) return notFound();
+    return HttpResponse.json(wrapSuccess(run));
+  }),
+
+  http.get(`${API_BASE_URL}/global-markets/runs/:runId/categories/:category/ranked-assets`, ({ params }) => {
+    const data = getRankedAssets(String(params.runId), params.category as ReportCategory);
+    return HttpResponse.json({ data, total: data.length, page: 1, page_size: data.length || 1, meta: buildMeta() });
+  }),
+
+  http.get(`${API_BASE_URL}/global-markets/runs/:runId/categories/:category/report`, ({ params }) => {
+    const report = getReport(String(params.runId), params.category as ReportCategory);
+    if (!report) return notFound();
+    return HttpResponse.json(wrapSuccess(report));
   }),
 ];

@@ -16,6 +16,7 @@ import { Route as UnauthorizedRouteImport } from './../pages/unauthorized'
 import { Route as AuthenticatedIndexRouteImport } from './../pages/_authenticated/index'
 import { Route as AuthenticatedDecisionsIndexRouteImport } from './../pages/_authenticated/decisions/index'
 import { Route as AuthenticatedDecisionsPortfolioIdRouteImport } from './../pages/_authenticated/decisions/$portfolioId'
+import { Route as AuthenticatedGlobalMarketsIndexRouteImport } from './../pages/_authenticated/global-markets/index'
 import { Route as AuthenticatedHistoricalAnalysisIndexRouteImport } from './../pages/_authenticated/historical-analysis/index'
 import { Route as AuthenticatedNotificationsIndexRouteImport } from './../pages/_authenticated/notifications/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './../pages/_authenticated/profile/index'
@@ -71,6 +72,12 @@ const AuthenticatedDecisionsPortfolioIdRoute =
   AuthenticatedDecisionsPortfolioIdRouteImport.update({
     id: '/decisions/$portfolioId',
     path: '/decisions/$portfolioId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedGlobalMarketsIndexRoute =
+  AuthenticatedGlobalMarketsIndexRouteImport.update({
+    id: '/global-markets/',
+    path: '/global-markets/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedHistoricalAnalysisIndexRoute =
@@ -207,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/screening/compare': typeof AuthenticatedScreeningCompareRoute
   '/watchlists/$watchlistId': typeof AuthenticatedWatchlistsWatchlistIdRoute
   '/decisions/': typeof AuthenticatedDecisionsIndexRoute
+  '/global-markets/': typeof AuthenticatedGlobalMarketsIndexRoute
   '/historical-analysis/': typeof AuthenticatedHistoricalAnalysisIndexRoute
   '/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
@@ -235,6 +243,7 @@ export interface FileRoutesByTo {
   '/screening/compare': typeof AuthenticatedScreeningCompareRoute
   '/watchlists/$watchlistId': typeof AuthenticatedWatchlistsWatchlistIdRoute
   '/decisions': typeof AuthenticatedDecisionsIndexRoute
+  '/global-markets': typeof AuthenticatedGlobalMarketsIndexRoute
   '/historical-analysis': typeof AuthenticatedHistoricalAnalysisIndexRoute
   '/notifications': typeof AuthenticatedNotificationsIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
@@ -265,6 +274,7 @@ export interface FileRoutesById {
   '/_authenticated/screening/compare': typeof AuthenticatedScreeningCompareRoute
   '/_authenticated/watchlists/$watchlistId': typeof AuthenticatedWatchlistsWatchlistIdRoute
   '/_authenticated/decisions/': typeof AuthenticatedDecisionsIndexRoute
+  '/_authenticated/global-markets/': typeof AuthenticatedGlobalMarketsIndexRoute
   '/_authenticated/historical-analysis/': typeof AuthenticatedHistoricalAnalysisIndexRoute
   '/_authenticated/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
@@ -295,6 +305,7 @@ export interface FileRouteTypes {
     | '/screening/compare'
     | '/watchlists/$watchlistId'
     | '/decisions/'
+    | '/global-markets/'
     | '/historical-analysis/'
     | '/notifications/'
     | '/profile/'
@@ -323,6 +334,7 @@ export interface FileRouteTypes {
     | '/screening/compare'
     | '/watchlists/$watchlistId'
     | '/decisions'
+    | '/global-markets'
     | '/historical-analysis'
     | '/notifications'
     | '/profile'
@@ -352,6 +364,7 @@ export interface FileRouteTypes {
     | '/_authenticated/screening/compare'
     | '/_authenticated/watchlists/$watchlistId'
     | '/_authenticated/decisions/'
+    | '/_authenticated/global-markets/'
     | '/_authenticated/historical-analysis/'
     | '/_authenticated/notifications/'
     | '/_authenticated/profile/'
@@ -424,6 +437,13 @@ declare module '@tanstack/react-router' {
       path: '/decisions/$portfolioId'
       fullPath: '/decisions/$portfolioId'
       preLoaderRoute: typeof AuthenticatedDecisionsPortfolioIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/global-markets/': {
+      id: '/_authenticated/global-markets/'
+      path: '/global-markets'
+      fullPath: '/global-markets/'
+      preLoaderRoute: typeof AuthenticatedGlobalMarketsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/historical-analysis/': {
@@ -579,6 +599,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedScreeningCompareRoute: typeof AuthenticatedScreeningCompareRoute
   AuthenticatedWatchlistsWatchlistIdRoute: typeof AuthenticatedWatchlistsWatchlistIdRoute
   AuthenticatedDecisionsIndexRoute: typeof AuthenticatedDecisionsIndexRoute
+  AuthenticatedGlobalMarketsIndexRoute: typeof AuthenticatedGlobalMarketsIndexRoute
   AuthenticatedHistoricalAnalysisIndexRoute: typeof AuthenticatedHistoricalAnalysisIndexRoute
   AuthenticatedNotificationsIndexRoute: typeof AuthenticatedNotificationsIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
@@ -607,6 +628,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedWatchlistsWatchlistIdRoute:
     AuthenticatedWatchlistsWatchlistIdRoute,
   AuthenticatedDecisionsIndexRoute: AuthenticatedDecisionsIndexRoute,
+  AuthenticatedGlobalMarketsIndexRoute: AuthenticatedGlobalMarketsIndexRoute,
   AuthenticatedHistoricalAnalysisIndexRoute:
     AuthenticatedHistoricalAnalysisIndexRoute,
   AuthenticatedNotificationsIndexRoute: AuthenticatedNotificationsIndexRoute,

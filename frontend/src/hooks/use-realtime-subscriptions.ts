@@ -23,6 +23,7 @@ const EVENT_TYPE_PERMISSIONS: Record<
   EXPLAINABILITY_COMPLETED: "explainability:read",
   PORTFOLIO_INTELLIGENCE_UPDATED: "portfolio:read",
   PORTFOLIO_INTELLIGENCE_CHANGED: "portfolio:read",
+  GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED: "global_markets:read",
 };
 
 /** Needs authentication only, no specific permission — mirrors the

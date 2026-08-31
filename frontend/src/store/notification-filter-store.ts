@@ -6,7 +6,7 @@ import type { NotificationFilterSnapshot } from "@/types/preferences";
 export type NotificationReadFilter = "all" | "unread" | "read";
 
 export const ALL_NOTIFICATION_DOMAINS: NotificationDomain[] = [
-  "alerts", "backtests", "recommendations", "strategy", "explainability", "health", "market", "news", "decisions",
+  "alerts", "backtests", "recommendations", "strategy", "explainability", "health", "market", "news", "decisions", "global_markets",
 ];
 
 interface NotificationFilterState {

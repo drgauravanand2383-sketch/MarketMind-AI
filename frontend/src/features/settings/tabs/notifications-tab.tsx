@@ -15,6 +15,7 @@ const DOMAIN_LABELS: Record<NotificationDomain, string> = {
   market: "Market",
   news: "News",
   decisions: "Decisions",
+  global_markets: "Global Markets",
 };
 const ALL_DOMAINS = Object.keys(DOMAIN_LABELS) as NotificationDomain[];
 

@@ -32,7 +32,7 @@ const DEFAULT_CHARTS: ChartPreferences = {
 };
 
 const ALL_NOTIFICATION_DOMAINS: NotificationDomain[] = [
-  "alerts", "backtests", "recommendations", "strategy", "explainability", "health", "market", "news", "decisions",
+  "alerts", "backtests", "recommendations", "strategy", "explainability", "health", "market", "news", "decisions", "global_markets",
 ];
 
 const DEFAULT_NOTIFICATIONS: NotificationPreferences = {

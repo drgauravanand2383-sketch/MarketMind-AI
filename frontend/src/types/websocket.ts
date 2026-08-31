@@ -2,6 +2,7 @@ import type { Alert } from "@/types/alerts";
 import type { BacktestResult, BacktestRun } from "@/types/backtesting";
 import type { DetectedChange } from "@/types/continuous-intelligence";
 import type { ExplainabilityResult } from "@/types/explainability";
+import type { IntelligenceRun } from "@/types/global-markets";
 import type { ApplicationHealth } from "@/types/health";
 import type { MarketDataRefreshResult, PortfolioIntelligenceReport, RecommendationResult, RiskAssessment } from "@/types/portfolio";
 import type { StrategyEvaluationResult } from "@/types/strategy";
@@ -26,7 +27,8 @@ export type EventType =
   | "PORTFOLIO_INTELLIGENCE_UPDATED"
   | "SIGNIFICANT_MARKET_CHANGE"
   | "SIGNIFICANT_NEWS_UPDATE"
-  | "PORTFOLIO_INTELLIGENCE_CHANGED";
+  | "PORTFOLIO_INTELLIGENCE_CHANGED"
+  | "GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED";
 
 export interface EventMetadata {
   connection_id: string;
@@ -63,6 +65,13 @@ export interface BaseEvent<TPayload = unknown> {
  * UPDATED`; Milestone 15 added `SIGNIFICANT_MARKET_CHANGE`/
  * `SIGNIFICANT_NEWS_UPDATE`/`PORTFOLIO_INTELLIGENCE_CHANGED` — all five
  * are real, published events (unlike `RISK_ASSESSMENT_COMPLETED` above).
+ *
+ * `GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED` (Phase 5) publishes once a
+ * `GlobalMarketIntelligenceWorkflow` run reaches a terminal state
+ * (COMPLETED/PARTIAL/FAILED, distinguished by `payload.status`) and is
+ * durably persisted — never before persistence, never on an idempotent
+ * re-execution for the same `run_date`. See
+ * `docs/architecture/GLOBAL_MARKET_INTELLIGENCE.md` §13.
  */
 export type DomainEvent =
   | (BaseEvent<Alert> & { event_type: "ALERT_GENERATED" })
@@ -77,7 +86,8 @@ export type DomainEvent =
   | (BaseEvent<PortfolioIntelligenceReport> & { event_type: "PORTFOLIO_INTELLIGENCE_UPDATED" })
   | (BaseEvent<DetectedChange> & { event_type: "SIGNIFICANT_MARKET_CHANGE" })
   | (BaseEvent<DetectedChange> & { event_type: "SIGNIFICANT_NEWS_UPDATE" })
-  | (BaseEvent<DetectedChange> & { event_type: "PORTFOLIO_INTELLIGENCE_CHANGED" });
+  | (BaseEvent<DetectedChange> & { event_type: "PORTFOLIO_INTELLIGENCE_CHANGED" })
+  | (BaseEvent<IntelligenceRun> & { event_type: "GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED" });
 
 // --- Outbound (server -> client) -----------------------------------------------------------
 

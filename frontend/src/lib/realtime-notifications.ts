@@ -1,10 +1,19 @@
 import type { PriorityLevel } from "@/components/priority-badge";
 import type { ChangePriority } from "@/types/continuous-intelligence";
+import type { IntelligenceRunStatus } from "@/types/global-markets";
 import type { NotificationCenterEntry } from "@/store/realtime-notification-store";
 import type { DomainEvent } from "@/types/websocket";
 
 function signed(value: number): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+/** `IntelligenceRunStatus` has no natural `PriorityLevel` equivalent
+ * (it's a completeness signal, not a severity one) except FAILED, which
+ * is worth surfacing as loud as a CRITICAL alert — every category
+ * failed, so the whole report is unavailable. */
+function runStatusPriority(status: IntelligenceRunStatus): PriorityLevel | null {
+  return status === "FAILED" ? "CRITICAL" : status === "PARTIAL" ? "MODERATE" : null;
 }
 
 /** v1.2 Priority 2: `undefined` unless the event genuinely impacted more
@@ -202,6 +211,33 @@ export function toNotificationEntry(event: DomainEvent): NotificationCenterEntry
             occurredAt: event.timestamp,
           },
         }),
+      };
+    }
+    case "GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED": {
+      const run = event.payload;
+      const failedCategories = run.category_outcomes.filter((outcome) => !outcome.succeeded).length;
+      const title =
+        run.status === "COMPLETED"
+          ? `Global Markets report ready — ${run.run_date}`
+          : run.status === "PARTIAL"
+            ? `Global Markets report partially available — ${run.run_date}`
+            : `Global Markets report failed — ${run.run_date}`;
+      const summary =
+        run.status === "FAILED"
+          ? "Every category failed to generate — no ranked data is available for this run."
+          : run.status === "PARTIAL"
+            ? `${String(failedCategories)} of ${String(run.category_outcomes.length)} categories failed; the rest are available.`
+            : `All ${String(run.category_outcomes.length)} categories generated successfully.`;
+      return {
+        id: event.event_id,
+        eventType: event.event_type,
+        domain: "global_markets",
+        priority: runStatusPriority(run.status),
+        title,
+        summary,
+        occurredAt: event.timestamp,
+        read: false,
+        entityRef: { kind: "global_markets", runId: run.id },
       };
     }
   }

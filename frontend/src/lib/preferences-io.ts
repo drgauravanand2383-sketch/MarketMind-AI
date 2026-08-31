@@ -18,7 +18,7 @@ const tablePageSizeSchema = z.union(
   TABLE_PAGE_SIZE_OPTIONS.map((size) => z.literal(size)) as [z.ZodLiteral<TablePageSize>, ...z.ZodLiteral<TablePageSize>[]],
 );
 const notificationDomainSchema = z.enum([
-  "alerts", "backtests", "recommendations", "strategy", "explainability", "health", "market", "news", "decisions",
+  "alerts", "backtests", "recommendations", "strategy", "explainability", "health", "market", "news", "decisions", "global_markets",
 ]);
 const cardSizeSchema = z.enum(["sm", "md", "lg"]);
 const dashboardCardIdSchema = z.enum([

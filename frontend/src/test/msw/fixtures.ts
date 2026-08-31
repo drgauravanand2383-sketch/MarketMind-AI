@@ -1,6 +1,7 @@
 import type { MetadataResponse, SuccessResponse } from "@/types/api";
 import type { AuthenticationResponse, User } from "@/types/auth";
 import type { DetectedChange } from "@/types/continuous-intelligence";
+import type { IntelligenceRun, NormalizedAssetSnapshot, RankedAsset } from "@/types/global-markets";
 import type { ApplicationHealth, ReadinessStatus, VersionResponse } from "@/types/health";
 import type { Watchlist, WatchlistItem, WatchlistStatistics } from "@/types/watchlist";
 import type { InitialAnalysisState, MarketDataRefreshResult, PortfolioIntelligenceReport, RecommendationCandidate, RecommendationResult, RiskAssessment } from "@/types/portfolio";
@@ -540,6 +541,67 @@ export function buildExplainabilityResult(overrides: Partial<ExplainabilityResul
     risk_explanation: null,
     performance_attribution: null,
     overall_summary: "Explanation generated from recommendation result rec-1.",
+    ...overrides,
+  };
+}
+
+export function buildNormalizedAssetSnapshot(overrides: Partial<NormalizedAssetSnapshot> = {}): NormalizedAssetSnapshot {
+  return {
+    ticker: "RELIANCE",
+    report_category: "INDIA_EQUITY",
+    name: "Reliance Industries",
+    price: 2900.5,
+    currency: "INR",
+    market_cap: 1.96e13,
+    fully_diluted_valuation: null,
+    avg_daily_volume: 5_000_000,
+    avg_daily_traded_value: null,
+    trading_history_days: 3650,
+    is_suspended: false,
+    is_delisted: false,
+    bid_ask_spread_percent: 0.05,
+    provenance: {
+      source_timestamp: "2026-02-01T00:00:00Z",
+      retrieved_at: "2026-02-01T00:05:00Z",
+      provider: "test-provider",
+      data_freshness_status: "LIVE",
+    },
+    ...overrides,
+  };
+}
+
+export function buildRankedAsset(overrides: Partial<RankedAsset> = {}): RankedAsset {
+  return {
+    run_id: "test-run-1",
+    category: "INDIA_EQUITY",
+    rank: 1,
+    final_score: 88.5,
+    factor_scores: [{ factor: "MOMENTUM", value: 90, explanation: null }],
+    snapshot: buildNormalizedAssetSnapshot(),
+    risk_classification: null,
+    ...overrides,
+  };
+}
+
+export function buildIntelligenceRun(overrides: Partial<IntelligenceRun> = {}): IntelligenceRun {
+  return {
+    id: "test-run-1",
+    run_date: "2026-02-01",
+    status: "COMPLETED",
+    category_outcomes: [
+      { category: "INDIA_EQUITY", succeeded: true, error: null },
+      { category: "US_EQUITY", succeeded: true, error: null },
+      { category: "CHINA_EQUITY", succeeded: true, error: null },
+      { category: "FOREX", succeeded: true, error: null },
+      { category: "CRYPTO", succeeded: true, error: null },
+      { category: "INDIA_PENNY_STOCK", succeeded: true, error: null },
+      { category: "US_PENNY_STOCK", succeeded: true, error: null },
+      { category: "CHINA_PENNY_STOCK", succeeded: true, error: null },
+      { category: "LOW_CAP_CRYPTO", succeeded: true, error: null },
+    ],
+    triggered_by: "scheduler",
+    started_at: "2026-02-01T03:00:00Z",
+    completed_at: "2026-02-01T03:05:00Z",
     ...overrides,
   };
 }

@@ -74,7 +74,8 @@ export type NotificationDomain =
   | "health"
   | "market"
   | "news"
-  | "decisions";
+  | "decisions"
+  | "global_markets";
 
 /** Only `backtest`/`explainability` carry an id their own detail route
  * can be built from (`request_id`/`run_id`) — `Alert`, `RecommendationResult`,
@@ -94,7 +95,8 @@ export type NotificationEntityRef =
   | { kind: "health" }
   | { kind: "market"; portfolioId: string | null }
   | { kind: "news"; portfolioId: string | null }
-  | { kind: "decision"; portfolioId: string | null };
+  | { kind: "decision"; portfolioId: string | null }
+  | { kind: "global_markets"; runId: string };
 
 export interface NotificationCenterEntry {
   id: string;

@@ -50,6 +50,13 @@ export const FEATURE_NAV_ITEMS: FeatureNavItem[] = [
     permission: "backtest:read",
     icon: "🕰",
   },
+  {
+    to: "/global-markets",
+    label: "Global Markets",
+    description: "Top-ranked equities, forex, crypto, and penny/micro-cap opportunities across India, US, and China.",
+    permission: "global_markets:read",
+    icon: "🌐",
+  },
 ];
 
 /** Milestone 5 note: `/recommendations` and `/risk` (separate M2-era nav

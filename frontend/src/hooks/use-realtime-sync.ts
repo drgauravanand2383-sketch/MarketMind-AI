@@ -55,6 +55,12 @@ function toastFor(event: DomainEvent): { type: NotificationType; message: string
       const type: NotificationType = critical ? "error" : event.payload.priority === "HIGH" ? "warning" : "info";
       return { type, message: event.payload.summary, pinned: critical };
     }
+    case "GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED": {
+      const { status, run_date } = event.payload;
+      if (status === "FAILED") return { type: "error", message: `Global Markets report failed — ${run_date}.`, pinned: true };
+      if (status === "PARTIAL") return { type: "warning", message: `Global Markets report partially available — ${run_date}.` };
+      return { type: "success", message: `Global Markets report ready — ${run_date}.` };
+    }
   }
 }
 

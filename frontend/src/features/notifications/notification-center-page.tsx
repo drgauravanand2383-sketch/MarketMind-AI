@@ -20,6 +20,7 @@ const DOMAIN_LABELS: Record<NotificationDomain, string> = {
   market: "Market",
   news: "News",
   decisions: "Decisions",
+  global_markets: "Global Markets",
 };
 
 const PRIORITY_OPTIONS: (PriorityLevel | "")[] = ["", "LOW", "MODERATE", "MEDIUM", "HIGH", "CRITICAL"];
@@ -54,6 +55,10 @@ function entryLink(entry: NotificationCenterEntry): { to: string; params: Record
       return { to: "/historical-analysis/backtests/$runId", params: { runId: entry.entityRef.runId } };
     case "explainability":
       return { to: "/historical-analysis/explainability/$requestId", params: { requestId: entry.entityRef.requestId } };
+    case "global_markets":
+      // No run-specific route exists — the landing page always shows the
+      // latest run, which is exactly what this entry is about.
+      return { to: "/global-markets", params: {} };
     case "market":
     case "news":
     case "decision":
