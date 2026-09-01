@@ -117,6 +117,15 @@ status (thresholds are code-level constants, not currently
 environment-configurable — see
 `app/providers/market_data/yahoo.py::YahooFinanceProviderConfig`).
 
+## Global Market Intelligence — `GLOBAL_MARKET*` (see `docs/architecture/GLOBAL_MARKET_INTELLIGENCE.md`)
+
+| Variable | Default | Notes |
+|---|---|---|
+| `GLOBAL_MARKETS_ENABLED` | `false` | Gates the daily scheduled `GlobalMarketIntelligenceWorkflow` run. |
+| `GLOBAL_MARKETS_REPORT_CRON` | `30 8 * * *` | A standard 5-field crontab expression, evaluated in `GLOBAL_MARKETS_REPORT_TIMEZONE` (approved Decision 1: 08:30 Asia/Kolkata every day). |
+| `GLOBAL_MARKETS_REPORT_TIMEZONE` | `Asia/Kolkata` | IANA timezone the cron expression is evaluated in — never the container's own local/system timezone. |
+| `GLOBAL_MARKET_SCREENING_ENABLED` | `false` | Phase 6c: live-discovers each penny/micro-cap category's candidate universe via Yahoo Finance's unofficial screener endpoint (equities) and CoinGecko's public API (crypto) — both no-API-key. Separate from `GLOBAL_MARKETS_ENABLED`; `false` leaves every penny/micro-cap universe at its static (today: empty) `DEFAULT_UNIVERSES` entry. **Both vendors are external dependencies this codebase does not control** — Yahoo's screener endpoint specifically is unofficial/undocumented (the same risk profile `MARKET_DATA_PROVIDER=yahoo_finance` already accepts for quotes/history); enable deliberately, not by default. |
+
 ## Continuous Intelligence — `CONTINUOUS_INTELLIGENCE_*` / significance thresholds (Milestone 15/16)
 
 | Variable | Default | Notes |

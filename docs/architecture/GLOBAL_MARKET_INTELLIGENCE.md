@@ -3,15 +3,16 @@
 **Phase 1 (foundation) + Phase 2 (deterministic pipeline) + Phase 3
 (narrative interpretation) + Phase 4 (read-only API surface) + Phase 5
 (WebSocket distribution — see §13) + Phase 6a (frontend) + Phase 6b (real
-per-market penny-stock eligibility criteria — see §4) are all committed
-and pushed to `main`.** Daily, multi-market intelligence covering nine
-reporting categories across five market regions (India, US, China, Forex,
-Crypto), published once daily via a scheduled workflow, readable over
-`/api/v1/global-markets`, announced in real time over the existing `/ws`
-framework, and consumed by a dedicated frontend section. A real
-penny/micro-cap screening data source (to populate the four penny/
-micro-cap categories' still-empty candidate universes) remains
-deliberately deferred — see §10.
+per-market penny-stock eligibility criteria — see §4) + Phase 6c
+(penny/micro-cap candidate discovery — see §14) are implemented.** Daily,
+multi-market intelligence covering nine reporting categories across five
+market regions (India, US, China, Forex, Crypto), published once daily
+via a scheduled workflow, readable over `/api/v1/global-markets`,
+announced in real time over the existing `/ws` framework, consumed by a
+dedicated frontend section, and — once `GLOBAL_MARKET_SCREENING_ENABLED`
+is turned on — populating its own four penny/micro-cap candidate
+universes from real, live vendor data rather than sitting permanently
+empty. See §10 for what's still genuinely missing.
 
 **Only two AI agents exist for this feature, exactly as scoped** —
 `GlobalMarketsResearchAgent` (AGT-006, the five main categories) and
@@ -247,18 +248,25 @@ category failure, and never silently retried within the same execution.
 `ReportCategory` to its candidate ticker set; `.get()` returning `()` is
 a normal, honest state, never an error. `DEFAULT_UNIVERSES`
 (`universe/defaults.py`) hardcodes a live-verified 10-ticker universe for
-each of the five main categories. **The four penny/micro-cap categories
-are deliberately left empty** — fabricating specific penny-stock tickers
-from training-data recall would violate this codebase's "never fabricate
-financial facts" principle (training-data-recalled small-caps are
-disproportionately likely to be delisted, stale, or wrong). The
-eligibility/scoring/risk-classification machinery those categories need
-is fully built, tested, and (as of Phase 6b) wired with real per-market
-`PennyStockEligibilityCriteria` (see §4); only a real screening-data
-source to actually populate these four universes is missing — which is
-also why `PennyMicrocapIntelligenceAgent` has real prompt/parsing/
-grounding logic but nothing to actually interpret yet in this codebase's
-current state (see §11).
+each of the five main categories. **The four penny/micro-cap categories'
+`DEFAULT_UNIVERSES` entries stay deliberately empty** — fabricating
+specific penny-stock tickers from training-data recall would violate
+this codebase's "never fabricate financial facts" principle
+(training-data-recalled small-caps are disproportionately likely to be
+delisted, stale, or wrong).
+
+As of Phase 6c, `GlobalMarketIntelligenceWorkflow._resolve_universe` can
+populate those four universes a different way: when a `screening_provider`
+is configured (`GLOBAL_MARKET_SCREENING_ENABLED=true`), each penny/
+micro-cap category's universe is freshly *live-discovered* on every run
+instead — see §14. `UniverseRegistry`'s static entry (still empty by
+default) remains the fallback whenever screening is unconfigured, returns
+nothing, or fails. The eligibility/scoring/risk-classification machinery
+those categories need is fully built, tested, and (Phase 6b) wired with
+real per-market `PennyStockEligibilityCriteria` (see §4); once screening
+is enabled, `PennyMicrocapIntelligenceAgent` finally has real ranked
+assets to interpret, not just prompt/parsing/grounding logic with nothing
+to run against (see §11).
 
 ## 8. Persistence
 
@@ -304,21 +312,23 @@ local/system timezone. Gated by `AppSettings.global_markets_enabled`
 codebase) — upgrading an existing deployment never silently starts this
 schedule.
 
-## 10. What's still missing (Phase 6c+)
+## 10. What's still missing (Phase 6d+)
 
-- A real penny/micro-cap screening data source, to populate the four
-  still-empty `DEFAULT_UNIVERSES` entries (`INDIA_PENNY_STOCK`/
-  `US_PENNY_STOCK`/`CHINA_PENNY_STOCK`/`LOW_CAP_CRYPTO`) with genuine,
-  verified candidate tickers — the eligibility gate (§6) and
-  `PennyMicrocapIntelligenceAgent` (§11) are both fully ready to receive
-  it with no further code change; there is simply nothing to fetch yet.
 - A market-cap-capable market-data source, so `NormalizedAssetSnapshot
   .market_cap`/`.bid_ask_spread_percent`/`.is_suspended`/`.is_delisted`
   stop being permanently `None`/`False` and the real
   `min_market_cap`/`max_market_cap`/`max_spread_percent`/
-  `exclude_suspended`/`exclude_delisted` eligibility criteria (§6) can
+  `exclude_suspended`/`exclude_delisted` eligibility criteria (§4) can
   actually reject an asset, not just record reduced
-  `data_completeness_ratio`.
+  `data_completeness_ratio` — this affects both the eligibility gate and,
+  more visibly, the screening/discovery step (§14): CoinGecko-discovered
+  `LOW_CAP_CRYPTO` candidates in particular are frequently *not*
+  quotable via `YahooFinanceProvider` at all (a real vendor-coverage gap,
+  not a bug — see §14's own "Known limitation").
+- `GLOBAL_MARKET_SCREENING_ENABLED` defaults to `false` — an operator
+  must deliberately opt in (see `docs/release/PRODUCTION_CONFIGURATION_GUIDE.md`).
+  Until then, every penny/micro-cap `DEFAULT_UNIVERSES` entry stays
+  empty exactly as it did before Phase 6c.
 
 ## 11. LLM narrative interpretation (Phase 3)
 
@@ -522,3 +532,80 @@ parameter, threaded through from `getattr(app.state, "event_publisher",
 None)` at the call site — the exact pattern
 `build_market_data_refresh_workflow`/`build_continuous_intelligence_service`
 already use for this same shared, `app/main.py`-constructed publisher.
+
+## 14. Penny/micro-cap candidate discovery (Phase 6c)
+
+`app/global_markets/screening/` — the "which real tickers exist in this
+market within this price/market-cap band" capability neither
+`MarketDataProvider` (per-ticker lookups only) nor `app/screening`
+(evaluates an already-supplied list, no market-wide discovery) provides.
+Gated by `GLOBAL_MARKET_SCREENING_ENABLED` (default `false` — see
+`docs/release/PRODUCTION_CONFIGURATION_GUIDE.md`); `None` behaves
+exactly like pre-Phase-6c, falling straight through to
+`UniverseRegistry`'s static (empty) entry.
+
+**Contract**: `PennyStockScreeningProvider.discover(category, criteria, limit) -> tuple[UniverseEntry, ...]`
+(`screening/provider.py`) only ever *proposes* identities — every
+candidate still goes through the exact same
+`MarketDataProvider.get_quote()` -> `ConfigurableEligibilityProvider`
+pipeline any other `UniverseEntry` does (`CategoryDataPipeline.run`, §5);
+`criteria` (the same `PennyStockEligibilityCriteria` from §4, via
+`criteria_for_category`) only narrows the *vendor query itself*, never
+substitutes for the real downstream eligibility check.
+
+**Two real vendors, no API key for either** (`CompositePennyStockScreeningProvider`
+routes by category):
+
+- **`YahooScreenerProvider`** — India/US/China equity penny categories,
+  via Yahoo Finance's unofficial, undocumented screener endpoint
+  (`POST /v1/finance/screener`), live-verified during implementation.
+  Reuses the same vendor `YahooFinanceProvider` already depends on for
+  quotes/history (no new vendor trust boundary), though the screener
+  endpoint specifically needs a session cookie + CSRF "crumb"
+  (`GET /v1/test/getcrumb`, cached, refreshed once on a 401). The
+  `quoteType=EQUITY` query filter does not reliably exclude mutual
+  funds/ETFs (observed live) — `_NON_COMMON_EQUITY_NAME_SUBSTRINGS` is a
+  documented, best-effort name heuristic, not a guarantee.
+- **`CoinGeckoScreeningProvider`** — `LOW_CAP_CRYPTO` only, via
+  CoinGecko's public, no-key `/coins/markets` endpoint, live-verified.
+  Never gates on unit token price (the same rule §4's `LOW_CAP_CRYPTO`
+  criteria already enforces) — filters by `market_cap` alone, scanning
+  `order=market_cap_desc` and stopping once a page falls below
+  `criteria.min_market_cap` (bounded to `max_pages` regardless). A `0`/
+  `null` market cap (observed live for inactive listings) is excluded
+  outright, never treated as "eligible because it's small." A documented
+  stablecoin-symbol denylist excludes fiat-pegged coins that would
+  otherwise trivially satisfy a market-cap band while being uninteresting
+  as a "discovery" candidate.
+
+**Trigger point & degrade rule**: `GlobalMarketIntelligenceWorkflow._resolve_universe`
+(`app/workflows/global_markets/pipeline.py`), called from
+`_resolve_category` in place of a direct `UniverseRegistry.get()` call:
+
+```
+_resolve_universe(category, is_penny_microcap)
+  |
+  +--> not penny/micro-cap, or no screening_provider configured -> UniverseRegistry.get(category)  [unchanged pre-Phase-6c behavior]
+  |
+  +--> screening_provider.discover(category, criteria, limit) raises -> log, degrade to UniverseRegistry.get(category)
+  |
+  +--> discover() returns () -> degrade to UniverseRegistry.get(category)
+  |
+  +--> discover() returns 1+ entries -> use them, UniverseRegistry never consulted
+```
+
+A screening failure never fails the category's own `succeeded` outcome —
+the same "an optional dependency's failure degrades, never crashes"
+convention every other Phase 2/3/5 integration point in this workflow
+already establishes (narrative generation, event publishing).
+
+`limit` passed to `discover()` is `min(top_n * 3, 100)`, not `top_n`
+itself — headroom against later attrition: a discovered candidate that
+fails the real per-ticker `MarketDataProvider.get_quote()` fetch in
+`CategoryDataPipeline.run` (§5) is silently excluded, exactly like any
+other universe entry today. This headroom is most load-bearing for
+`LOW_CAP_CRYPTO`: **known limitation** — CoinGecko tracks far more coins
+than Yahoo Finance's chart endpoint actually has data for, so a
+discovered low-cap token Yahoo cannot quote simply disappears at the
+per-ticker fetch stage. Honest and expected, not a bug — mitigated, not
+eliminated, by the overfetch.

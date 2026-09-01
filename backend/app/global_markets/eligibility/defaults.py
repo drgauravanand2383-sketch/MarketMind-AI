@@ -33,6 +33,7 @@ __all__ = [
     "DEFAULT_ELIGIBILITY_CRITERIA",
     "PENNY_STOCK_MARKET_FOR_CATEGORY",
     "eligibility_provider_for_category",
+    "criteria_for_category",
 ]
 
 DEFAULT_ELIGIBILITY_CRITERIA: dict[PennyStockMarket, PennyStockEligibilityCriteria] = {
@@ -115,3 +116,18 @@ def eligibility_provider_for_category(category: ReportCategory) -> PennyStockEli
     if market is None:
         return None
     return ConfigurableEligibilityProvider(DEFAULT_ELIGIBILITY_CRITERIA[market])
+
+
+def criteria_for_category(category: ReportCategory) -> PennyStockEligibilityCriteria | None:
+    """The raw configured criteria for `category`'s own market, or `None`
+    for a main category. Exposes the criteria itself (unlike
+    `eligibility_provider_for_category`, which wraps it in a
+    `ConfigurableEligibilityProvider`) — used by screening/discovery
+    (`app.global_markets.screening`) to narrow a live vendor query using
+    the exact same approved price/market-cap band the downstream
+    eligibility gate enforces, never a second, possibly-drifted copy of
+    the same numbers."""
+    market = PENNY_STOCK_MARKET_FOR_CATEGORY.get(category)
+    if market is None:
+        return None
+    return DEFAULT_ELIGIBILITY_CRITERIA[market]

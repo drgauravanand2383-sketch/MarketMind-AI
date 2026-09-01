@@ -21,6 +21,7 @@ from app.core.context import ExecutionContext, TriggerType, WorkflowStatus
 from app.global_markets.calendar.continuous_calendar import CryptoCalendarProvider, ForexCalendarProvider
 from app.global_markets.calendar.pandas_calendar import PandasMarketCalendarProvider
 from app.global_markets.calendar.registry import TradingCalendarRegistry
+from app.global_markets.eligibility.models import PennyStockEligibilityCriteria
 from app.global_markets.models import (
     MAIN_REPORT_CATEGORIES,
     PENNY_MICROCAP_REPORT_CATEGORIES,
@@ -29,6 +30,7 @@ from app.global_markets.models import (
     ReportCategory,
 )
 from app.global_markets.pipeline.category_pipeline import CategoryDataPipeline
+from app.global_markets.screening.provider import PennyStockScreeningProvider
 from app.global_markets.session.resolver import MarketSessionResolutionService
 from app.global_markets.universe.models import UniverseEntry
 from app.global_markets.universe.registry import UniverseRegistry
@@ -409,6 +411,134 @@ async def test_a_penny_microcap_asset_that_fails_real_eligibility_criteria_is_ex
     assert run.category_outcomes[0].succeeded is True
     ranked = await ranked_asset_repository.list_ranked_assets(run.id, ReportCategory.US_PENNY_STOCK)
     assert ranked == []
+
+
+class _FakeScreeningProvider(PennyStockScreeningProvider):
+    """Records every category it was asked to discover for — a
+    `screening_provider` double for testing `_resolve_universe`'s own
+    priority/degrade wiring without any real HTTP behavior."""
+
+    def __init__(self, entries: tuple[UniverseEntry, ...] = (), *, error: Exception | None = None) -> None:
+        self._entries = entries
+        self._error = error
+        self.calls: list[ReportCategory] = []
+
+    async def discover(
+        self, category: ReportCategory, criteria: PennyStockEligibilityCriteria, limit: int
+    ) -> tuple[UniverseEntry, ...]:
+        self.calls.append(category)
+        if self._error is not None:
+            raise self._error
+        return self._entries
+
+
+async def test_a_penny_microcap_category_uses_the_screening_providers_discovered_universe(
+    repository: PostgresGlobalMarketRunRepository,
+    ranked_asset_repository: PostgresRankedAssetRepository,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Eligibility is stubbed out for the same reason as the
+    classify_risk test above — this test's own concern is the screening
+    provider's priority over the (deliberately empty) static registry."""
+    monkeypatch.setattr(_ELIGIBILITY_PROVIDER_FOR_CATEGORY_PATH, lambda category: None)
+    screening = _FakeScreeningProvider((UniverseEntry(ticker="AAPL", name="Apple Inc."),))
+    workflow = GlobalMarketIntelligenceWorkflow(
+        MarketSessionResolutionService(_full_registry()),
+        repository,
+        categories=(ReportCategory.US_PENNY_STOCK,),
+        now_fn=lambda: _FIXED_AS_OF,
+        category_pipeline=CategoryDataPipeline(MockMarketDataProvider(), now_fn=lambda: _FIXED_AS_OF),
+        universe_registry=UniverseRegistry({}),
+        ranked_asset_repository=ranked_asset_repository,
+        screening_provider=screening,
+    )
+
+    run = await workflow.execute(_context())
+
+    assert screening.calls == [ReportCategory.US_PENNY_STOCK]
+    ranked = await ranked_asset_repository.list_ranked_assets(run.id, ReportCategory.US_PENNY_STOCK)
+    assert len(ranked) == 1
+    assert ranked[0].snapshot.ticker == "AAPL"
+
+
+async def test_main_categories_never_call_the_screening_provider(
+    repository: PostgresGlobalMarketRunRepository, ranked_asset_repository: PostgresRankedAssetRepository
+) -> None:
+    screening = _FakeScreeningProvider((UniverseEntry(ticker="SHOULD-NOT-BE-USED", name="x"),))
+    universe_registry = UniverseRegistry({ReportCategory.US_EQUITY: (UniverseEntry(ticker="AAPL", name="Apple Inc."),)})
+    workflow = GlobalMarketIntelligenceWorkflow(
+        MarketSessionResolutionService(_full_registry()),
+        repository,
+        categories=(ReportCategory.US_EQUITY,),
+        now_fn=lambda: _FIXED_AS_OF,
+        category_pipeline=CategoryDataPipeline(MockMarketDataProvider(), now_fn=lambda: _FIXED_AS_OF),
+        universe_registry=universe_registry,
+        ranked_asset_repository=ranked_asset_repository,
+        screening_provider=screening,
+    )
+
+    run = await workflow.execute(_context())
+
+    assert screening.calls == []
+    ranked = await ranked_asset_repository.list_ranked_assets(run.id, ReportCategory.US_EQUITY)
+    assert ranked[0].snapshot.ticker == "AAPL"
+
+
+async def test_a_screening_failure_degrades_to_the_static_universe_registry(
+    repository: PostgresGlobalMarketRunRepository,
+    ranked_asset_repository: PostgresRankedAssetRepository,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_ELIGIBILITY_PROVIDER_FOR_CATEGORY_PATH, lambda category: None)
+    screening = _FakeScreeningProvider(error=RuntimeError("boom"))
+    universe_registry = UniverseRegistry(
+        {ReportCategory.US_PENNY_STOCK: (UniverseEntry(ticker="AAPL", name="Apple Inc."),)}
+    )
+    workflow = GlobalMarketIntelligenceWorkflow(
+        MarketSessionResolutionService(_full_registry()),
+        repository,
+        categories=(ReportCategory.US_PENNY_STOCK,),
+        now_fn=lambda: _FIXED_AS_OF,
+        category_pipeline=CategoryDataPipeline(MockMarketDataProvider(), now_fn=lambda: _FIXED_AS_OF),
+        universe_registry=universe_registry,
+        ranked_asset_repository=ranked_asset_repository,
+        screening_provider=screening,
+    )
+
+    run = await workflow.execute(_context())
+
+    assert run.category_outcomes[0].succeeded is True  # a screening failure must never fail the category
+    ranked = await ranked_asset_repository.list_ranked_assets(run.id, ReportCategory.US_PENNY_STOCK)
+    assert len(ranked) == 1
+    assert ranked[0].snapshot.ticker == "AAPL"
+
+
+async def test_an_empty_discovery_result_falls_back_to_the_static_universe_registry(
+    repository: PostgresGlobalMarketRunRepository,
+    ranked_asset_repository: PostgresRankedAssetRepository,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_ELIGIBILITY_PROVIDER_FOR_CATEGORY_PATH, lambda category: None)
+    screening = _FakeScreeningProvider(())  # discovered nothing
+    universe_registry = UniverseRegistry(
+        {ReportCategory.US_PENNY_STOCK: (UniverseEntry(ticker="AAPL", name="Apple Inc."),)}
+    )
+    workflow = GlobalMarketIntelligenceWorkflow(
+        MarketSessionResolutionService(_full_registry()),
+        repository,
+        categories=(ReportCategory.US_PENNY_STOCK,),
+        now_fn=lambda: _FIXED_AS_OF,
+        category_pipeline=CategoryDataPipeline(MockMarketDataProvider(), now_fn=lambda: _FIXED_AS_OF),
+        universe_registry=universe_registry,
+        ranked_asset_repository=ranked_asset_repository,
+        screening_provider=screening,
+    )
+
+    run = await workflow.execute(_context())
+
+    ranked = await ranked_asset_repository.list_ranked_assets(run.id, ReportCategory.US_PENNY_STOCK)
+    assert len(ranked) == 1
+    assert ranked[0].snapshot.ticker == "AAPL"
 
 
 async def test_without_the_pipeline_wired_in_no_ranked_assets_are_persisted(

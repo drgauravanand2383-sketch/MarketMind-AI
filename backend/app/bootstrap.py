@@ -88,6 +88,10 @@ from app.global_markets.calendar.pandas_calendar import PandasMarketCalendarProv
 from app.global_markets.calendar.registry import TradingCalendarRegistry
 from app.global_markets.models import MarketRegion
 from app.global_markets.pipeline.category_pipeline import CategoryDataPipeline
+from app.global_markets.screening.coingecko_screener import CoinGeckoScreenerConfig, CoinGeckoScreeningProvider
+from app.global_markets.screening.composite import CompositePennyStockScreeningProvider
+from app.global_markets.screening.provider import PennyStockScreeningProvider
+from app.global_markets.screening.yahoo_screener import YahooScreenerConfig, YahooScreenerProvider
 from app.global_markets.session.resolver import MarketSessionResolutionService
 from app.global_markets.universe.defaults import DEFAULT_UNIVERSES
 from app.global_markets.universe.registry import UniverseRegistry
@@ -379,6 +383,17 @@ class AppSettings(BaseSettings):
     # process's own local/system timezone).
     global_markets_report_cron: str = "30 8 * * *"
     global_markets_report_timezone: str = "Asia/Kolkata"
+    # Phase 6c: penny/micro-cap universe discovery. Separately gated from
+    # GLOBAL_MARKETS_ENABLED (the same "which provider" vs. "run the
+    # scheduled job at all" split MARKET_DATA_PROVIDER/MARKET_DATA_ENABLED
+    # already establish above) — an operator can run Global Market
+    # Intelligence with only the five main categories (no screening) or
+    # opt into live penny/micro-cap discovery independently. Default
+    # disabled: both vendors this queries (Yahoo Finance's unofficial
+    # screener endpoint, CoinGecko's public API) are external, unofficial-
+    # or-undocumented-in-part dependencies an operator should opt into
+    # deliberately, not inherit silently on upgrade.
+    global_market_screening_enabled: bool = False
 
 
 class InProcessMemory:
@@ -1600,6 +1615,23 @@ def build_global_market_report_repository(logger: logging.Logger) -> BaseIntelli
         return None
 
 
+def build_global_market_screening_provider(settings: AppSettings) -> PennyStockScreeningProvider | None:
+    """Construct the Phase 6c penny/micro-cap screening provider, or
+    `None` when `GLOBAL_MARKET_SCREENING_ENABLED` is off (the default) —
+    `GlobalMarketIntelligenceWorkflow` already treats `None` as "fall
+    back to the static `UniverseRegistry`," so this function has no other
+    failure mode to degrade against; construction here is pure
+    (`YahooScreenerProvider`/`CoinGeckoScreeningProvider` make no I/O
+    until `discover()` is actually called).
+    """
+    if not settings.global_market_screening_enabled:
+        return None
+    return CompositePennyStockScreeningProvider(
+        equity_screener=YahooScreenerProvider(YahooScreenerConfig()),
+        crypto_screener=CoinGeckoScreeningProvider(CoinGeckoScreenerConfig()),
+    )
+
+
 def build_global_market_intelligence_workflow(
     session_resolver: MarketSessionResolutionService,
     run_repository: BaseGlobalMarketRunRepository | None,
@@ -1611,6 +1643,7 @@ def build_global_market_intelligence_workflow(
     penny_microcap_agent: PennyMicrocapIntelligenceAgent | None = None,
     report_repository: BaseIntelligenceReportRepository | None = None,
     event_publisher: EventPublisher | None = None,
+    screening_provider: PennyStockScreeningProvider | None = None,
 ) -> GlobalMarketIntelligenceWorkflow:
     """Construct the `GlobalMarketIntelligenceWorkflow`. Unconditional —
     `session_resolver` is itself unconditionally constructed, and the
@@ -1622,6 +1655,11 @@ def build_global_market_intelligence_workflow(
     run publishes `GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED` — the same
     "optional, degrade to no-op" shape `build_market_data_refresh_workflow`
     already established for this exact parameter.
+
+    `screening_provider` (Phase 6c, see `build_global_market_screening_provider`)
+    is threaded through so every penny/micro-cap category can be
+    live-discovered instead of falling straight through to
+    `universe_registry`'s static (today: empty) entry.
     """
     return GlobalMarketIntelligenceWorkflow(
         session_resolver,
@@ -1633,6 +1671,7 @@ def build_global_market_intelligence_workflow(
         penny_microcap_agent=penny_microcap_agent,
         report_repository=report_repository,
         event_publisher=event_publisher,
+        screening_provider=screening_provider,
     )
 
 
@@ -2096,6 +2135,7 @@ async def bootstrap_application_state(app: FastAPI) -> None:
         runtime, app.state.llm_service, app.state.prompt_registry
     )
     app.state.global_market_report_repository = build_global_market_report_repository(logger)
+    app.state.global_market_screening_provider = build_global_market_screening_provider(settings)
     app.state.global_market_intelligence_workflow = build_global_market_intelligence_workflow(
         app.state.global_market_session_resolver,
         app.state.global_market_run_repository,
@@ -2106,6 +2146,7 @@ async def bootstrap_application_state(app: FastAPI) -> None:
         penny_microcap_agent=app.state.penny_microcap_intelligence_agent,
         report_repository=app.state.global_market_report_repository,
         event_publisher=getattr(app.state, "event_publisher", None),
+        screening_provider=app.state.global_market_screening_provider,
     )
     register_global_market_intelligence_schedule(
         workflow_engine, scheduler, app.state.global_market_intelligence_workflow, settings, logger

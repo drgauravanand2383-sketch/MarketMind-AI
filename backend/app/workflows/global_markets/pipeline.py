@@ -44,6 +44,13 @@ caught and logged, never allowed to fail an already-persisted run — see
 `ContinuousIntelligenceService`'s established "a publish failure must
 not lose the underlying detected state" precedent.
 
+Phase 6c: when `screening_provider` is supplied, each penny/micro-cap
+category's universe is freshly live-discovered (`PennyStockScreeningProvider
+.discover`) instead of falling straight through to the static
+`universe_registry` entry — see `_resolve_universe`'s own docstring for
+the exact priority/degrade rule. `None` (the default) is unchanged from
+pre-Phase-6c behavior.
+
 `run_date` is the master scheduler's own IST calendar date (approved
 Decision 1: "the master report scheduler runs at 08:30 Asia/Kolkata") —
 deliberately distinct from any individual category's own
@@ -67,7 +74,7 @@ from app.agents.global_markets_research.models import GlobalMarketsResearchReque
 from app.agents.penny_microcap_intelligence.agent import PennyMicrocapIntelligenceAgent
 from app.agents.penny_microcap_intelligence.models import PennyMicrocapIntelligenceRequest
 from app.core.context import ExecutionContext
-from app.global_markets.eligibility.defaults import eligibility_provider_for_category
+from app.global_markets.eligibility.defaults import criteria_for_category, eligibility_provider_for_category
 from app.global_markets.models import (
     MAIN_REPORT_CATEGORIES,
     REPORT_CATEGORY_DEFINITIONS,
@@ -80,7 +87,9 @@ from app.global_markets.pipeline.category_pipeline import CategoryDataPipeline
 from app.global_markets.ranked_asset import RankedAsset
 from app.global_markets.ranking.defaults import DEFAULT_MAIN_RANKING_WEIGHTS, DEFAULT_PENNY_MICROCAP_RANKING_WEIGHTS
 from app.global_markets.ranking.models import RankingWeights
+from app.global_markets.screening.provider import PennyStockScreeningProvider
 from app.global_markets.session.resolver import MarketSessionResolutionService
+from app.global_markets.universe.models import UniverseEntry
 from app.global_markets.universe.registry import UniverseRegistry
 from app.repositories.global_markets.ranked_asset_repository import BaseRankedAssetRepository
 from app.repositories.global_markets.report_repository import BaseIntelligenceReportRepository
@@ -102,6 +111,15 @@ __all__ = ["MASTER_SCHEDULER_TIMEZONE", "GlobalMarketIntelligenceWorkflow"]
 MASTER_SCHEDULER_TIMEZONE = ZoneInfo("Asia/Kolkata")
 
 _logger = logging.getLogger("marketmind.workflows.global_markets")
+
+# How many candidates to ask a `PennyStockScreeningProvider` for, per
+# category, relative to that category's own `top_n` — headroom against
+# later attrition (a discovered candidate that fails the real per-ticker
+# `MarketDataProvider.get_quote()` fetch in `CategoryDataPipeline.run` is
+# silently excluded, same as any other universe entry today), capped so
+# a very large `top_n` still bounds the request size.
+_SCREENING_CANDIDATE_MULTIPLIER = 3
+_SCREENING_CANDIDATE_LIMIT_CAP = 100
 
 
 def _default_now() -> datetime:
@@ -139,6 +157,7 @@ class GlobalMarketIntelligenceWorkflow:
         penny_microcap_agent: PennyMicrocapIntelligenceAgent | None = None,
         report_repository: BaseIntelligenceReportRepository | None = None,
         event_publisher: EventPublisher | None = None,
+        screening_provider: PennyStockScreeningProvider | None = None,
     ) -> None:
         """Initialize the workflow.
 
@@ -181,6 +200,13 @@ class GlobalMarketIntelligenceWorkflow:
                 configured) are unaffected, matching
                 `MarketDataRefreshWorkflow`'s own established convention
                 for this exact parameter.
+            screening_provider: Live-discovers each penny/micro-cap
+                category's candidate universe (Phase 6c), taking priority
+                over `universe_registry`'s static entry for that category
+                when it returns at least one candidate. `None` (the
+                default) preserves this workflow's pre-Phase-6c behavior
+                exactly — every penny/micro-cap category falls straight
+                through to `universe_registry`, unchanged.
         """
         self._session_resolver = session_resolver
         self._run_repository = run_repository
@@ -189,6 +215,7 @@ class GlobalMarketIntelligenceWorkflow:
         self._id_fn = id_fn
         self._category_pipeline = category_pipeline
         self._universe_registry = universe_registry
+        self._screening_provider = screening_provider
         self._ranked_asset_repository = ranked_asset_repository
         self._research_agent = research_agent
         self._penny_microcap_agent = penny_microcap_agent
@@ -284,7 +311,7 @@ class GlobalMarketIntelligenceWorkflow:
 
         is_penny_microcap = category not in MAIN_REPORT_CATEGORIES
         try:
-            universe = self._universe_registry.get(category)
+            universe = await self._resolve_universe(category, is_penny_microcap)
             ranked_assets = await self._category_pipeline.run(
                 run_id,
                 category,
@@ -306,6 +333,39 @@ class GlobalMarketIntelligenceWorkflow:
             )
 
         return CategoryRunOutcome(category=category, succeeded=True, market_session_context=session_context)
+
+    async def _resolve_universe(self, category: ReportCategory, is_penny_microcap: bool) -> tuple[UniverseEntry, ...]:
+        """The static `UniverseRegistry` entry for `category` — or, for a
+        penny/micro-cap category with a `screening_provider` configured
+        and a real, non-empty discovery result, a freshly live-discovered
+        candidate list instead (Phase 6c).
+
+        A screening failure (any exception `discover()` raises) degrades
+        to the static universe, never crashes this category's own
+        resolution — the same "an optional dependency's failure degrades,
+        never crashes" convention `_generate_and_persist_report` already
+        establishes for narrative generation, applied here one step
+        earlier. Assumes `self._universe_registry is not None` — only
+        ever called from the branch in `_resolve_category` that already
+        checked this.
+        """
+        if is_penny_microcap and self._screening_provider is not None:
+            criteria = criteria_for_category(category)
+            if criteria is not None:
+                definition = REPORT_CATEGORY_DEFINITIONS[category]
+                limit = min(definition.top_n * _SCREENING_CANDIDATE_MULTIPLIER, _SCREENING_CANDIDATE_LIMIT_CAP)
+                try:
+                    discovered = await self._screening_provider.discover(category, criteria, limit)
+                except Exception as exc:  # noqa: BLE001 - a screening failure must degrade to the static universe, never crash this category
+                    _logger.warning(
+                        "global_market_intelligence_screening_failed",
+                        extra={"category": category.value, "error": str(exc)},
+                    )
+                    discovered = ()
+                if discovered:
+                    return discovered
+        assert self._universe_registry is not None
+        return self._universe_registry.get(category)
 
     async def _generate_and_persist_report(
         self,
