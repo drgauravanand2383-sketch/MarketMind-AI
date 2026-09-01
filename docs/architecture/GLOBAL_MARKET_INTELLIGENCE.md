@@ -1,15 +1,17 @@
 # Global Market Intelligence
 
 **Phase 1 (foundation) + Phase 2 (deterministic pipeline) + Phase 3
-(narrative interpretation) + Phase 4 (read-only API surface) are committed
-and pushed to `main`. Phase 5 (WebSocket distribution only — see §13) is
-implemented but uncommitted, pending review.** Daily, multi-market
-intelligence covering nine reporting categories across five market regions
-(India, US, China, Forex, Crypto), published once daily via a scheduled
-workflow, readable over `/api/v1/global-markets`, and now announced in
-real time over the existing `/ws` framework. Frontend consumption of
-either surface, and real per-market penny-stock eligibility/screening
-data, remain deliberately deferred — see §10.
+(narrative interpretation) + Phase 4 (read-only API surface) + Phase 5
+(WebSocket distribution — see §13) + Phase 6a (frontend) + Phase 6b (real
+per-market penny-stock eligibility criteria — see §4) are all committed
+and pushed to `main`.** Daily, multi-market intelligence covering nine
+reporting categories across five market regions (India, US, China, Forex,
+Crypto), published once daily via a scheduled workflow, readable over
+`/api/v1/global-markets`, announced in real time over the existing `/ws`
+framework, and consumed by a dedicated frontend section. A real
+penny/micro-cap screening data source (to populate the four penny/
+micro-cap categories' still-empty candidate universes) remains
+deliberately deferred — see §10.
 
 **Only two AI agents exist for this feature, exactly as scoped** —
 `GlobalMarketsResearchAgent` (AGT-006, the five main categories) and
@@ -125,10 +127,21 @@ Penny/micro-cap eligibility (`app/global_markets/eligibility/`) is a
 separate, per-market gate: `ConfigurableEligibilityProvider` evaluates a
 `NormalizedAssetSnapshot` against one market's `PennyStockEligibilityCriteria`
 (every threshold optional/configurable; a threshold with no data reduces
-`data_completeness_ratio`, never counted as a pass or fail). No default
-criteria are configured yet (Phase 4+, once real per-market thresholds
-and a screening data source exist) — `CategoryDataPipeline` accepts an
-optional `eligibility_provider` and simply skips filtering when `None`.
+`data_completeness_ratio`, never counted as a pass or fail).
+`app/global_markets/eligibility/defaults.py` (Phase 6b) configures real,
+sourced default criteria per market — the US's `max_price=$5.00` is the
+SEC's own Rule 3a51-1 penny-stock definition; India/China use documented
+market conventions (₹20, ¥10) rather than an invented number;
+`LOW_CAP_CRYPTO` is gated only by market-cap/liquidity, never unit token
+price. `GlobalMarketIntelligenceWorkflow._resolve_category` wires
+`eligibility_provider_for_category(category)` into `CategoryDataPipeline.run`
+for every penny/micro-cap category (`None`, i.e. no filtering, for the
+five main categories). **Caveat:** the live pipeline never populates
+`NormalizedAssetSnapshot.market_cap`/`.bid_ask_spread_percent`/
+`.is_suspended`/`.is_delisted` today (see `MarketDataNormalizer`'s own
+docstring) — those specific criteria reduce `data_completeness_ratio`
+but cannot yet reject an asset, until a market-cap-capable data source
+is wired in.
 
 `RiskClassification` (`ranking/classification.py`) is a deterministic
 label from momentum/risk/confidence scores — never proof of fraud or
@@ -240,9 +253,10 @@ from training-data recall would violate this codebase's "never fabricate
 financial facts" principle (training-data-recalled small-caps are
 disproportionately likely to be delisted, stale, or wrong). The
 eligibility/scoring/risk-classification machinery those categories need
-is fully built and tested; only a real screening-data source and
-per-market `PennyStockEligibilityCriteria` are missing (Phase 4+) — which
-is also why `PennyMicrocapIntelligenceAgent` has real prompt/parsing/
+is fully built, tested, and (as of Phase 6b) wired with real per-market
+`PennyStockEligibilityCriteria` (see §4); only a real screening-data
+source to actually populate these four universes is missing — which is
+also why `PennyMicrocapIntelligenceAgent` has real prompt/parsing/
 grounding logic but nothing to actually interpret yet in this codebase's
 current state (see §11).
 
@@ -290,16 +304,21 @@ local/system timezone. Gated by `AppSettings.global_markets_enabled`
 codebase) — upgrading an existing deployment never silently starts this
 schedule.
 
-## 10. What's still missing (Phase 6+)
+## 10. What's still missing (Phase 6c+)
 
-- Frontend (India/US/China/Forex/Crypto tabs + Penny & Micro-Cap with 4
-  sub-tabs) — including a WebSocket client consuming
-  `GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED` (§13); `frontend/src/types/
-  websocket.ts`'s `EventType`/`DomainEvent` unions do not yet have a
-  matching arm.
-- Real per-market `PennyStockEligibilityCriteria` and a penny/micro-cap
-  screening data source (unblocks non-empty penny/micro-cap universes,
-  and therefore real `PennyMicrocapIntelligenceAgent` output).
+- A real penny/micro-cap screening data source, to populate the four
+  still-empty `DEFAULT_UNIVERSES` entries (`INDIA_PENNY_STOCK`/
+  `US_PENNY_STOCK`/`CHINA_PENNY_STOCK`/`LOW_CAP_CRYPTO`) with genuine,
+  verified candidate tickers — the eligibility gate (§6) and
+  `PennyMicrocapIntelligenceAgent` (§11) are both fully ready to receive
+  it with no further code change; there is simply nothing to fetch yet.
+- A market-cap-capable market-data source, so `NormalizedAssetSnapshot
+  .market_cap`/`.bid_ask_spread_percent`/`.is_suspended`/`.is_delisted`
+  stop being permanently `None`/`False` and the real
+  `min_market_cap`/`max_market_cap`/`max_spread_percent`/
+  `exclude_suspended`/`exclude_delisted` eligibility criteria (§6) can
+  actually reject an asset, not just record reduced
+  `data_completeness_ratio`.
 
 ## 11. LLM narrative interpretation (Phase 3)
 

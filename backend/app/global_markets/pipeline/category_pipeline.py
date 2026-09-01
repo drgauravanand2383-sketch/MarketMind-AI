@@ -14,12 +14,14 @@ isolation one level up.
 
 Eligibility filtering and risk classification are both optional
 (`eligibility_provider`/`classify_risk`) — the five main categories pass
-neither; a penny/micro-cap category passes both once a real per-market
-`PennyStockEligibilityCriteria` and screening universe exist (Phase 1
+neither; every penny/micro-cap category passes both (the workflow wires
+a real, per-market `PennyStockEligibilityCriteria` via
+`app.global_markets.eligibility.defaults.eligibility_provider_for_category`).
+What's still missing is a populated screening universe: Phase 1
 deliberately left every penny/micro-cap `DEFAULT_UNIVERSES` entry empty
-rather than fabricate tickers — see that module's own docstring — so
+rather than fabricate tickers (see that module's own docstring), so
 today this pipeline simply has nothing to fetch for those categories and
-correctly returns an empty result, not a failure).
+correctly returns an empty result, not a failure.
 """
 
 from __future__ import annotations

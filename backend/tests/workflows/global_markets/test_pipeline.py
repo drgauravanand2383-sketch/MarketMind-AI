@@ -47,6 +47,7 @@ from tests.agents.penny_microcap_intelligence.conftest import mock_llm_service a
 from tests.api.ws.fakes import FakeWebSocket
 
 _FIXED_AS_OF = datetime(2026, 8, 24, 3, 0, tzinfo=UTC)  # 08:30 IST
+_ELIGIBILITY_PROVIDER_FOR_CATEGORY_PATH = "app.workflows.global_markets.pipeline.eligibility_provider_for_category"
 
 
 def _context() -> ExecutionContext:
@@ -304,8 +305,17 @@ async def test_a_penny_microcap_category_with_an_empty_universe_succeeds_with_no
 
 
 async def test_a_penny_microcap_category_populates_risk_classification(
-    repository: PostgresGlobalMarketRunRepository, ranked_asset_repository: PostgresRankedAssetRepository
+    repository: PostgresGlobalMarketRunRepository,
+    ranked_asset_repository: PostgresRankedAssetRepository,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Tests `classify_risk` wiring in isolation from real eligibility
+    filtering (covered separately — see `tests/global_markets/eligibility/
+    test_defaults.py`): `MockMarketDataProvider` always generates a price
+    in [10, 900], which the real `DEFAULT_ELIGIBILITY_CRITERIA[US]
+    .max_price=5.0` would correctly reject, so eligibility is stubbed out
+    here to isolate this test's actual concern."""
+    monkeypatch.setattr(_ELIGIBILITY_PROVIDER_FOR_CATEGORY_PATH, lambda category: None)
     universe_registry = UniverseRegistry(
         {ReportCategory.US_PENNY_STOCK: (UniverseEntry(ticker="AAPL", name="Apple Inc."),)}
     )
@@ -324,6 +334,81 @@ async def test_a_penny_microcap_category_populates_risk_classification(
     ranked = await ranked_asset_repository.list_ranked_assets(run.id, ReportCategory.US_PENNY_STOCK)
     assert len(ranked) == 1
     assert ranked[0].risk_classification is not None
+
+
+class _RecordingCategoryPipeline:
+    """Records the kwargs `_resolve_category` calls `.run()` with, per
+    category — verifies wiring (which categories get a real
+    `eligibility_provider`) without needing a real market-data fetch or a
+    populated universe. Duck-typed to `CategoryDataPipeline`'s own `run()`
+    signature; never actually fetches or ranks anything."""
+
+    def __init__(self) -> None:
+        self.calls: dict[ReportCategory, object] = {}
+
+    async def run(
+        self,
+        run_id: str,
+        category: ReportCategory,
+        universe: tuple[UniverseEntry, ...],
+        ranking_weights: object,
+        freshness_status: object,
+        *,
+        eligibility_provider: object = None,
+        classify_risk: bool = False,
+    ) -> tuple[object, ...]:
+        self.calls[category] = eligibility_provider
+        return ()
+
+
+async def test_every_main_category_gets_no_eligibility_provider_every_penny_microcap_category_gets_one(
+    repository: PostgresGlobalMarketRunRepository, ranked_asset_repository: PostgresRankedAssetRepository
+) -> None:
+    pipeline = _RecordingCategoryPipeline()
+    workflow = GlobalMarketIntelligenceWorkflow(
+        MarketSessionResolutionService(_full_registry()),
+        repository,
+        categories=(ReportCategory.US_EQUITY, ReportCategory.US_PENNY_STOCK, ReportCategory.LOW_CAP_CRYPTO),
+        now_fn=lambda: _FIXED_AS_OF,
+        category_pipeline=pipeline,  # type: ignore[arg-type]
+        universe_registry=UniverseRegistry({}),
+        ranked_asset_repository=ranked_asset_repository,
+    )
+
+    await workflow.execute(_context())
+
+    assert pipeline.calls[ReportCategory.US_EQUITY] is None
+    assert pipeline.calls[ReportCategory.US_PENNY_STOCK] is not None
+    assert pipeline.calls[ReportCategory.LOW_CAP_CRYPTO] is not None
+
+
+async def test_a_penny_microcap_asset_that_fails_real_eligibility_criteria_is_excluded(
+    repository: PostgresGlobalMarketRunRepository, ranked_asset_repository: PostgresRankedAssetRepository
+) -> None:
+    """`MockMarketDataProvider` always generates a quote priced between
+    $10 and $900 — every ticker therefore fails `DEFAULT_ELIGIBILITY_
+    CRITERIA[PennyStockMarket.US].max_price` (the real $5.00 SEC
+    penny-stock threshold), proving the workflow wires a genuinely
+    enforced eligibility gate into penny/micro-cap categories, not just
+    a no-op placeholder."""
+    universe_registry = UniverseRegistry(
+        {ReportCategory.US_PENNY_STOCK: (UniverseEntry(ticker="AAPL", name="Apple Inc."),)}
+    )
+    workflow = GlobalMarketIntelligenceWorkflow(
+        MarketSessionResolutionService(_full_registry()),
+        repository,
+        categories=(ReportCategory.US_PENNY_STOCK,),
+        now_fn=lambda: _FIXED_AS_OF,
+        category_pipeline=CategoryDataPipeline(MockMarketDataProvider(), now_fn=lambda: _FIXED_AS_OF),
+        universe_registry=universe_registry,
+        ranked_asset_repository=ranked_asset_repository,
+    )
+
+    run = await workflow.execute(_context())
+
+    assert run.category_outcomes[0].succeeded is True
+    ranked = await ranked_asset_repository.list_ranked_assets(run.id, ReportCategory.US_PENNY_STOCK)
+    assert ranked == []
 
 
 async def test_without_the_pipeline_wired_in_no_ranked_assets_are_persisted(
@@ -404,7 +489,13 @@ async def test_a_penny_microcap_category_generates_a_report_via_its_own_agent(
     repository: PostgresGlobalMarketRunRepository,
     ranked_asset_repository: PostgresRankedAssetRepository,
     report_repository: PostgresIntelligenceReportRepository,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Eligibility is stubbed out here for the same reason as
+    `test_a_penny_microcap_category_populates_risk_classification` above
+    — this test's own concern is narrative-report generation, not
+    eligibility filtering."""
+    monkeypatch.setattr(_ELIGIBILITY_PROVIDER_FOR_CATEGORY_PATH, lambda category: None)
     universe_registry = UniverseRegistry(
         {ReportCategory.US_PENNY_STOCK: (UniverseEntry(ticker="PENNY", name="Penny Co."),)}
     )

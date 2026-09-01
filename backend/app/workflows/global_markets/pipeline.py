@@ -67,6 +67,7 @@ from app.agents.global_markets_research.models import GlobalMarketsResearchReque
 from app.agents.penny_microcap_intelligence.agent import PennyMicrocapIntelligenceAgent
 from app.agents.penny_microcap_intelligence.models import PennyMicrocapIntelligenceRequest
 from app.core.context import ExecutionContext
+from app.global_markets.eligibility.defaults import eligibility_provider_for_category
 from app.global_markets.models import (
     MAIN_REPORT_CATEGORIES,
     REPORT_CATEGORY_DEFINITIONS,
@@ -290,6 +291,7 @@ class GlobalMarketIntelligenceWorkflow:
                 universe,
                 _ranking_weights_for(category),
                 session_context.data_freshness_status,
+                eligibility_provider=eligibility_provider_for_category(category),
                 classify_risk=is_penny_microcap,
             )
             await self._ranked_asset_repository.replace_ranked_assets(run_id, category, ranked_assets)
