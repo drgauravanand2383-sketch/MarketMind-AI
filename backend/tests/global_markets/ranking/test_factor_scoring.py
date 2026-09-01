@@ -117,6 +117,62 @@ def test_higher_multi_window_performance_scores_higher() -> None:
     )
 
 
+def test_price_performance_includes_the_shortest_new_windows() -> None:
+    """24H/1W joined the recent-focused cluster alongside 10D/15D/1M."""
+    service = FactorScoringService()
+    assets = {
+        "LOW": (
+            _profile("LOW", (_window(PerformanceWindow.H24, 1.0), _window(PerformanceWindow.W1, 1.0))),
+            _snapshot("LOW"),
+            _flat_prices(30),
+        ),
+        "HIGH": (
+            _profile("HIGH", (_window(PerformanceWindow.H24, 20.0), _window(PerformanceWindow.W1, 20.0))),
+            _snapshot("HIGH"),
+            _flat_prices(30),
+        ),
+    }
+
+    scores = service.score_batch(assets)
+
+    assert _factor(scores["HIGH"], RankingFactor.PRICE_PERFORMANCE) > _factor(
+        scores["LOW"], RankingFactor.PRICE_PERFORMANCE
+    )
+
+
+def test_price_performance_ignores_multi_year_windows() -> None:
+    """3Y/5Y are reported for display (a stock's long-term track record)
+    but must not move the recent-focused Top-N price score — the ranking
+    stays recent-focused by explicit product decision."""
+    service = FactorScoringService()
+    assets = {
+        "ONLY_LONG_TERM": (
+            # A spectacular 3Y/5Y return, but nothing in the recent-focused
+            # cluster (24H/1W/10D/15D/1M).
+            _profile(
+                "ONLY_LONG_TERM",
+                (_window(PerformanceWindow.Y3, 500.0), _window(PerformanceWindow.Y5, 900.0)),
+            ),
+            _snapshot("ONLY_LONG_TERM"),
+            _flat_prices(30),
+        ),
+        "RECENT_MOVER": (
+            _profile("RECENT_MOVER", (_window(PerformanceWindow.D10, 5.0),)),
+            _snapshot("RECENT_MOVER"),
+            _flat_prices(30),
+        ),
+    }
+
+    scores = service.score_batch(assets)
+
+    # ONLY_LONG_TERM has no window in the price-score cluster, so it scores
+    # 0.0 (missing data is never guessed as average) despite its 3Y/5Y
+    # numbers -- proof that a spectacular multi-year return alone cannot
+    # buy a higher recent price-performance score.
+    assert _factor(scores["ONLY_LONG_TERM"], RankingFactor.PRICE_PERFORMANCE) == 0.0
+    assert _factor(scores["RECENT_MOVER"], RankingFactor.PRICE_PERFORMANCE) > 0.0
+
+
 def test_missing_performance_windows_score_zero_not_average() -> None:
     service = FactorScoringService()
     assets = {
@@ -138,20 +194,20 @@ def test_missing_performance_windows_score_zero_not_average() -> None:
 
 def test_recent_acceleration_scores_higher_momentum_than_deceleration() -> None:
     service = FactorScoringService()
-    # ACCELERATING: fast recent pace (10D) vs slow longer pace (1M).
+    # ACCELERATING: fast very-recent pace (24H) vs slow week-long pace (1W).
     accelerating = _profile(
         "ACCEL",
         (
-            _window(PerformanceWindow.D10, 10.0, days=10),  # 1.0%/day recently
-            _window(PerformanceWindow.M1, 3.0, days=30),  # 0.1%/day over the month
+            _window(PerformanceWindow.H24, 1.0, days=1),  # 1.0%/day recently
+            _window(PerformanceWindow.W1, 0.7, days=7),  # 0.1%/day over the week
         ),
     )
-    # DECELERATING: slow recent pace vs fast longer pace.
+    # DECELERATING: slow very-recent pace vs fast week-long pace.
     decelerating = _profile(
         "DECEL",
         (
-            _window(PerformanceWindow.D10, 1.0, days=10),  # 0.1%/day recently
-            _window(PerformanceWindow.M1, 30.0, days=30),  # 1.0%/day over the month
+            _window(PerformanceWindow.H24, 0.1, days=1),  # 0.1%/day recently
+            _window(PerformanceWindow.W1, 7.0, days=7),  # 1.0%/day over the week
         ),
     )
     assets = {

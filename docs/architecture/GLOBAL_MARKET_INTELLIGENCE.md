@@ -4,7 +4,10 @@
 (narrative interpretation) + Phase 4 (read-only API surface) + Phase 5
 (WebSocket distribution — see §13) + Phase 6a (frontend) + Phase 6b (real
 per-market penny-stock eligibility criteria — see §4) + Phase 6c
-(penny/micro-cap candidate discovery — see §14) are implemented.** Daily,
+(penny/micro-cap candidate discovery — see §14) + Phase 7 (extended
+trailing-return windows: 24H..5Y, up from 10D..1Y — persisted on each
+`RankedAsset` and surfaced in the API and frontend; see §3, §8, §12,
+§15) are implemented.** Daily,
 multi-market intelligence covering nine reporting categories across five
 market regions (India, US, China, Forex, Crypto), published once daily
 via a scheduled workflow, readable over `/api/v1/global-markets`,
@@ -89,22 +92,34 @@ package imports `pandas_market_calendars` directly.
 ## 3. Performance windows
 
 `PerformanceCalculationService` (`app/global_markets/performance/engine.py`)
-computes six `PerformanceWindow`s (10D/15D/1M/3M/6M/1Y) per asset from an
-already-fetched `HistoricalSeries` — no I/O. Methodology is explicit per
-market region, never one blanket calendar-day subtraction:
+computes **ten** `PerformanceWindow`s per asset from an already-fetched
+`HistoricalSeries` — no I/O. The set, shortest-to-longest:
+**24H / 1W / 10D / 15D / 1M / 3M / 6M / 1Y / 3Y / 5Y**. Methodology is
+explicit per market region, never one blanket calendar-day subtraction:
 
-- **10D/15D, session-based markets** (equities, forex): the Nth most
-  recent *bar*, not calendar-day subtraction — correct by construction
-  because a real provider's daily series only contains bars for days that
-  actually traded.
-- **10D/15D, crypto**: calendar-day anchored (crypto trades every day).
-- **1M/3M/6M/1Y, every region**: calendar month/year subtraction anchored
-  on the latest bar's date (stdlib `calendar.monthrange`), snapped to the
+- **24H / 1W / 10D / 15D, session-based markets** (equities, forex): the
+  Nth most recent *bar* (24H → 1 bar, 1W → 5 bars, 10D → 10, 15D → 15),
+  not calendar-day subtraction — correct by construction because a real
+  provider's daily series only contains bars for days that actually
+  traded.
+- **24H / 1W / 10D / 15D, crypto**: calendar-day anchored (24H → 1 day,
+  1W → 7, 10D → 10, 15D → 15 — crypto trades every day).
+- **1M / 3M / 6M / 1Y / 3Y / 5Y, every region**: calendar month/year
+  subtraction anchored on the latest bar's date (stdlib
+  `calendar.monthrange`, `_shift_months`/`_shift_years`), snapped to the
   nearest bar at-or-before the anchor.
 
 A window that the asset's history doesn't fully cover is still reported,
 with `WindowedPerformance.is_complete=False` — never silently dropped or
-presented as a full-window return.
+presented as a full-window return. The 3Y/5Y windows in particular make
+this flag load-bearing: a recently-listed stock, or any asset on a
+low-history provider, legitimately returns `is_complete=False` there.
+
+**History depth**: `CategoryDataPipeline._HISTORY_LOOKBACK_DAYS` is
+`1900` (≈ 5Y + weekend/holiday anchor slack), and `YahooFinanceProvider
+.get_price_history` now derives its Yahoo `range` token from the
+requested `[start, end]` span (`_daily_range_token`) — a 5Y request
+fetches `range=10y` daily bars, not the old hardcoded `2y`. See §5.
 
 ## 4. Ranking & eligibility (Phase 1 contract, Phase 2 real scoring)
 
@@ -116,6 +131,17 @@ of them — `PRICE_PERFORMANCE`, `MOMENTUM`, `VOLUME_LIQUIDITY`, `RISK`
 min-max scaled to [0, 100] relative to the other assets in the same
 batch**, never against a fixed absolute threshold (no universal "good
 momentum" scale spans India equities, forex pairs, and crypto).
+
+**The ranking stays recent-focused** even though the window set now
+reaches 5Y (§3): `PRICE_PERFORMANCE` blends only the sub-monthly cluster
+(`_PERFORMANCE_WINDOWS_FOR_PRICE_SCORE` = 24H / 1W / 10D / 15D / 1M), and
+`MOMENTUM` is the 24H daily pace minus the 1W daily pace
+(`_MOMENTUM_SHORT_WINDOW` / `_MOMENTUM_LONG_WINDOW`). The 3Y/5Y windows
+are **persisted and surfaced** (§8, §12, §15) so an asset's multi-year
+track record is visible, but they never move the Top-N selection — a
+spectacular 5Y return alone cannot buy a higher score. `SOURCE_CONFIDENCE`
+does count all ten windows in its completeness ratio, so an asset that
+legitimately can't complete 3Y/5Y honestly scores lower there.
 `WeightedRankingEngine` (`ranking/engine.py`) combines them via a fully
 configurable `RankingWeights` and ranks, tie-broken by `(-final_score,
 ticker)` — deterministic and reproducible. Two default weight profiles
@@ -162,14 +188,14 @@ filter) -> rank -> truncate-to-`top_n` happens for one category:
 ```
 CategoryDataPipeline.run(run_id, category, universe, ranking_weights, freshness_status)
         |
-        +--> MarketDataProvider.get_quote() / get_price_history()   per ticker, isolated
+        +--> MarketDataProvider.get_quote() / get_price_history(start = today - 1900d)   per ticker, isolated
         +--> MarketDataNormalizer.normalize()   -> NormalizedAssetSnapshot
         +--> [optional] PennyStockEligibilityProvider.evaluate()   -> drop ineligible
-        +--> PerformanceCalculationService.calculate()   -> AssetPerformanceProfile
+        +--> PerformanceCalculationService.calculate()   -> AssetPerformanceProfile (10 windows, 24H..5Y)
         +--> FactorScoringService.score_batch()   -> FactorScore per asset
         +--> WeightedRankingEngine.rank()   -> RankedAssetScore, truncated to top_n
         +--> [optional] classify()   -> RiskClassification (penny/micro-cap only)
-        -> tuple[RankedAsset, ...]
+        -> tuple[RankedAsset, ...]   (each carrying its full performance_windows, verbatim from the profile)
 ```
 
 One ticker's fetch failure is isolated (`continue`, never abort the
@@ -279,9 +305,12 @@ repository ABCs:
   `category_outcomes` (JSON), triggered_by, started_at, completed_at.
 - `global_market_ranked_assets` (`BaseRankedAssetRepository`, Phase 2) —
   one row per `(run_id, category, ticker)`: rank, final_score,
-  `factor_scores` (JSON), `snapshot` (JSON, the full `NormalizedAssetSnapshot`),
-  `risk_classification`. Primary key is the deterministic
-  `"{run_id}:{category}:{ticker}"` string (see
+  `factor_scores` (JSON), `performance_windows` (JSON — the full ten
+  `WindowedPerformance` entries, 24H..5Y, verbatim from the
+  `AssetPerformanceProfile` the ranking consumed; `NOT NULL DEFAULT '[]'`,
+  so a pre-0010 row reads back as `[]`), `snapshot` (JSON, the full
+  `NormalizedAssetSnapshot`), `risk_classification`. Primary key is the
+  deterministic `"{run_id}:{category}:{ticker}"` string (see
   `postgres/mapper.py::ranked_asset_id`) — the PK itself is the
   uniqueness constraint, and `replace_ranked_assets`'
   delete-then-insert-for-one-category semantics are collision-free by
@@ -297,8 +326,16 @@ Migrations: `alembic/versions/0007_global_market_runs.py` (run tracking),
 `0008_global_market_ranked_assets.py` (ranked assets), and
 `0009_global_market_reports.py` (narrative reports) all drive DDL
 directly off the real ORM `Base.metadata` — never hand-transcribed, can
-never drift from the actual models. See `docs/database/MIGRATIONS.md`
-for the revision-id-length constraint all three respect.
+never drift from the actual models. `0010_ranked_asset_performance_windows.py`
+is the first incremental *ALTER* here — an inspector-guarded,
+column-existence-checked `add_column`/`drop_column` for
+`performance_windows`, following the `0003_risk_market_data_coverage`
+idiom (safe on a fresh DB and on one stamped at an older revision). See
+`docs/database/MIGRATIONS.md` for the revision-id-length constraint all
+four respect (`0010`'s stored id is the shortened
+`0010_ranked_asset_perf_windows`, 30 chars). All four are exercised by a
+real Alembic upgrade/downgrade cycle in `tests/operations/`
+(`test_ranked_asset_performance_windows_migration.py` for `0010`).
 
 ## 9. Scheduling
 
@@ -311,6 +348,17 @@ local/system timezone. Gated by `AppSettings.global_markets_enabled`
 (default `False`, like every other scheduled-job feature flag in this
 codebase) — upgrading an existing deployment never silently starts this
 schedule.
+
+**Run-now trigger**: `scripts/run_global_market_intelligence.py` executes
+one workflow run on demand (`scheduler.run_schedule(GLOBAL_MARKETS_WORKFLOW_ID)`),
+printing a JSON summary — run id, status, and per-category
+succeeded/error plus persisted ranked-asset count. Same operational
+pattern as `scripts/run_market_data_refresh.py` / `run_ingestion.py`:
+only reachable by whoever can already run a command inside the backend
+container, and it still respects the `global_markets_enabled` gate (exits
+with a `"disabled"` message when the flag is off) and the per-`run_date`
+idempotency short-circuit (§6) — a second run for a date that already has
+one returns the existing run, never re-fetches.
 
 ## 10. What's still missing (Phase 6d+)
 
@@ -329,6 +377,17 @@ schedule.
   must deliberately opt in (see `docs/release/PRODUCTION_CONFIGURATION_GUIDE.md`).
   Until then, every penny/micro-cap `DEFAULT_UNIVERSES` entry stays
   empty exactly as it did before Phase 6c.
+- **Main-category universes hold 10 tickers each** (`DEFAULT_UNIVERSES`,
+  §7), so those categories currently rank a Top-10, not the Top-15 their
+  `REPORT_CATEGORY_DEFINITIONS.top_n` allows — `min(universe_size,
+  top_n)`, not a bug. Widening the static universes (or wiring main-category
+  screening) is the fix.
+- Yahoo's unofficial screener endpoint (§14) is prone to
+  `429 Too Many Requests` on its crumb handshake under load; when it
+  rate-limits, the three equity penny categories degrade to their empty
+  static universe for that run (`global_market_intelligence_screening_failed`
+  logged, category still `succeeded` with an empty result — §6). A later
+  run typically succeeds.
 
 ## 11. LLM narrative interpretation (Phase 3)
 
@@ -416,6 +475,11 @@ GET /global-markets/runs/{run_id}/categories/{category}/report          -> Succe
 registration-order requirement `app/api/v1/portfolio/router.py`'s own
 docstring documents (a literal path segment must precede a variable one
 at the same depth, or the variable route swallows it).
+
+Each `RankedAsset` in a `ranked-assets` response carries its full
+`performance_windows` array (ten `WindowedPerformance` entries, 24H..5Y —
+§3/§8); no new endpoint or query parameter was added for it, it rides the
+existing `RankedAsset` shape.
 
 **Domain models returned directly**, no HTTP-layer DTOs — `IntelligenceRun`/
 `RankedAsset`/`CategoryIntelligenceReport` are already persisted with
@@ -609,3 +673,17 @@ than Yahoo Finance's chart endpoint actually has data for, so a
 discovered low-cap token Yahoo cannot quote simply disappears at the
 per-ticker fetch stage. Honest and expected, not a bug — mitigated, not
 eliminated, by the overfetch.
+
+## 15. Frontend trailing-return display (Phase 6a extension)
+
+`frontend/src/features/global-markets/` renders the latest daily run per
+segment (from `/runs/latest` + the `GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED`
+WebSocket event — §13). `RankedAssetTable` shows each asset's **1Y / 3Y /
+5Y** trailing returns as their own columns (signed, coloured green/red by
+sign); the expandable per-row detail panel shows the full ten-window
+breakdown (24H..5Y) alongside the factor-score bars and any per-asset
+LLM commentary. A window with `is_complete=false` is rendered muted with
+a `*` and an explanatory footnote — never shown as a full-window return,
+the same discipline `WindowedPerformance` enforces server-side (§3).
+`types/global-markets.ts` mirrors `PerformanceWindow` /
+`WindowedPerformance` / `RankedAsset.performance_windows` verbatim.

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.global_markets.models import NormalizedAssetSnapshot, ReportCategory
+from app.global_markets.models import NormalizedAssetSnapshot, ReportCategory, WindowedPerformance
 from app.global_markets.ranking.classification import RiskClassification
 from app.global_markets.ranking.models import FactorScore
 
@@ -36,6 +36,15 @@ class RankedAsset(BaseModel):
     rank: int = Field(gt=0)
     final_score: float = Field(ge=0.0, le=100.0)
     factor_scores: tuple[FactorScore, ...] = Field(default_factory=tuple)
+    performance_windows: tuple[WindowedPerformance, ...] = Field(default_factory=tuple)
+    """Every `PerformanceWindow`'s computed trailing return for this asset
+    (24H … 5Y), carried through verbatim from the `AssetPerformanceProfile`
+    the ranking consumed. The ranking itself is recent-focused (see
+    `app.global_markets.ranking.factor_scoring`), but the full window set
+    — including the multi-year track record — is persisted and exposed so
+    the product can show "how has this asset actually done over 5 years."
+    A window the asset's history could not fully cover is still present
+    with `is_complete=False`, never dropped."""
     snapshot: NormalizedAssetSnapshot
     risk_classification: RiskClassification | None = None
     """Only populated for `PENNY_MICROCAP_REPORT_CATEGORIES` — the five

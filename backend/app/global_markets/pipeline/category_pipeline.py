@@ -50,9 +50,12 @@ from app.providers.market_data.provider import MarketDataProvider
 
 __all__ = ["CategoryDataPipeline"]
 
-_HISTORY_LOOKBACK_DAYS = 400
-"""Comfortably covers the longest performance window (1Y) plus the
-month-shift-anchoring slack `PerformanceCalculationService` needs."""
+_HISTORY_LOOKBACK_DAYS = 1900
+"""Comfortably covers the longest performance window (5Y = 1826 days)
+plus the year-shift-anchoring slack `PerformanceCalculationService`
+needs: an anchor exactly 5 calendar years back may land on a weekend or
+holiday, so the series must extend a little before it for the
+"nearest bar at or before the anchor" snap to still be a real bar."""
 
 
 def _default_now() -> datetime:
@@ -138,6 +141,7 @@ class CategoryDataPipeline:
                     rank=score.rank,
                     final_score=score.final_score,
                     factor_scores=score.factor_scores,
+                    performance_windows=batch[score.ticker][0].windows,
                     snapshot=batch[score.ticker][1],
                     risk_classification=risk_classification,
                 )

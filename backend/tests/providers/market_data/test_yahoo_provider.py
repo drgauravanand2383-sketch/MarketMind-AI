@@ -10,6 +10,7 @@ during implementation), not invented.
 from __future__ import annotations
 
 import json
+from datetime import date
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -356,10 +357,36 @@ async def test_get_price_history_no_bars_raises_no_data_error() -> None:
 async def test_get_price_history_filters_by_start_and_end() -> None:
     provider = YahooFinanceProvider(_config())
     with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response(_history_payload()))):
-        series = await provider.get_price_history(
-            "DELL", Interval.ONE_DAY, start=__import__("datetime").date(2026, 8, 5)
-        )
-    assert all(bar.date.date() >= __import__("datetime").date(2026, 8, 5) for bar in series.prices)
+        series = await provider.get_price_history("DELL", Interval.ONE_DAY, start=date(2026, 8, 5))
+    assert all(bar.date.date() >= date(2026, 8, 5) for bar in series.prices)
+
+
+async def _captured_range_token(**history_kwargs: object) -> str:
+    provider = YahooFinanceProvider(_config())
+    captured: dict[str, object] = {}
+
+    async def fake_get(url: str, params: dict | None = None, headers: dict | None = None) -> httpx.Response:
+        captured["params"] = params or {}
+        return _response(_history_payload())
+
+    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(side_effect=fake_get)):
+        await provider.get_price_history("DELL", Interval.ONE_DAY, **history_kwargs)  # type: ignore[arg-type]
+
+    return str(captured["params"]["range"])  # type: ignore[index]
+
+
+async def test_get_price_history_without_a_start_keeps_the_two_year_default() -> None:
+    assert await _captured_range_token() == "2y"
+
+
+async def test_get_price_history_widens_the_range_token_for_a_multi_year_start() -> None:
+    token = await _captured_range_token(start=date(2020, 1, 1), end=date(2026, 1, 1))
+    assert token == "10y"  # a ~6-year span cannot be served by the "5y" token
+
+
+async def test_get_price_history_picks_a_narrow_range_token_for_a_short_start() -> None:
+    token = await _captured_range_token(start=date(2025, 11, 1), end=date(2026, 1, 1))
+    assert token == "3mo"
 
 
 # --- Capabilities / health / unsupported methods ------------------------

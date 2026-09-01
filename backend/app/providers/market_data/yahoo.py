@@ -81,6 +81,40 @@ _INTERVAL_TOKENS: dict[Interval, str] = {
 # request storm (Milestone 13 §8), not a measured vendor limit.
 _MAX_CONCURRENT_REQUESTS = 5
 
+# Yahoo's chart `range` param only accepts a fixed set of tokens — it has
+# no free-form "N days" form for this endpoint. For a daily series we ask
+# for the shortest token that still fully covers the caller's requested
+# [start, end] span (each entry is that token's own approximate day
+# count), falling back to "max" for anything longer than 10y.
+_DAILY_RANGE_TOKENS: tuple[tuple[int, str], ...] = (
+    (5, "5d"),
+    (31, "1mo"),
+    (93, "3mo"),
+    (186, "6mo"),
+    (367, "1y"),
+    (731, "2y"),
+    (1827, "5y"),
+    (3653, "10y"),
+)
+_MAX_RANGE_TOKEN = "max"
+# Kept for the caller that omits `start` entirely (it wants "recent
+# history", not a symbol's full listing) — unchanged from the original
+# hardcoded default.
+_DEFAULT_DAILY_RANGE_TOKEN = "2y"
+_INTRADAY_RANGE_TOKEN = "1mo"
+
+
+def _daily_range_token(start: date | None, end: date | None) -> str:
+    """Smallest Yahoo daily `range` token covering `[start, end]`."""
+    if start is None:
+        return _DEFAULT_DAILY_RANGE_TOKEN
+    reference_end = end or datetime.now(UTC).date()
+    span_days = (reference_end - start).days
+    for threshold, token in _DAILY_RANGE_TOKENS:
+        if span_days <= threshold:
+            return token
+    return _MAX_RANGE_TOKEN
+
 
 class YahooFinanceProviderConfig(BaseModel):
     """Configuration for YahooFinanceProvider.
@@ -228,7 +262,7 @@ class YahooFinanceProvider(MarketDataProvider):
     ) -> HistoricalSeries:
         normalized_ticker = self._normalization.normalize_ticker(ticker)
         interval_token = _INTERVAL_TOKENS[interval]
-        range_token = "1mo" if interval.is_intraday else "2y"
+        range_token = _INTRADAY_RANGE_TOKEN if interval.is_intraday else _daily_range_token(start, end)
         payload = await self._fetch_chart(
             normalized_ticker, range_=range_token, interval_token=interval_token
         )

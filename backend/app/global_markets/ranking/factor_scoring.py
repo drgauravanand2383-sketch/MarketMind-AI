@@ -33,12 +33,19 @@ from app.market_data.models import HistoricalPrice
 __all__ = ["FactorScoringService"]
 
 _PERFORMANCE_WINDOWS_FOR_PRICE_SCORE = (
+    PerformanceWindow.H24,
+    PerformanceWindow.W1,
     PerformanceWindow.D10,
     PerformanceWindow.D15,
     PerformanceWindow.M1,
 )
-_MOMENTUM_SHORT_WINDOW = PerformanceWindow.D10
-_MOMENTUM_LONG_WINDOW = PerformanceWindow.M1
+"""Deliberately still the sub-monthly cluster — recent-focused ranking,
+unchanged in kind from before the 24H/1W/3Y/5Y windows existed. 3Y/5Y are
+reported (see `AssetPerformanceProfile`) so a stock's multi-year track
+record is visible, but this batch's Top-N selection is not re-weighted
+toward them."""
+_MOMENTUM_SHORT_WINDOW = PerformanceWindow.H24
+_MOMENTUM_LONG_WINDOW = PerformanceWindow.W1
 _ALL_WINDOWS = tuple(PerformanceWindow)
 
 
@@ -87,7 +94,7 @@ class FactorScoringService:
     @staticmethod
     def _blended_price_performance(profile: AssetPerformanceProfile) -> float | None:
         """Average `percent_change` across the recent-focused windows
-        (10D/15D/1M) that actually completed — "multi-window
+        (24H/1W/10D/15D/1M) that actually completed — "multi-window
         performance," not a single one-day gain."""
         values = [
             window.percent_change
@@ -145,10 +152,13 @@ class FactorScoringService:
 
     @staticmethod
     def _data_completeness(profile: AssetPerformanceProfile, snapshot: NormalizedAssetSnapshot) -> float:
-        """The fraction of the 6 performance windows that fully completed,
-        blended with whether core snapshot fields were present at all —
-        always computable (never `None`), since "how much do we actually
-        know" is itself always knowable."""
+        """The fraction of the (now 10) performance windows that fully
+        completed, blended with whether core snapshot fields were present
+        at all — always computable (never `None`), since "how much do we
+        actually know" is itself always knowable. A newly-listed asset or
+        one on a low-history provider will legitimately never complete
+        the 3Y/5Y windows; that honestly lowers this score rather than
+        being silently excluded from the denominator."""
         complete_windows = sum(1 for window in profile.windows if window.is_complete)
         window_ratio = complete_windows / len(_ALL_WINDOWS)
         core_fields = (snapshot.price, snapshot.avg_daily_volume, snapshot.market_cap)

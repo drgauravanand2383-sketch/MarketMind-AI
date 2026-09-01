@@ -13,7 +13,9 @@ from app.global_markets.models import (
     IntelligenceRun,
     IntelligenceRunStatus,
     NormalizedAssetSnapshot,
+    PerformanceWindow,
     ReportCategory,
+    WindowedPerformance,
 )
 from app.global_markets.ranked_asset import RankedAsset
 from app.repositories.global_markets.postgres.ranked_asset_repository import PostgresRankedAssetRepository
@@ -211,6 +213,37 @@ async def test_list_ranked_assets_for_category_orders_by_rank(
     assert response.status_code == 200
     tickers = [a["snapshot"]["ticker"] for a in response.json()["data"]]
     assert tickers == ["AAPL", "MSFT"]
+
+
+async def test_ranked_assets_response_exposes_performance_windows(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    global_market_ranked_asset_repository: PostgresRankedAssetRepository,
+) -> None:
+    window = WindowedPerformance(
+        window=PerformanceWindow.Y5,
+        start_value=10.0,
+        end_value=34.0,
+        percent_change=240.0,
+        observation_start=_NOW,
+        observation_end=_NOW,
+        periods_used=1250,
+        is_complete=True,
+    )
+    await global_market_ranked_asset_repository.replace_ranked_assets(
+        "run-1",
+        ReportCategory.US_EQUITY,
+        (_ranked_asset("run-1", ReportCategory.US_EQUITY, "AAPL", 1, performance_windows=(window,)),),
+    )
+
+    response = client.get(
+        "/api/v1/global-markets/runs/run-1/categories/US_EQUITY/ranked-assets", headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    windows = response.json()["data"][0]["performance_windows"]
+    assert windows[0]["window"] == "5Y"
+    assert windows[0]["percent_change"] == 240.0
 
 
 async def test_list_ranked_assets_for_category_only_returns_that_category(

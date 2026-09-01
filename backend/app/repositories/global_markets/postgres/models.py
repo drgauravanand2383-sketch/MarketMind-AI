@@ -64,6 +64,9 @@ class RankedAssetModel(Base):
     rank: Mapped[int] = mapped_column(Integer, nullable=False)
     final_score: Mapped[float] = mapped_column(Float, nullable=False)
     factor_scores: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    performance_windows: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, nullable=False, default=list, server_default="[]"
+    )
     snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     risk_classification: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
 

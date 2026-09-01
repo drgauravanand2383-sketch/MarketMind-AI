@@ -77,6 +77,56 @@ def test_empty_series_produces_no_windows() -> None:
     assert profile.windows == ()
 
 
+# --- 24H / 1W: shortest bar-count / calendar-day windows ----------------------
+
+
+def test_us_equity_24h_window_is_the_single_most_recent_bar() -> None:
+    service = PerformanceCalculationService()
+    series = _dense_series("SPY", date(2024, 1, 1), count=700)  # latest bar price 799.0
+
+    profile = service.calculate(MarketRegion.US, series, _PROVENANCE)
+
+    h24 = profile.window(PerformanceWindow.H24)
+    assert h24 is not None
+    assert h24.is_complete is True
+    assert h24.end_value == 799.0
+    assert h24.start_value == 798.0  # exactly one bar back
+
+
+def test_us_equity_1w_window_counts_five_trading_bars() -> None:
+    service = PerformanceCalculationService()
+    series = _dense_series("SPY", date(2024, 1, 1), count=700)
+
+    profile = service.calculate(MarketRegion.US, series, _PROVENANCE)
+
+    w1 = profile.window(PerformanceWindow.W1)
+    assert w1 is not None
+    assert w1.is_complete is True
+    assert w1.start_value == 794.0  # 5 bars back
+
+
+def test_crypto_24h_window_uses_one_calendar_day() -> None:
+    service = PerformanceCalculationService()
+    series = _dense_series("BTC-USD", date(2026, 1, 1), count=30)
+
+    profile = service.calculate(MarketRegion.CRYPTO, series, _PROVENANCE)
+
+    h24 = profile.window(PerformanceWindow.H24)
+    assert h24 is not None
+    assert (h24.observation_end - h24.observation_start).days == 1
+
+
+def test_crypto_1w_window_uses_seven_calendar_days() -> None:
+    service = PerformanceCalculationService()
+    series = _dense_series("BTC-USD", date(2026, 1, 1), count=30)
+
+    profile = service.calculate(MarketRegion.CRYPTO, series, _PROVENANCE)
+
+    w1 = profile.window(PerformanceWindow.W1)
+    assert w1 is not None
+    assert (w1.observation_end - w1.observation_start).days == 7
+
+
 # --- 10D/15D: bar-count for session-based markets, calendar-day for crypto -----
 
 
@@ -154,6 +204,33 @@ def test_month_and_year_windows_anchor_on_calendar_months_from_the_latest_bar() 
     assert m6 is not None and m6.observation_start.date() == date(2025, 5, 30)
     assert y1 is not None and y1.observation_start.date() == date(2024, 11, 30)
     assert all(window.is_complete for window in (m1, m3, m6, y1))
+
+
+def test_three_and_five_year_windows_anchor_on_calendar_years() -> None:
+    service = PerformanceCalculationService()
+    # ~7 years of dense daily bars so both multi-year windows fully complete.
+    series = _dense_series("SPY", date(2019, 1, 1), count=2600)  # latest bar: 2026-02-12
+
+    profile = service.calculate(MarketRegion.US, series, _PROVENANCE)
+
+    y3 = profile.window(PerformanceWindow.Y3)
+    y5 = profile.window(PerformanceWindow.Y5)
+    assert y3 is not None and y3.observation_start.date() == date(2023, 2, 12)
+    assert y5 is not None and y5.observation_start.date() == date(2021, 2, 12)
+    assert y3.is_complete is True
+    assert y5.is_complete is True
+
+
+def test_multi_year_windows_are_incomplete_when_history_is_too_short() -> None:
+    service = PerformanceCalculationService()
+    series = _dense_series("NEWISH", date(2025, 1, 1), count=400)  # ~13 months of history
+
+    profile = service.calculate(MarketRegion.US, series, _PROVENANCE)
+
+    for window in (PerformanceWindow.Y3, PerformanceWindow.Y5):
+        computed = profile.window(window)
+        assert computed is not None
+        assert computed.is_complete is False
 
 
 def test_a_window_never_uses_a_bar_after_its_own_anchor() -> None:
