@@ -35,6 +35,13 @@ export function getLatestRun(): IntelligenceRun | undefined {
   return runs[0];
 }
 
+/** Most-recent-first, matching `seedRun`'s own unshift-to-front
+ * ordering — the same order the real `/global-markets/runs` endpoint
+ * returns (sorted by `run_date` descending). */
+export function listRuns(): IntelligenceRun[] {
+  return runs;
+}
+
 export function getRun(runId: string): IntelligenceRun | undefined {
   return runs.find((run) => run.id === runId);
 }

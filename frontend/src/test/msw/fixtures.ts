@@ -1,7 +1,13 @@
 import type { MetadataResponse, SuccessResponse } from "@/types/api";
 import type { AuthenticationResponse, User } from "@/types/auth";
 import type { DetectedChange } from "@/types/continuous-intelligence";
-import type { IntelligenceRun, NormalizedAssetSnapshot, RankedAsset } from "@/types/global-markets";
+import type {
+  CategoryIntelligenceReport,
+  IntelligenceRun,
+  MarketSessionContext,
+  NormalizedAssetSnapshot,
+  RankedAsset,
+} from "@/types/global-markets";
 import type { ApplicationHealth, ReadinessStatus, VersionResponse } from "@/types/health";
 import type { Watchlist, WatchlistItem, WatchlistStatistics } from "@/types/watchlist";
 import type { InitialAnalysisState, MarketDataRefreshResult, PortfolioIntelligenceReport, RecommendationCandidate, RecommendationResult, RiskAssessment } from "@/types/portfolio";
@@ -583,25 +589,49 @@ export function buildRankedAsset(overrides: Partial<RankedAsset> = {}): RankedAs
   };
 }
 
+export function buildMarketSessionContext(overrides: Partial<MarketSessionContext> = {}): MarketSessionContext {
+  return {
+    data_freshness_status: "LIVE",
+    market_session_date: "2026-02-01",
+    is_trading_now: true,
+    ...overrides,
+  };
+}
+
 export function buildIntelligenceRun(overrides: Partial<IntelligenceRun> = {}): IntelligenceRun {
+  const context = buildMarketSessionContext();
   return {
     id: "test-run-1",
     run_date: "2026-02-01",
     status: "COMPLETED",
     category_outcomes: [
-      { category: "INDIA_EQUITY", succeeded: true, error: null },
-      { category: "US_EQUITY", succeeded: true, error: null },
-      { category: "CHINA_EQUITY", succeeded: true, error: null },
-      { category: "FOREX", succeeded: true, error: null },
-      { category: "CRYPTO", succeeded: true, error: null },
-      { category: "INDIA_PENNY_STOCK", succeeded: true, error: null },
-      { category: "US_PENNY_STOCK", succeeded: true, error: null },
-      { category: "CHINA_PENNY_STOCK", succeeded: true, error: null },
-      { category: "LOW_CAP_CRYPTO", succeeded: true, error: null },
+      { category: "INDIA_EQUITY", succeeded: true, market_session_context: context, error: null },
+      { category: "US_EQUITY", succeeded: true, market_session_context: context, error: null },
+      { category: "CHINA_EQUITY", succeeded: true, market_session_context: context, error: null },
+      { category: "FOREX", succeeded: true, market_session_context: context, error: null },
+      { category: "CRYPTO", succeeded: true, market_session_context: context, error: null },
+      { category: "INDIA_PENNY_STOCK", succeeded: true, market_session_context: context, error: null },
+      { category: "US_PENNY_STOCK", succeeded: true, market_session_context: context, error: null },
+      { category: "CHINA_PENNY_STOCK", succeeded: true, market_session_context: context, error: null },
+      { category: "LOW_CAP_CRYPTO", succeeded: true, market_session_context: context, error: null },
     ],
     triggered_by: "scheduler",
     started_at: "2026-02-01T03:00:00Z",
     completed_at: "2026-02-01T03:05:00Z",
+    ...overrides,
+  };
+}
+
+export function buildCategoryIntelligenceReport(overrides: Partial<CategoryIntelligenceReport> = {}): CategoryIntelligenceReport {
+  return {
+    run_id: "test-run-1",
+    category: "INDIA_EQUITY",
+    generated_at: "2026-02-01T03:05:00Z",
+    overall_summary: "A broadly positive session led by large-cap financials.",
+    asset_commentaries: [],
+    risk_note: null,
+    provider: "anthropic",
+    model: "claude-opus-5",
     ...overrides,
   };
 }

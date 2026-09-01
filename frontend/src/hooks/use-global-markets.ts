@@ -37,6 +37,25 @@ export function useLatestRun() {
   });
 }
 
+/** The bounded recent-run history the `RunPicker` offers — see
+ * `globalMarketsApi.listRuns`'s own `RUN_HISTORY_PAGE_SIZE` cap. */
+export function useRuns() {
+  return useQuery({
+    queryKey: globalMarketsKeys.runs(),
+    queryFn: () => globalMarketsApi.listRuns(),
+  });
+}
+
+/** One specific historical run (not necessarily the latest) — used once
+ * the `RunPicker` selects a past `run_date` instead of "Latest". */
+export function useRun(runId: string) {
+  return useQuery({
+    queryKey: globalMarketsKeys.run(runId),
+    queryFn: () => globalMarketsApi.getRun(runId),
+    enabled: runId.length > 0,
+  });
+}
+
 export function useRankedAssets(runId: string, category: ReportCategory) {
   return useQuery({
     queryKey: globalMarketsKeys.rankedAssets(runId, category),

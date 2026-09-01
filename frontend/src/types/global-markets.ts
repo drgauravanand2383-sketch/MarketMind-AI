@@ -7,10 +7,11 @@
  * shapes verbatim, and the `GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED`
  * WebSocket event's payload is an `IntelligenceRun`.
  *
- * `MarketSessionContext` (attached to `CategoryRunOutcome` on the
- * backend) is deliberately not mirrored here — no page in this feature
- * renders per-category calendar detail, only the run-level
- * `IntelligenceRunStatus` and each category's own success/failure.
+ * `MarketSessionContext` is mirrored only down to the fields the data-
+ * freshness indicator actually renders (`data_freshness_status`,
+ * `market_session_date`, `is_trading_now`) — the full backend shape also
+ * carries calendar-internal fields (`freshness_cutoff`,
+ * `last_completed_session`, `market_timezone`, ...) no page here needs.
  */
 
 export type MarketRegion = "INDIA" | "US" | "CHINA" | "FOREX" | "CRYPTO";
@@ -120,9 +121,16 @@ export interface RankedAsset {
 
 export type IntelligenceRunStatus = "RUNNING" | "COMPLETED" | "PARTIAL" | "FAILED";
 
+export interface MarketSessionContext {
+  data_freshness_status: DataFreshnessStatus;
+  market_session_date: string;
+  is_trading_now: boolean;
+}
+
 export interface CategoryRunOutcome {
   category: ReportCategory;
   succeeded: boolean;
+  market_session_context: MarketSessionContext | null;
   error: string | null;
 }
 

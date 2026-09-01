@@ -11,8 +11,13 @@ export type GlobalMarketsTab = "INDIA_EQUITY" | "US_EQUITY" | "CHINA_EQUITY" | "
 interface GlobalMarketsUiState {
   activeTab: GlobalMarketsTab;
   activePennySubTab: ReportCategory;
+  /** `null` means "the latest run" (the default, and the only state
+   * before the historical run picker was added) — a specific run id
+   * once the user picks a past date from `RunPicker`. */
+  selectedRunId: string | null;
   setActiveTab: (tab: GlobalMarketsTab) => void;
   setActivePennySubTab: (category: ReportCategory) => void;
+  setSelectedRunId: (runId: string | null) => void;
 }
 
 /** Pure UI state — which tab/sub-tab is active. Never server data itself
@@ -23,11 +28,15 @@ interface GlobalMarketsUiState {
 export const useGlobalMarketsStore = create<GlobalMarketsUiState>()((set) => ({
   activeTab: "INDIA_EQUITY",
   activePennySubTab: "INDIA_PENNY_STOCK",
+  selectedRunId: null,
 
   setActiveTab: (tab) => {
     set({ activeTab: tab });
   },
   setActivePennySubTab: (category) => {
     set({ activePennySubTab: category });
+  },
+  setSelectedRunId: (runId) => {
+    set({ selectedRunId: runId });
   },
 }));

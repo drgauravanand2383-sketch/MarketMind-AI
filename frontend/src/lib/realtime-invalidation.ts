@@ -96,9 +96,15 @@ export function invalidateForEvent(queryClient: QueryClient, event: DomainEvent)
       // ranked assets/reports — refetch "latest run" plus this run's own
       // cache entry so every open category panel picks up fresh data,
       // rather than trying to patch the cache from a payload that
-      // doesn't carry what those panels need.
+      // doesn't carry what those panels need. The bare `runs()` prefix
+      // (the RunPicker's own history list) is invalidated too, so a
+      // freshly completed run appears there without a manual refresh —
+      // deliberately not folded into `.run(id)`'s own invalidation since
+      // that key is a *prefix* of `.rankedAssets()`/`.report()` as well,
+      // which this event's payload has nothing new to justify refetching.
       void queryClient.invalidateQueries({ queryKey: globalMarketsKeys.latestRun() });
       void queryClient.invalidateQueries({ queryKey: globalMarketsKeys.run(event.payload.id) });
+      void queryClient.invalidateQueries({ queryKey: globalMarketsKeys.runs(), exact: true });
       break;
     default:
       assertNever(event);

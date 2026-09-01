@@ -95,6 +95,7 @@ describe("useRealtimeSync", () => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: globalMarketsKeys.latestRun() });
     });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: globalMarketsKeys.run("run-9") });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: globalMarketsKeys.runs(), exact: true });
     expect(useRealtimeNotificationStore.getState().entries).toHaveLength(1);
     expect(useRealtimeNotificationStore.getState().entries[0]?.domain).toBe("global_markets");
     const toast = useNotificationStore.getState().notifications[0];
@@ -115,7 +116,9 @@ describe("useRealtimeSync", () => {
             buildIntelligenceRun({
               id: "run-10",
               status: "FAILED",
-              category_outcomes: [{ category: "INDIA_EQUITY", succeeded: false, error: "provider unavailable" }],
+              category_outcomes: [
+                { category: "INDIA_EQUITY", succeeded: false, market_session_context: null, error: "provider unavailable" },
+              ],
             }),
           ),
         ),

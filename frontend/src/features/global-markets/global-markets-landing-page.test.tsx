@@ -3,8 +3,8 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { GlobalMarketsLandingPage } from "@/features/global-markets/global-markets-landing-page";
 import { renderWithQueryClient } from "@/test/test-utils";
-import { buildIntelligenceRun, buildNormalizedAssetSnapshot, buildRankedAsset } from "@/test/msw/fixtures";
-import { resetGlobalMarketsStore, seedRankedAssets, seedRun } from "@/test/msw/global-markets-store";
+import { buildCategoryIntelligenceReport, buildIntelligenceRun, buildNormalizedAssetSnapshot, buildRankedAsset } from "@/test/msw/fixtures";
+import { resetGlobalMarketsStore, seedRankedAssets, seedReport, seedRun } from "@/test/msw/global-markets-store";
 import { useGlobalMarketsStore } from "@/store/global-markets-store";
 
 describe("GlobalMarketsLandingPage", () => {
@@ -75,8 +75,8 @@ describe("GlobalMarketsLandingPage", () => {
         id: "run-1",
         status: "PARTIAL",
         category_outcomes: [
-          { category: "INDIA_EQUITY", succeeded: true, error: null },
-          { category: "US_EQUITY", succeeded: false, error: "provider unavailable" },
+          { category: "INDIA_EQUITY", succeeded: true, market_session_context: null, error: null },
+          { category: "US_EQUITY", succeeded: false, market_session_context: null, error: "provider unavailable" },
         ],
       }),
     );
@@ -88,5 +88,80 @@ describe("GlobalMarketsLandingPage", () => {
       expect(screen.getByText("PARTIAL")).toBeInTheDocument();
     });
     expect(screen.getByRole("alert")).toHaveTextContent("1 of 2 categories failed to generate in this run: US Stocks.");
+  });
+
+  it("shows a data freshness badge for the active category", async () => {
+    seedRun(buildIntelligenceRun({ id: "run-1", status: "COMPLETED" }));
+    seedRankedAssets("run-1", "INDIA_EQUITY", [buildRankedAsset({ snapshot: buildNormalizedAssetSnapshot({ ticker: "RELIANCE" }) })]);
+
+    renderWithQueryClient(<GlobalMarketsLandingPage />);
+
+    expect(await screen.findByText("RELIANCE")).toBeInTheDocument();
+    expect(screen.getByText("Live")).toBeInTheDocument();
+  });
+
+  it("shows the real failure reason for a category that failed to generate", async () => {
+    seedRun(
+      buildIntelligenceRun({
+        id: "run-1",
+        status: "PARTIAL",
+        category_outcomes: [
+          { category: "INDIA_EQUITY", succeeded: false, market_session_context: null, error: "provider unavailable" },
+        ],
+      }),
+    );
+
+    renderWithQueryClient(<GlobalMarketsLandingPage />);
+
+    expect(await screen.findByText("India Stocks failed to generate in this run")).toBeInTheDocument();
+    expect(screen.getByText("provider unavailable")).toBeInTheDocument();
+  });
+
+  it("expanding a ranked asset's row shows its factor-score breakdown and per-asset commentary", async () => {
+    seedRun(buildIntelligenceRun({ id: "run-1", status: "COMPLETED" }));
+    seedRankedAssets("run-1", "INDIA_EQUITY", [
+      buildRankedAsset({
+        snapshot: buildNormalizedAssetSnapshot({ ticker: "RELIANCE" }),
+        factor_scores: [{ factor: "MOMENTUM", value: 82, explanation: "Strong 15D trend." }],
+      }),
+    ]);
+    seedReport(
+      buildCategoryIntelligenceReport({
+        run_id: "run-1",
+        category: "INDIA_EQUITY",
+        asset_commentaries: [{ ticker: "RELIANCE", rank: 1, commentary: "Consistent volume backing the move." }],
+      }),
+    );
+
+    renderWithQueryClient(<GlobalMarketsLandingPage />);
+    await screen.findByText("RELIANCE");
+
+    expect(screen.queryByText("Consistent volume backing the move.")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Details" }));
+
+    expect(screen.getByText("Momentum")).toBeInTheDocument();
+    expect(screen.getByText("Strong 15D trend.", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("Consistent volume backing the move.")).toBeInTheDocument();
+    // Asset-level freshness (independent of the category-level badge).
+    expect(screen.getAllByText("Live").length).toBeGreaterThan(1);
+  });
+
+  it("the run picker lets the user switch to a past run, showing a clear 'not the latest' indicator", async () => {
+    seedRun(buildIntelligenceRun({ id: "run-2", run_date: "2026-01-31", status: "COMPLETED" }));
+    seedRun(buildIntelligenceRun({ id: "run-1", run_date: "2026-02-01", status: "COMPLETED" })); // seeded last -> latest
+    seedRankedAssets("run-1", "INDIA_EQUITY", [buildRankedAsset({ snapshot: buildNormalizedAssetSnapshot({ ticker: "RELIANCE" }) })]);
+    seedRankedAssets("run-2", "INDIA_EQUITY", [buildRankedAsset({ snapshot: buildNormalizedAssetSnapshot({ ticker: "OLDTICKER" }) })]);
+
+    renderWithQueryClient(<GlobalMarketsLandingPage />);
+    expect(await screen.findByText("RELIANCE")).toBeInTheDocument();
+    expect(screen.queryByText(/Viewing the persisted snapshot/)).not.toBeInTheDocument();
+
+    const picker = await screen.findByLabelText("Run");
+    await userEvent.selectOptions(picker, "run-2");
+
+    expect(await screen.findByText("OLDTICKER")).toBeInTheDocument();
+    expect(screen.queryByText("RELIANCE")).not.toBeInTheDocument();
+    expect(screen.getByText(/Viewing the persisted snapshot from 2026-01-31/)).toBeInTheDocument();
   });
 });
