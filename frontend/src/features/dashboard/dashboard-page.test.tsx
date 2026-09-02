@@ -60,6 +60,23 @@ describe("DashboardPage", () => {
     expect(screen.queryByText("Screening")).not.toBeInTheDocument();
   });
 
+  it("hides the Today's Global Markets card from a user without global_markets:read", () => {
+    renderWithQueryClient(<DashboardPage />);
+
+    expect(screen.queryByRole("heading", { level: 2, name: "Today's Global Markets" })).not.toBeInTheDocument();
+  });
+
+  it("shows the Today's Global Markets card once the user has global_markets:read", async () => {
+    useAuthStore.setState({
+      status: "authenticated",
+      user: { ...testUser, permissions: ["watchlist:read", "portfolio:read", "global_markets:read"] },
+    });
+
+    renderWithQueryClient(<DashboardPage />);
+
+    expect(await screen.findByRole("heading", { level: 2, name: "Today's Global Markets" })).toBeInTheDocument();
+  });
+
   it("shows an empty state for recent activity before any real-time events or research have occurred this session", () => {
     renderWithQueryClient(<DashboardPage />);
 

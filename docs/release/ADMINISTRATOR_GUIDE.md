@@ -52,6 +52,29 @@ script operation, not something exposed through the REST API or
 frontend. Plan for this operationally: onboarding a new user is a
 backend/ops task, not a self-service one.
 
+### Granting Global Market Intelligence access
+
+The Global Market Intelligence feature — the dashboard "Today's Global
+Markets" card, the `/global-markets` page (including its "Top Picks"
+tab), the `GET /api/v1/global-markets/*` endpoints, and the
+`GLOBAL_MARKET_INTELLIGENCE_RUN_COMPLETED` WebSocket event — is gated on
+the `global_markets:read` permission. It is **not** included in any
+pre-existing role, so users see nothing GMI-related until it is granted.
+
+Grant it with the shipped ops script (additive and reversible — it
+creates one dedicated `GLOBAL_MARKETS_READ` role and assigns it; no
+existing role is modified and authorization is never weakened):
+
+```
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+    exec backend python scripts/grant_global_markets_access.py [username ...]
+```
+
+With no arguments it grants the default set (`pilot_investor`,
+`acceptance_test_user`, `m14_acceptance_user`). To revoke, remove the
+`role-global-markets-read` role from the user (the same repository
+`revoke_role` path any role removal uses).
+
 ## Secrets and rotation
 
 - `SECRET_KEY` signs every access/refresh token. Rotating it

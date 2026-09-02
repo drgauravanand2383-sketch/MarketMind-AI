@@ -20,7 +20,7 @@ router = APIRouter(tags=["System"])
 
 API_VERSION = "v1"
 # Kept in sync with `backend/pyproject.toml`'s own `[project].version`.
-APPLICATION_VERSION = "1.0.0"
+APPLICATION_VERSION = "1.2.3"
 
 
 @router.get(

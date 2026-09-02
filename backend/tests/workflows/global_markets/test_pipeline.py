@@ -288,8 +288,9 @@ async def test_a_main_category_fetches_ranks_and_persists_ranked_assets(
 async def test_a_penny_microcap_category_with_an_empty_universe_succeeds_with_no_ranked_assets(
     repository: PostgresGlobalMarketRunRepository, ranked_asset_repository: PostgresRankedAssetRepository
 ) -> None:
-    """The default (empty) penny/micro-cap universe is an honest, current
-    state — never a failure. See `DEFAULT_UNIVERSES`'s own docstring."""
+    """A penny/micro-cap category whose universe resolves to nothing (no
+    static fallback, no live discovery) is an honest, current state —
+    never a failure. See `DEFAULT_UNIVERSES`'s own docstring."""
     workflow = GlobalMarketIntelligenceWorkflow(
         MarketSessionResolutionService(_full_registry()),
         repository,

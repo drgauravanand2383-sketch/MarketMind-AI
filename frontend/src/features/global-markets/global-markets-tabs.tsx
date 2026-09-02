@@ -3,10 +3,12 @@ import { CATEGORY_DISPLAY_NAMES } from "@/features/global-markets/category-label
 import { useRovingTablist } from "@/hooks/use-roving-tablist";
 import { useGlobalMarketsStore, type GlobalMarketsTab } from "@/store/global-markets-store";
 
-/** The five main-category tabs (labeled from `CATEGORY_DISPLAY_NAMES`),
- * plus one synthetic "Penny & Micro-Cap" tab — Phase 6's own grouping,
- * not a backend category. */
+/** A synthetic "Top Picks" digest tab first, then the five main-category
+ * tabs (labeled from `CATEGORY_DISPLAY_NAMES`), then one synthetic
+ * "Penny & Micro-Cap" tab — "Top Picks" and "Penny & Micro-Cap" are
+ * frontend groupings, not backend categories. */
 const TABS: { id: GlobalMarketsTab; label: string }[] = [
+  { id: "TOP_PICKS", label: "Top Picks" },
   { id: "INDIA_EQUITY", label: CATEGORY_DISPLAY_NAMES.INDIA_EQUITY },
   { id: "US_EQUITY", label: CATEGORY_DISPLAY_NAMES.US_EQUITY },
   { id: "CHINA_EQUITY", label: CATEGORY_DISPLAY_NAMES.CHINA_EQUITY },

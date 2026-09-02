@@ -1,7 +1,10 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { DashboardCardFrame } from "@/features/dashboard/dashboard-card-frame";
 import { DASHBOARD_CARDS, getDashboardCard } from "@/features/dashboard/dashboard-card-registry";
 import { useDashboardLayoutStore } from "@/store/dashboard-layout-store";
+import { useAuthStore } from "@/store/auth-store";
+
+const NO_PERMISSIONS: string[] = [];
 
 /**
  * Renders every registered card (`dashboard-card-registry.tsx`) in the
@@ -17,9 +20,23 @@ export function DashboardPage(): ReactNode {
   const toggleCustomizing = useDashboardLayoutStore((state) => state.toggleCustomizing);
   const toggleCardVisibility = useDashboardLayoutStore((state) => state.toggleCardVisibility);
   const resetLayout = useDashboardLayoutStore((state) => state.resetLayout);
+  const permissions = useAuthStore((state) => state.user?.permissions ?? NO_PERMISSIONS);
 
-  const visibleOrder = cardOrder.filter((id) => !hiddenCards.includes(id));
-  const hiddenDefinitions = hiddenCards.map((id) => getDashboardCard(id));
+  /** A card gated on a permission the current user lacks is dropped
+   * everywhere — not rendered, and not offered in the customize "hidden
+   * cards" list. Every other card is shown to every authenticated user,
+   * exactly as before. */
+  const permittedOrder = useMemo(
+    () =>
+      cardOrder.filter((id) => {
+        const card = getDashboardCard(id);
+        return !card.requiresPermission || permissions.includes(card.requiresPermission);
+      }),
+    [cardOrder, permissions],
+  );
+
+  const visibleOrder = permittedOrder.filter((id) => !hiddenCards.includes(id));
+  const hiddenDefinitions = permittedOrder.filter((id) => hiddenCards.includes(id)).map((id) => getDashboardCard(id));
 
   return (
     <div className="flex flex-col gap-6 p-6">

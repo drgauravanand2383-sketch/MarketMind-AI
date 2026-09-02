@@ -25,6 +25,7 @@ const dashboardCardIdSchema = z.enum([
   "user",
   "connectivity",
   "quick-nav",
+  "todays-global-markets",
   "realtime-summary",
   "health-summary-chart",
   "service-availability-chart",

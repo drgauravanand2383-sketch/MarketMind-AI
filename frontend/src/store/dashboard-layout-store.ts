@@ -6,6 +6,7 @@ export const DEFAULT_CARD_ORDER: DashboardCardId[] = [
   "user",
   "connectivity",
   "quick-nav",
+  "todays-global-markets",
   "realtime-summary",
   "health-summary-chart",
   "service-availability-chart",
@@ -18,6 +19,7 @@ const DEFAULT_CARD_SIZES: Record<DashboardCardId, CardSize> = {
   user: "sm",
   connectivity: "lg",
   "quick-nav": "lg",
+  "todays-global-markets": "md",
   "realtime-summary": "lg",
   "health-summary-chart": "md",
   "service-availability-chart": "md",
@@ -117,6 +119,25 @@ export const useDashboardLayoutStore = create<DashboardLayoutState>()(
     {
       name: "marketmind-dashboard-layout",
       partialize: (state) => ({ cardOrder: state.cardOrder, hiddenCards: state.hiddenCards, cardSizes: state.cardSizes }),
+      /** Reconcile a layout saved before a card was added to the app: a
+       * returning user keeps their saved order/sizes/hidden set, but any
+       * newly-registered card (missing from the persisted `cardOrder`)
+       * is appended in its default position and given its default size,
+       * so it isn't silently invisible forever. Without this, `cardOrder`
+       * comes straight from `localStorage` and `DashboardPage` never
+       * renders anything not already in it. */
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<DashboardLayout>;
+        const savedOrder = saved.cardOrder ?? DEFAULT_CARD_ORDER;
+        const known = new Set(savedOrder);
+        const added = DEFAULT_CARD_ORDER.filter((id) => !known.has(id));
+        return {
+          ...current,
+          cardOrder: [...savedOrder, ...added],
+          hiddenCards: saved.hiddenCards ?? [],
+          cardSizes: { ...DEFAULT_CARD_SIZES, ...(saved.cardSizes ?? {}) },
+        };
+      },
     },
   ),
 );
