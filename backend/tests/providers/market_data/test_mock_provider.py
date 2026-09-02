@@ -259,6 +259,20 @@ async def test_get_price_history_large_explicit_range_is_capped(
     assert len(series.prices) <= 500
 
 
+async def test_get_price_history_daily_range_may_exceed_the_intraday_cap(
+    provider: MockMarketDataProvider,
+) -> None:
+    """A multi-year *daily* range is a legitimate request (the Global
+    Market Intelligence pipeline asks for ~5 years) — it must not be
+    squeezed down to the 500-bar intraday ceiling, only the higher
+    non-intraday one."""
+    series = await provider.get_price_history(
+        "AAPL", Interval.ONE_DAY, start=date(2019, 1, 1), end=date(2026, 1, 1)
+    )
+    assert len(series.prices) > 500
+    assert len(series.prices) <= 2600
+
+
 # --- search_symbol -----------------------------------------------------------
 
 

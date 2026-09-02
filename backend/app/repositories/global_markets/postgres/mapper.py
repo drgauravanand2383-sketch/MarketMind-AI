@@ -19,6 +19,7 @@ from app.global_markets.models import (
     MarketSessionContext,
     NormalizedAssetSnapshot,
     ReportCategory,
+    WindowedPerformance,
 )
 from app.global_markets.ranked_asset import RankedAsset
 from app.global_markets.ranking.classification import RiskClassification
@@ -101,6 +102,7 @@ def ranked_asset_to_model(asset: RankedAsset) -> RankedAssetModel:
         rank=asset.rank,
         final_score=asset.final_score,
         factor_scores=[score.model_dump(mode="json") for score in asset.factor_scores],
+        performance_windows=[window.model_dump(mode="json") for window in asset.performance_windows],
         snapshot=asset.snapshot.model_dump(mode="json"),
         risk_classification=asset.risk_classification.value if asset.risk_classification is not None else None,
     )
@@ -114,6 +116,9 @@ def model_to_ranked_asset(model: RankedAssetModel) -> RankedAsset:
         rank=model.rank,
         final_score=model.final_score,
         factor_scores=tuple(FactorScore.model_validate(entry) for entry in model.factor_scores),
+        performance_windows=tuple(
+            WindowedPerformance.model_validate(entry) for entry in (model.performance_windows or [])
+        ),
         snapshot=NormalizedAssetSnapshot.model_validate(model.snapshot),
         risk_classification=(
             RiskClassification(model.risk_classification) if model.risk_classification is not None else None

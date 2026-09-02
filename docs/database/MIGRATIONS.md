@@ -58,14 +58,29 @@ backend/
                                      generated narrative report, upserted
                                      in place per category for idempotent
                                      retries
+      0010_ranked_asset_performance_windows.py
+                                     Global Market Intelligence, Phase 7:
+                                     adds the `performance_windows` JSON
+                                     column (NOT NULL DEFAULT '[]') to
+                                     `global_market_ranked_assets` — the
+                                     ten trailing-return windows (24H..5Y)
+                                     the ranking computed, persisted so
+                                     the API/frontend can show an asset's
+                                     multi-year track record. First
+                                     incremental ALTER for this feature
+                                     (0007-0009 are create-table only);
+                                     inspector-guarded add_column/
+                                     drop_column, same idiom as
+                                     0003_risk_market_data_coverage
 ```
 
-Current head: `0009_global_market_reports` (see the revision-id-length note below for why `0008`'s own
-stored revision id is the shorter `0008_global_market_ranked` rather than its full filename). Every
-migration is column/table-existence-checked (never assumed) and is exercised by a real Alembic
-upgrade/downgrade cycle in `tests/operations/` — see
-`tests/operations/test_alembic_environment.py` and
-`tests/operations/test_continuous_intelligence_persistence_migration.py`.
+Current head: `0010_ranked_asset_perf_windows` (its stored revision id is shortened from the filename
+to stay within the 32-char `alembic_version.version_num` limit — same reason `0008`'s stored id is the
+shorter `0008_global_market_ranked`). Every migration is column/table-existence-checked (never
+assumed) and is exercised by a real Alembic upgrade/downgrade cycle in `tests/operations/` — see
+`tests/operations/test_alembic_environment.py`,
+`tests/operations/test_continuous_intelligence_persistence_migration.py`, and
+`tests/operations/test_ranked_asset_performance_windows_migration.py`.
 
 ## Why `target_metadata` is a *list*, not one `MetaData`
 

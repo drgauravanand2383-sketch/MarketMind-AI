@@ -11,19 +11,21 @@ Methodology, explicit per market region (the architectural requirement:
 "do not blindly use the same calendar-day logic for equities, forex, and
 crypto"):
 
-- **10D / 15D windows, session-based markets (India/US/China equities,
-  Forex)**: counted as the *Nth most recent bar* in the supplied series,
-  not calendar-day subtraction. This is correct without a second,
+- **24H / 1W / 10D / 15D windows, session-based markets (India/US/China
+  equities, Forex)**: counted as the *Nth most recent bar* in the
+  supplied series (24H -> 1 bar, 1W -> 5 bars, 10D -> 10, 15D -> 15), not
+  calendar-day subtraction. This is correct without a second,
   independent trading-day count against the calendar: a real market-data
   provider's daily series for a session-based market only ever contains
   bars for days that actually traded (no synthetic weekend/holiday bars —
   see `docs/architecture/MARKET_DATA_ARCHITECTURE.md`), so "the 10th bar
   back" *is* "10 trading sessions back" by construction.
-- **10D / 15D windows, Crypto**: calendar-day anchored (`latest.date -
-  N days`, snapped to the nearest bar at or before that instant) — crypto
-  trades every calendar day, so calendar-day subtraction is the correct,
+- **24H / 1W / 10D / 15D windows, Crypto**: calendar-day anchored
+  (`latest.date - N days` — 24H -> 1, 1W -> 7, 10D -> 10, 15D -> 15 —
+  snapped to the nearest bar at or before that instant) — crypto trades
+  every calendar day, so calendar-day subtraction is the correct,
   literal methodology, not an approximation.
-- **1M / 3M / 6M / 1Y windows, every market region**: calendar
+- **1M / 3M / 6M / 1Y / 3Y / 5Y windows, every market region**: calendar
   month/year subtraction anchored on the latest available bar's own date
   (via `_shift_months`, `_shift_years` — stdlib `calendar.monthrange`
   only, no new dependency), then snapped to the nearest bar *at or
@@ -53,10 +55,14 @@ from app.market_data.models import HistoricalPrice, HistoricalSeries
 __all__ = ["PerformanceCalculationService"]
 
 _SESSION_COUNT_WINDOWS: dict[PerformanceWindow, int] = {
+    PerformanceWindow.H24: 1,
+    PerformanceWindow.W1: 5,
     PerformanceWindow.D10: 10,
     PerformanceWindow.D15: 15,
 }
 _CALENDAR_DAY_WINDOWS: dict[PerformanceWindow, int] = {
+    PerformanceWindow.H24: 1,
+    PerformanceWindow.W1: 7,
     PerformanceWindow.D10: 10,
     PerformanceWindow.D15: 15,
 }
@@ -67,6 +73,8 @@ _MONTH_WINDOWS: dict[PerformanceWindow, int] = {
 }
 _YEAR_WINDOWS: dict[PerformanceWindow, int] = {
     PerformanceWindow.Y1: 1,
+    PerformanceWindow.Y3: 3,
+    PerformanceWindow.Y5: 5,
 }
 
 

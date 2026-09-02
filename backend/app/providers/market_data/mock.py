@@ -47,7 +47,13 @@ PROVIDER_NAME = "Mock Market Data Provider"
 
 _DEFAULT_REFERENCE_TIME = datetime(2026, 1, 1, tzinfo=UTC)
 _DEFAULT_BAR_COUNT = 30
-_MAX_BARS = 500
+_MAX_INTRADAY_BARS = 500
+"""Hard ceiling on an explicit-range *intraday* request — guards against a
+multi-year 1-minute range exploding into hundreds of thousands of bars."""
+_MAX_NON_INTRADAY_BARS = 2600
+"""Higher ceiling for daily/weekly/monthly series (~7y of daily bars): the
+Global Market Intelligence pipeline asks for ~5 years of daily history —
+see `app.global_markets.pipeline.category_pipeline._HISTORY_LOOKBACK_DAYS`."""
 
 _CURRENCIES = tuple(Currency)
 _EXCHANGES = tuple(e for e in Exchange if e != Exchange.OTHER)
@@ -287,6 +293,12 @@ class MockMarketDataProvider(MarketDataProvider):
         `end` (or the reference time) are generated — a fixed, bounded
         default regardless of `interval`, so an intraday request never
         silently produces tens of thousands of bars.
+
+        When `start` is given, the generated bar count is capped:
+        `_MAX_INTRADAY_BARS` for intraday intervals, the higher
+        `_MAX_NON_INTRADAY_BARS` for daily/weekly/monthly (a multi-year
+        daily range is a legitimate request; a multi-year 1-minute range
+        is not).
         """
         normalized = _require_ticker(ticker)
         seed = _digest(normalized)
@@ -294,7 +306,8 @@ class MockMarketDataProvider(MarketDataProvider):
         anchor = _to_datetime(end) if end is not None else self._reference_time
 
         if start is not None:
-            bar_count = max(1, min(int((anchor - _to_datetime(start)) / step) + 1, _MAX_BARS))
+            cap = _MAX_INTRADAY_BARS if interval.is_intraday else _MAX_NON_INTRADAY_BARS
+            bar_count = max(1, min(int((anchor - _to_datetime(start)) / step) + 1, cap))
         else:
             bar_count = _DEFAULT_BAR_COUNT
 

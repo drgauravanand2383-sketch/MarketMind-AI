@@ -1,9 +1,63 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { Badge } from "@/components/badge";
 import { AssetFreshnessNote } from "@/features/global-markets/data-freshness-badge";
-import type { RankedAsset, RankingFactor, RiskClassification } from "@/types/global-markets";
+import type { PerformanceWindow, RankedAsset, RankingFactor, RiskClassification, WindowedPerformance } from "@/types/global-markets";
 
 type SortField = "rank" | "ticker" | "final_score";
+
+/** The trailing-return windows shown as their own columns in every row —
+ * the multi-year track record the ranking itself is not weighted toward
+ * (it stays recent-focused) but which the product exists to surface. The
+ * full ten-window set (`app.global_markets.models.PerformanceWindow`) is
+ * in the expandable detail panel. */
+const HEADLINE_WINDOWS: PerformanceWindow[] = ["1Y", "3Y", "5Y"];
+
+/** Every window, shortest-to-longest, for the detail-panel breakdown. */
+const ALL_WINDOWS: PerformanceWindow[] = ["24H", "1W", "10D", "15D", "1M", "3M", "6M", "1Y", "3Y", "5Y"];
+
+const WINDOW_LABELS: Record<PerformanceWindow, string> = {
+  "24H": "24 hours",
+  "1W": "1 week",
+  "10D": "10 days",
+  "15D": "15 days",
+  "1M": "1 month",
+  "3M": "3 months",
+  "6M": "6 months",
+  "1Y": "1 year",
+  "3Y": "3 years",
+  "5Y": "5 years",
+};
+
+function windowByName(windows: WindowedPerformance[]): Map<PerformanceWindow, WindowedPerformance> {
+  return new Map(windows.map((entry) => [entry.window, entry]));
+}
+
+function formatPercent(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function returnToneClass(value: number): string {
+  return value >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400";
+}
+
+/** One trailing-return cell: the signed percentage, coloured by sign;
+ * `—` when the window wasn't computed, and a muted value with a `*` when
+ * the asset's history couldn't fully cover the window (never shown as a
+ * full-window return — same discipline as the backend). */
+function ReturnCell({ entry }: { entry: WindowedPerformance | undefined }): ReactNode {
+  if (!entry) {
+    return <span className="text-slate-400 dark:text-slate-500">—</span>;
+  }
+  if (!entry.is_complete) {
+    return (
+      <span className="text-slate-400 dark:text-slate-500" title="Partial: the asset's history does not fully cover this window">
+        {formatPercent(entry.percent_change)}
+        <span aria-hidden="true">*</span>
+      </span>
+    );
+  }
+  return <span className={returnToneClass(entry.percent_change)}>{formatPercent(entry.percent_change)}</span>;
+}
 
 /** Never implies fraud/manipulation — same terminology discipline
  * `RiskClassification`'s own backend docstring requires, just rendered
@@ -77,7 +131,9 @@ export function RankedAssetTable({
   const [expandedTicker, setExpandedTicker] = useState<string | null>(null);
 
   const showRiskColumn = assets.some((asset) => asset.risk_classification !== null);
-  const columnCount = showRiskColumn ? 7 : 6;
+  const anyPartialWindow = assets.some((asset) => asset.performance_windows.some((entry) => !entry.is_complete));
+  // Rank, Ticker, Price, Market cap, 1Y, 3Y, 5Y, Score, Details (+ Risk when shown).
+  const columnCount = showRiskColumn ? 10 : 9;
 
   const sorted = useMemo(() => {
     const copy = [...assets];
@@ -120,6 +176,15 @@ export function RankedAssetTable({
             <th scope="col" className="px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">
               Market cap
             </th>
+            {HEADLINE_WINDOWS.map((window) => (
+              <th
+                key={window}
+                scope="col"
+                className="px-3 py-2 text-right text-xs font-semibold text-slate-500 dark:text-slate-400"
+              >
+                {window}
+              </th>
+            ))}
             <SortHeader label="Score" field="final_score" active={sortField} desc={sortDesc} onSort={toggleSort} />
             {showRiskColumn && (
               <th scope="col" className="px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -137,6 +202,7 @@ export function RankedAssetTable({
             const isExpanded = expandedTicker === ticker;
             const commentary = commentaryByTicker?.get(ticker);
             const detailId = `ranked-asset-detail-${ticker}`;
+            const windows = windowByName(asset.performance_windows);
             return (
               <Fragment key={ticker}>
                 <tr className="border-b border-slate-100 align-top dark:border-slate-800/60">
@@ -147,6 +213,11 @@ export function RankedAssetTable({
                   </td>
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{formatPrice(asset.snapshot.price, asset.snapshot.currency)}</td>
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{formatMarketCap(asset.snapshot.market_cap)}</td>
+                  {HEADLINE_WINDOWS.map((window) => (
+                    <td key={window} className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                      <ReturnCell entry={windows.get(window)} />
+                    </td>
+                  ))}
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{asset.final_score.toFixed(1)}</td>
                   {showRiskColumn && (
                     <td className="px-3 py-2">
@@ -175,6 +246,28 @@ export function RankedAssetTable({
                           status={asset.snapshot.provenance.data_freshness_status}
                           sourceTimestamp={asset.snapshot.provenance.source_timestamp}
                         />
+                        <div>
+                          <h3 className="mb-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">Trailing returns</h3>
+                          {asset.performance_windows.length === 0 ? (
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              No trailing-return windows were recorded for this asset.
+                            </p>
+                          ) : (
+                            <dl className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-5">
+                              {ALL_WINDOWS.map((window) => {
+                                const entry = windows.get(window);
+                                return (
+                                  <div key={window} className="flex items-baseline justify-between gap-2 text-xs">
+                                    <dt className="text-slate-500 dark:text-slate-400">{WINDOW_LABELS[window]}</dt>
+                                    <dd className="tabular-nums font-medium">
+                                      <ReturnCell entry={entry} />
+                                    </dd>
+                                  </div>
+                                );
+                              })}
+                            </dl>
+                          )}
+                        </div>
                         <div>
                           <h3 className="mb-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">Factor scores</h3>
                           {asset.factor_scores.length === 0 ? (
@@ -214,6 +307,12 @@ export function RankedAssetTable({
           })}
         </tbody>
       </table>
+      {anyPartialWindow && (
+        <p className="mt-2 px-3 text-xs text-slate-500 dark:text-slate-400">
+          <span aria-hidden="true">*</span> partial — the asset's available history does not fully cover this window; shown for
+          reference, not as a full-window return.
+        </p>
+      )}
     </div>
   );
 }

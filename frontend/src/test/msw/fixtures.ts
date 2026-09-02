@@ -6,7 +6,9 @@ import type {
   IntelligenceRun,
   MarketSessionContext,
   NormalizedAssetSnapshot,
+  PerformanceWindow,
   RankedAsset,
+  WindowedPerformance,
 } from "@/types/global-markets";
 import type { ApplicationHealth, ReadinessStatus, VersionResponse } from "@/types/health";
 import type { Watchlist, WatchlistItem, WatchlistStatistics } from "@/types/watchlist";
@@ -576,6 +578,24 @@ export function buildNormalizedAssetSnapshot(overrides: Partial<NormalizedAssetS
   };
 }
 
+export function buildWindowedPerformance(
+  window: PerformanceWindow,
+  percent_change: number,
+  overrides: Partial<WindowedPerformance> = {},
+): WindowedPerformance {
+  return {
+    window,
+    start_value: 100,
+    end_value: 100 * (1 + percent_change / 100),
+    percent_change,
+    observation_start: "2021-02-01T00:00:00Z",
+    observation_end: "2026-02-01T00:00:00Z",
+    periods_used: 1250,
+    is_complete: true,
+    ...overrides,
+  };
+}
+
 export function buildRankedAsset(overrides: Partial<RankedAsset> = {}): RankedAsset {
   return {
     run_id: "test-run-1",
@@ -583,6 +603,7 @@ export function buildRankedAsset(overrides: Partial<RankedAsset> = {}): RankedAs
     rank: 1,
     final_score: 88.5,
     factor_scores: [{ factor: "MOMENTUM", value: 90, explanation: null }],
+    performance_windows: [],
     snapshot: buildNormalizedAssetSnapshot(),
     risk_classification: null,
     ...overrides,

@@ -3,7 +3,13 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { GlobalMarketsLandingPage } from "@/features/global-markets/global-markets-landing-page";
 import { renderWithQueryClient } from "@/test/test-utils";
-import { buildCategoryIntelligenceReport, buildIntelligenceRun, buildNormalizedAssetSnapshot, buildRankedAsset } from "@/test/msw/fixtures";
+import {
+  buildCategoryIntelligenceReport,
+  buildIntelligenceRun,
+  buildNormalizedAssetSnapshot,
+  buildRankedAsset,
+  buildWindowedPerformance,
+} from "@/test/msw/fixtures";
 import { resetGlobalMarketsStore, seedRankedAssets, seedReport, seedRun } from "@/test/msw/global-markets-store";
 import { useGlobalMarketsStore } from "@/store/global-markets-store";
 
@@ -145,6 +151,53 @@ describe("GlobalMarketsLandingPage", () => {
     expect(screen.getByText("Consistent volume backing the move.")).toBeInTheDocument();
     // Asset-level freshness (independent of the category-level badge).
     expect(screen.getAllByText("Live").length).toBeGreaterThan(1);
+  });
+
+  it("shows each asset's 1Y/3Y/5Y trailing returns, with the full window set in its detail panel", async () => {
+    seedRun(buildIntelligenceRun({ id: "run-1", status: "COMPLETED" }));
+    seedRankedAssets("run-1", "INDIA_EQUITY", [
+      buildRankedAsset({
+        snapshot: buildNormalizedAssetSnapshot({ ticker: "RELIANCE" }),
+        performance_windows: [
+          buildWindowedPerformance("24H", 1.2),
+          buildWindowedPerformance("1Y", 39.9),
+          buildWindowedPerformance("3Y", 71.5),
+          buildWindowedPerformance("5Y", 113.0),
+        ],
+      }),
+    ]);
+
+    renderWithQueryClient(<GlobalMarketsLandingPage />);
+    await screen.findByText("RELIANCE");
+
+    // Headline columns in the row.
+    expect(screen.getByText("+39.9%")).toBeInTheDocument();
+    expect(screen.getByText("+71.5%")).toBeInTheDocument();
+    expect(screen.getByText("+113.0%")).toBeInTheDocument();
+    // The 24H window is only in the expanded breakdown, not the row.
+    expect(screen.queryByText("+1.2%")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Details" }));
+
+    expect(screen.getByText("Trailing returns")).toBeInTheDocument();
+    expect(screen.getByText("+1.2%")).toBeInTheDocument();
+    expect(screen.getByText("24 hours")).toBeInTheDocument();
+  });
+
+  it("marks a trailing-return window as partial when the asset's history does not fully cover it", async () => {
+    seedRun(buildIntelligenceRun({ id: "run-1", status: "COMPLETED" }));
+    seedRankedAssets("run-1", "INDIA_EQUITY", [
+      buildRankedAsset({
+        snapshot: buildNormalizedAssetSnapshot({ ticker: "NEWCO" }),
+        performance_windows: [buildWindowedPerformance("5Y", 22.0, { is_complete: false })],
+      }),
+    ]);
+
+    renderWithQueryClient(<GlobalMarketsLandingPage />);
+
+    const partialValue = await screen.findByText("+22.0%");
+    expect(partialValue).toHaveAttribute("title", expect.stringContaining("Partial"));
+    expect(screen.getByText(/partial — the asset's available history does not fully cover/)).toBeInTheDocument();
   });
 
   it("the run picker lets the user switch to a past run, showing a clear 'not the latest' indicator", async () => {

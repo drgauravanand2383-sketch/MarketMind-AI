@@ -96,6 +96,27 @@ export interface FactorScore {
   explanation: string | null;
 }
 
+/** The ten trailing performance windows — mirrors
+ * `app.global_markets.models.PerformanceWindow`, declared shortest-to-longest. */
+export type PerformanceWindow = "24H" | "1W" | "10D" | "15D" | "1M" | "3M" | "6M" | "1Y" | "3Y" | "5Y";
+
+/** One `PerformanceWindow`'s computed trailing return for one asset —
+ * mirrors `app.global_markets.models.WindowedPerformance`. `is_complete`
+ * is `false` when the asset's history could not fully cover the window
+ * (e.g. a recently-listed stock for the 5Y window) — the window is still
+ * reported, never dropped, but must not be presented as a full-window
+ * return. */
+export interface WindowedPerformance {
+  window: PerformanceWindow;
+  start_value: number;
+  end_value: number;
+  percent_change: number;
+  observation_start: string;
+  observation_end: string;
+  periods_used: number;
+  is_complete: boolean;
+}
+
 /** Never proof of fraud or manipulation — a momentum/risk label only.
  * See `app.global_markets.ranking.classification`'s own docstring. */
 export type RiskClassification =
@@ -113,6 +134,12 @@ export interface RankedAsset {
   rank: number;
   final_score: number;
   factor_scores: FactorScore[];
+  /** Every `PerformanceWindow`'s computed trailing return (24H … 5Y).
+   * The ranking itself is recent-focused, but the full window set —
+   * including the multi-year track record — is carried here so the
+   * table can show how an asset has actually performed over 5 years.
+   * Empty for older persisted runs from before this field existed. */
+  performance_windows: WindowedPerformance[];
   snapshot: NormalizedAssetSnapshot;
   /** Only populated for `PENNY_MICROCAP_REPORT_CATEGORIES` — `null` for
    * the five main categories. */

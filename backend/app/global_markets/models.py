@@ -204,16 +204,24 @@ class PerformanceWindow(StrEnum):
     `app.global_markets.performance.engine.PerformanceCalculationService`
     for how each window's *observation methodology* differs by
     `MarketRegion` (trading-session-aware for equities, continuous for
-    crypto, market-week-aware for forex) — this enum only names the six
+    crypto, market-week-aware for forex) — this enum only names the ten
     windows, it carries no methodology itself.
+
+    Members are declared shortest-to-longest; nothing depends on that
+    order (`tuple(PerformanceWindow)` is only ever used for its length),
+    it just keeps the list readable.
     """
 
+    H24 = "24H"
+    W1 = "1W"
     D10 = "10D"
     D15 = "15D"
     M1 = "1M"
     M3 = "3M"
     M6 = "6M"
     Y1 = "1Y"
+    Y3 = "3Y"
+    Y5 = "5Y"
 
 
 class DataFreshnessStatus(StrEnum):

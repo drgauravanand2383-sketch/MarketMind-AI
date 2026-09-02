@@ -12,7 +12,14 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.global_markets.models import DataFreshnessStatus, DataProvenance, NormalizedAssetSnapshot, ReportCategory
+from app.global_markets.models import (
+    DataFreshnessStatus,
+    DataProvenance,
+    NormalizedAssetSnapshot,
+    PerformanceWindow,
+    ReportCategory,
+    WindowedPerformance,
+)
 from app.global_markets.ranked_asset import RankedAsset
 from app.global_markets.ranking.classification import RiskClassification
 from app.global_markets.ranking.models import FactorScore, RankingFactor
@@ -104,6 +111,49 @@ async def test_factor_scores_and_snapshot_round_trip(repository: PostgresRankedA
     assert fetched.snapshot.currency == "USD"
     assert fetched.factor_scores[0].factor is RankingFactor.PRICE_PERFORMANCE
     assert fetched.factor_scores[0].value == 75.0
+
+
+def _window(period: PerformanceWindow, percent_change: float, *, is_complete: bool = True) -> WindowedPerformance:
+    return WindowedPerformance(
+        window=period,
+        start_value=100.0,
+        end_value=100.0 * (1 + percent_change / 100.0),
+        percent_change=percent_change,
+        observation_start=datetime(2021, 8, 29, tzinfo=UTC),
+        observation_end=NOW,
+        periods_used=1200,
+        is_complete=is_complete,
+    )
+
+
+async def test_performance_windows_round_trip(repository: PostgresRankedAssetRepository) -> None:
+    asset = _asset(
+        "AAPL",
+        1,
+        performance_windows=(
+            _window(PerformanceWindow.H24, 1.5),
+            _window(PerformanceWindow.Y5, 240.0),
+            _window(PerformanceWindow.Y3, 60.0, is_complete=False),
+        ),
+    )
+
+    await repository.replace_ranked_assets("run-1", ReportCategory.US_EQUITY, (asset,))
+
+    fetched = (await repository.list_ranked_assets("run-1", ReportCategory.US_EQUITY))[0]
+    by_window = {w.window: w for w in fetched.performance_windows}
+    assert by_window[PerformanceWindow.Y5].percent_change == 240.0
+    assert by_window[PerformanceWindow.Y5].is_complete is True
+    assert by_window[PerformanceWindow.Y3].is_complete is False
+    assert by_window[PerformanceWindow.H24].observation_end == NOW
+
+
+async def test_performance_windows_default_to_empty_when_not_provided(
+    repository: PostgresRankedAssetRepository,
+) -> None:
+    await repository.replace_ranked_assets("run-1", ReportCategory.US_EQUITY, (_asset("AAPL", 1),))
+
+    fetched = (await repository.list_ranked_assets("run-1", ReportCategory.US_EQUITY))[0]
+    assert fetched.performance_windows == ()
 
 
 async def test_risk_classification_round_trips_when_present(repository: PostgresRankedAssetRepository) -> None:
