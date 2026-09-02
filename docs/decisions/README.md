@@ -13,3 +13,4 @@ are); this directory is for decisions worth surfacing on their own.
 | # | Decision |
 |---|----------|
 | [0001](0001-global-market-trailing-return-windows.md) | Global Market Intelligence: extended trailing-return windows (24H … 5Y) |
+| [0002](0002-asset-aware-price-precision.md) | Magnitude-aware price precision for historical series (FX / low-priced assets) |

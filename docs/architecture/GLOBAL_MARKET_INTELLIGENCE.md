@@ -121,6 +121,16 @@ low-history provider, legitimately returns `is_complete=False` there.
 requested `[start, end]` span (`_daily_range_token`) — a 5Y request
 fetches `range=10y` daily bars, not the old hardcoded `2y`. See §5.
 
+**Price precision**: bar prices are normalized **magnitude-aware** — 2
+decimals at/above $10 (equities unchanged), 5 significant figures below
+it — so an FX cross rate or a sub-dollar coin's real moves are not
+quantized into `0.0%` / single-tick returns. See
+`docs/architecture/MARKET_DATA_ARCHITECTURE.md` §6.1 and
+`docs/decisions/0002-asset-aware-price-precision.md`. A workflow run
+after that change produces different (more accurate) FX / low-price
+`WindowedPerformance` values than earlier runs — an intentional
+correction; equity categories are unchanged.
+
 ## 4. Ranking & eligibility (Phase 1 contract, Phase 2 real scoring)
 
 `RankingFactor` (`app/global_markets/ranking/models.py`) names twelve

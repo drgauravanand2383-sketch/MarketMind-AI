@@ -147,6 +147,42 @@ with an explicit `status` (`MarketSnapshotStatus`, §7) and `reason` —
 never raised for an ordinary outcome, so a caller never needs to
 distinguish "no data" from "an exception" via try/except.
 
+### 6.1 Price precision is magnitude-aware, not a flat 2 decimals
+
+`NormalizationService.round_price(value)` — called with no explicit
+`precision` — rounds a **historical-series** bar price to keep **5
+significant figures** for any unit price below **$10**, and to exactly
+**2 decimals** at or above it (`_magnitude_aware_price_decimals`). So
+`AAPL 325.13` and `BTC 47123.46` are unchanged, `EUR/GBP 0.85717` and
+`DOGE 0.085281` keep the precision the provider actually sent, and no
+positive price can ever normalize to `0.0`.
+
+- **Why not a flat 2 decimals** (the original rule): it silently
+  quantizes any small-unit-price instrument. One `0.01` tick is ~1.2% of
+  an EUR/GBP rate and ~12% of a DOGE price, so real multi-year and
+  short-window returns collapsed into misleading `0.0%` / single-tick
+  artifacts once Global Market Intelligence began displaying 24H–5Y
+  trailing returns (see `GLOBAL_MARKET_INTELLIGENCE.md` §3, and
+  `docs/decisions/0002-asset-aware-price-precision.md`).
+- **Why normal-priced equities are untouched**: the `>= $10 → 2 dp`
+  branch. This is not "asset-class routing" — the provider does not carry
+  an asset class at the normalization point — it is a deterministic
+  function of the price's own magnitude, which is a robust proxy.
+- **Not fabricated precision**: Yahoo's chart endpoint returns full
+  IEEE-754 doubles (`0.8571699857711792`, `0.08528099954128265`); the
+  old rule was discarding real digits, not the new rule inventing them.
+- **Scope**: `normalize_historical_series` only.
+  `normalize_quote` is unchanged (fixed 2 decimals) — Company Research /
+  Continuous Intelligence / Portfolio / Market Data Refresh quote
+  behaviour is deliberately not touched.
+- **Internal precision ≠ display**: this governs the numbers stored and
+  fed to the performance/ranking engines. UI/formatting layers still
+  choose their own display precision.
+- **Older persisted runs are unaffected and remain readable**; a
+  workflow run *after* this change produces different (more accurate)
+  FX / low-price `WindowedPerformance` values than earlier runs — an
+  intentional correction, not a regression.
+
 ## 7. Cache & freshness
 
 `app/services/market_snapshot/cache.py::InMemoryMarketSnapshotCache` — not

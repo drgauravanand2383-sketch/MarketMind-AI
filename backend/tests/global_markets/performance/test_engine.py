@@ -40,6 +40,26 @@ def _dense_series(ticker: str, start: date, count: int) -> HistoricalSeries:
     return HistoricalSeries(ticker=ticker, interval=Interval.ONE_DAY, prices=prices)
 
 
+def _low_price_series(ticker: str, start: date, count: int, *, base: float, daily_drift: float) -> HistoricalSeries:
+    """`count` daily bars, `close == base * (1 + daily_drift)**i` — a
+    small-unit-price instrument (FX cross rate ~0.86, sub-dollar coin
+    ~$0.08). With the I-1 fix the normalized series that feeds this engine
+    keeps ~5 significant figures, so these small day-to-day moves are real
+    input, not 2-decimal quantization noise."""
+    prices = tuple(
+        HistoricalPrice(
+            date=datetime.combine(start + timedelta(days=i), datetime.min.time(), tzinfo=UTC),
+            open=base * (1 + daily_drift) ** i,
+            high=base * (1 + daily_drift) ** i,
+            low=base * (1 + daily_drift) ** i,
+            close=base * (1 + daily_drift) ** i,
+            volume=1000,
+        )
+        for i in range(count)
+    )
+    return HistoricalSeries(ticker=ticker, interval=Interval.ONE_DAY, prices=prices)
+
+
 def _gapped_equity_series(ticker: str, start: date, weeks: int) -> HistoricalSeries:
     """Weekday-only bars (Mon-Fri), skipping weekends — simulating a real
     session-based provider's daily series, where "10 bars back" and "10
@@ -219,6 +239,37 @@ def test_three_and_five_year_windows_anchor_on_calendar_years() -> None:
     assert y5 is not None and y5.observation_start.date() == date(2021, 2, 12)
     assert y3.is_complete is True
     assert y5.is_complete is True
+
+
+def test_low_unit_price_series_produces_distinct_non_zero_window_returns() -> None:
+    """A FX-cross-rate-magnitude series (~0.86) with a genuine small drift:
+    every window must yield its own real, non-zero return. If the series
+    feeding this engine were still quantized to two decimals (the I-1
+    bug), 24H/1W and the multi-year windows would collapse to 0.0%."""
+    service = PerformanceCalculationService()
+    # ~7 years, -0.02%/day  ->  a real, monotonic multi-year decline.
+    series = _low_price_series("EURGBP=X", date(2019, 1, 1), count=2600, base=0.92, daily_drift=-0.0002)
+
+    profile = service.calculate(MarketRegion.FOREX, series, _PROVENANCE)
+
+    returns = {w.window: w.percent_change for w in profile.windows}
+    for window in (PerformanceWindow.H24, PerformanceWindow.W1, PerformanceWindow.Y1, PerformanceWindow.Y5):
+        assert returns[window] < 0.0, f"{window} should show a real negative return, got {returns[window]}"
+    # Longer windows compound to bigger moves — they are not all the same number.
+    assert returns[PerformanceWindow.Y5] < returns[PerformanceWindow.Y1] < returns[PerformanceWindow.H24]
+
+
+def test_sub_dollar_crypto_series_computes_real_returns() -> None:
+    service = PerformanceCalculationService()
+    series = _low_price_series("DOGE-USD", date(2021, 1, 1), count=2000, base=0.30, daily_drift=-0.0005)
+
+    profile = service.calculate(MarketRegion.CRYPTO, series, _PROVENANCE)
+
+    y5 = profile.window(PerformanceWindow.Y5)
+    assert y5 is not None
+    assert y5.is_complete is True
+    assert y5.percent_change < -50.0  # a genuine multi-year drawdown, not 0.0%
+    assert y5.start_value > 0.0 and y5.end_value > 0.0
 
 
 def test_multi_year_windows_are_incomplete_when_history_is_too_short() -> None:

@@ -328,6 +328,61 @@ async def test_get_quotes_propagates_first_failure() -> None:
 # --- Price history -------------------------------------------------------
 
 
+def _low_price_history_payload(*, symbol: str, closes: list[float]) -> dict:
+    """A history payload shaped like Yahoo's real one, for a small-unit-price
+    instrument (FX cross rate / sub-dollar crypto). Closes are the full-
+    precision floats Yahoo actually returns — the point is that
+    normalization must not throw those digits away."""
+    return {
+        "chart": {
+            "result": [
+                {
+                    "meta": {"currency": "USD", "symbol": symbol, "fullExchangeName": "CCY"},
+                    "timestamp": [1786000000 + i * 86400 for i in range(len(closes))],
+                    "indicators": {
+                        "quote": [
+                            {
+                                "open": list(closes),
+                                "high": [c * 1.001 for c in closes],
+                                "low": [c * 0.999 for c in closes],
+                                "close": list(closes),
+                                "volume": [1000 + i for i in range(len(closes))],
+                            }
+                        ]
+                    },
+                }
+            ],
+            "error": None,
+        }
+    }
+
+
+async def test_get_price_history_retains_precision_for_a_low_priced_asset() -> None:
+    """I-1: EUR/GBP-magnitude closes must come back at ~5 significant
+    figures, not quantized to two decimals (0.86)."""
+    provider = YahooFinanceProvider(_config())
+    payload = _low_price_history_payload(symbol="EURGBP=X", closes=[0.857169, 0.858030, 0.855840])
+
+    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response(payload))):
+        series = await provider.get_price_history("EURGBP=X", Interval.ONE_DAY)
+
+    closes = [bar.close for bar in series.prices]
+    assert closes == [0.85717, 0.85803, 0.85584]
+    assert len(set(closes)) == 3  # distinct — a real ~0.15% move is preserved
+
+
+async def test_get_price_history_still_rounds_a_normal_equity_to_cents() -> None:
+    provider = YahooFinanceProvider(_config())
+    payload = _low_price_history_payload(
+        symbol="AAPL", closes=[313.45001220703125, 325.1300048828125]
+    )
+
+    with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response(payload))):
+        series = await provider.get_price_history("AAPL", Interval.ONE_DAY)
+
+    assert [bar.close for bar in series.prices] == [313.45, 325.13]
+
+
 async def test_get_price_history_parses_bars_and_skips_incomplete_ones() -> None:
     provider = YahooFinanceProvider(_config())
     with patch.object(httpx.AsyncClient, "get", new=AsyncMock(return_value=_response(_history_payload()))):
