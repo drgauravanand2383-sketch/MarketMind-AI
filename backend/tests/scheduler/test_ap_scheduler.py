@@ -12,10 +12,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED, JobExecutionEvent
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -464,3 +465,188 @@ async def test_health_includes_base_scheduler_registration_counts() -> None:
 
     assert status.registered_schedules == 2
     assert status.enabled_schedules == 1
+
+
+# --- Liveness: canary + watchdog -----------------------------------------------------------
+
+
+class _Clock:
+    """A hand-advanced clock for driving canary/watchdog staleness deterministically."""
+
+    def __init__(self, start: datetime | None = None) -> None:
+        self.now = start or datetime.now(UTC)
+
+    def __call__(self) -> datetime:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += timedelta(seconds=seconds)
+
+
+async def test_health_check_excludes_the_internal_canary_job() -> None:
+    service, scheduler = _build_service()
+    scheduler.register_schedule(interval_schedule("real_one", interval_seconds=3600))
+
+    await service.start()
+    try:
+        # The canary job exists on the AsyncIOScheduler...
+        assert service._ap_scheduler.get_job("__apscheduler_canary__") is not None
+        # ...but never leaks into the reported counts.
+        status = await service.health_check()
+        assert status.registered_jobs == 1
+    finally:
+        await service.shutdown()
+
+
+async def test_register_schedule_rejects_the_reserved_canary_id() -> None:
+    service, _ = _build_service()
+    from app.scheduler.models import Schedule, ScheduleTriggerType
+
+    reserved = Schedule(
+        workflow_id="__apscheduler_canary__",
+        trigger_type=ScheduleTriggerType.INTERVAL,
+        interval_seconds=60,
+        initiated_by="scheduler",
+    )
+    with pytest.raises(ValueError, match="reserved"):
+        service.register_schedule(reserved)
+
+
+async def test_dispatching_is_true_immediately_after_start_within_grace() -> None:
+    clock = _Clock()
+    engine = mock_workflow_engine()
+    service = APSchedulerService(Scheduler(engine), clock=clock, enable_watchdog=False)
+
+    await service.start()
+    try:
+        status = await service.health_check()
+        assert status.scheduler_running is True
+        assert status.dispatching is True  # canary hasn't fired yet, but grace applies
+        assert status.last_canary is None
+    finally:
+        await service.shutdown()
+
+
+async def test_dispatching_goes_false_when_the_canary_is_silent_past_the_threshold() -> None:
+    clock = _Clock()
+    service = APSchedulerService(
+        Scheduler(mock_workflow_engine()),
+        clock=clock,
+        watchdog_stale_after_seconds=300,
+        enable_watchdog=False,
+    )
+
+    await service.start()
+    try:
+        clock.advance(301)  # past the grace window, and the canary never stamped
+        status = await service.health_check()
+        assert status.dispatching is False
+    finally:
+        await service.shutdown()
+
+
+async def test_canary_stamp_restores_dispatching_and_is_reported() -> None:
+    clock = _Clock()
+    service = APSchedulerService(
+        Scheduler(mock_workflow_engine()),
+        clock=clock,
+        watchdog_stale_after_seconds=300,
+        enable_watchdog=False,
+    )
+
+    await service.start()
+    try:
+        clock.advance(301)
+        assert (await service.health_check()).dispatching is False
+
+        service._stamp_canary()  # what the real interval job does
+        status = await service.health_check()
+        assert status.dispatching is True
+        assert status.last_canary == clock.now
+    finally:
+        await service.shutdown()
+
+
+async def test_watchdog_restarts_the_scheduler_when_it_stops_dispatching() -> None:
+    clock = _Clock()
+    created: list[object] = []
+
+    def factory() -> AsyncIOScheduler:
+        sched = AsyncIOScheduler()
+        created.append(sched)
+        return sched
+
+    service = APSchedulerService(
+        Scheduler(mock_workflow_engine()),
+        ap_scheduler_factory=factory,
+        clock=clock,
+        watchdog_check_interval_seconds=0.02,
+        watchdog_stale_after_seconds=300,
+        canary_interval_seconds=10_000,  # never fires during the test
+    )
+
+    await service.start()
+    try:
+        assert service._watchdog_recoveries == 0
+        clock.advance(301)  # scheduler is now "stalled" from the watchdog's view
+
+        recovered = await _wait_until(lambda: service._watchdog_recoveries >= 1, timeout=2.0)
+        assert recovered, "watchdog should have restarted the stalled scheduler"
+
+        # After restart the reference clock is 'now' again -> healthy, no runaway loop.
+        assert (await service.health_check()).dispatching is True
+        assert service._watchdog_recoveries == 1
+        assert service._ap_scheduler.running is True
+        assert len(created) == 2  # one at construction, one from the single recovery
+    finally:
+        await service.shutdown()
+
+
+async def test_restart_rebuilds_a_fresh_scheduler_with_every_schedule_reregistered() -> None:
+    service, scheduler = _build_service()
+    scheduler.register_schedule(interval_schedule("alpha", interval_seconds=3600))
+    scheduler.register_schedule(cron_schedule("beta"))
+
+    await service.start()
+    try:
+        first = service._ap_scheduler
+        await service.restart()
+
+        assert service._ap_scheduler is not first  # genuinely a new instance
+        assert service._ap_scheduler.running is True
+        assert service._ap_scheduler.get_job("alpha") is not None
+        assert service._ap_scheduler.get_job("beta") is not None
+        assert service._ap_scheduler.get_job("__apscheduler_canary__") is not None
+        assert service._watchdog_recoveries == 1
+    finally:
+        await service.shutdown()
+
+
+async def test_shutdown_cancels_the_watchdog_task() -> None:
+    service, _ = _build_service()
+    await service.start()
+    task = service._watchdog_task
+    assert task is not None and not task.done()
+
+    await service.shutdown()
+
+    assert task.cancelled() or task.done()
+    assert service._watchdog_task is None
+
+
+async def test_the_real_canary_job_actually_stamps_via_the_timer() -> None:
+    """End-to-end: a real (short-interval) canary really fires, proving the
+    liveness signal is driven by the actual timer, not just settable by hand."""
+    service = APSchedulerService(
+        Scheduler(mock_workflow_engine()),
+        canary_interval_seconds=0.05,
+        enable_watchdog=False,
+    )
+
+    await service.start()
+    try:
+        stamped = await _wait_until(lambda: service._last_canary_at is not None, timeout=2.0)
+        assert stamped, "the canary job should have stamped within the timeout"
+        assert (await service.health_check()).last_canary is not None
+    finally:
+        await service.shutdown()

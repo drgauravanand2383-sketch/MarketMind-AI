@@ -26,9 +26,16 @@ means and `docs/release/RELEASE_CHECKLIST.md` before promoting any build.
 
 ```bash
 cd backend
-pip install -e .
-pip install --group dev   # test/lint tooling, not required to run the app
+pip install -c requirements.lock -e .   # -c pins every transitive dep to a known-good set
+pip install --group dev                 # test/lint tooling, not required to run the app
 ```
+
+`backend/requirements.lock` is the pinned dependency set (see
+`docs/decisions/0003-*`). The production `backend/Dockerfile` installs
+with the same `-c requirements.lock`, so image rebuilds resolve to
+identical versions. **After an intentional dependency change**,
+regenerate it: `pip freeze` inside a healthy container, delete the
+`marketmind-backend @ file://` self-reference line, and commit the diff.
 
 ## 3. Configure
 

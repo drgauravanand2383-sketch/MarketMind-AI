@@ -15,15 +15,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md requirements.lock ./
 COPY app ./app
 
 # A regular (non-editable) install into a venv — nothing in this stage
 # ships in the final image except the venv's installed site-packages.
+#
+# `-c requirements.lock` pins every direct and transitive dependency to
+# an exact, known-good version (the set captured from a working
+# deployment — regenerate with `pip freeze` in a healthy container). The
+# project itself is still installed from `pyproject.toml`; the constraint
+# file only removes version drift between rebuilds, so "worked before the
+# rebuild, broke after" can't happen from an unpinned dependency silently
+# moving.
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir .
+    pip install --no-cache-dir -c requirements.lock .
 
 FROM python:3.13-slim AS production
 WORKDIR /app

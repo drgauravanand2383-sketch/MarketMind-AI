@@ -32,6 +32,7 @@ from app.bootstrap import AppSettings
 from app.operations.health.service import HealthCheckService
 from app.operations.validation.configuration import ConfigurationValidationService
 from app.operations.validation.startup import StartupValidationService
+from app.scheduler.ap_scheduler import APSchedulerService
 
 __all__ = [
     "REPOSITORY_NAMES",
@@ -41,6 +42,7 @@ __all__ = [
     "get_health_check_service",
     "get_configuration_validation_service",
     "get_startup_validation_service",
+    "get_ap_scheduler_service",
     "get_repositories_map",
     "get_services_map",
 ]
@@ -98,6 +100,17 @@ def get_startup_validation_service(request: Request) -> StartupValidationService
     return resolve_app_state(
         request, "startup_validation_service", StartupValidationService, label="StartupValidationService"
     )
+
+
+def get_ap_scheduler_service(request: Request) -> APSchedulerService:
+    """Resolve the shared `APSchedulerService` (Sprint 35) configured at application startup.
+
+    Raises 503 when the scheduling subsystem is disabled
+    (`SCHEDULER_ENABLED=false` — `app.bootstrap` sets `app.state
+    .ap_scheduler_service` to `None`), which is an honest "no timer on this
+    instance" signal, not a fault.
+    """
+    return resolve_app_state(request, "ap_scheduler_service", APSchedulerService, label="APSchedulerService")
 
 
 def get_repositories_map(request: Request) -> dict[str, object | None]:

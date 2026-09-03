@@ -22,6 +22,7 @@ from app.api.v1.research import router as research_router
 from app.api.v1.routers.capabilities import router as capabilities_router
 from app.api.v1.routers.configuration import router as configuration_router
 from app.api.v1.routers.health import router as health_router
+from app.api.v1.routers.scheduler import router as scheduler_router
 from app.api.v1.routers.services import router as services_router
 from app.api.v1.routers.version import router as version_router
 from app.api.v1.screening import router as screening_router
@@ -38,6 +39,7 @@ router.include_router(version_router)
 router.include_router(configuration_router)
 router.include_router(capabilities_router)
 router.include_router(services_router)
+router.include_router(scheduler_router)
 router.include_router(watchlists_router)
 router.include_router(portfolio_router)
 router.include_router(research_router)
