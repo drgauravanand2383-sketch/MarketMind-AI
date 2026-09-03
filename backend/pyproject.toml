@@ -1,6 +1,6 @@
 [project]
 name = "marketmind-backend"
-version = "1.0.0"
+version = "1.2.3"
 description = "MarketMind AI backend — modular multi-agent market intelligence platform"
 readme = "README.md"
 requires-python = ">=3.13"

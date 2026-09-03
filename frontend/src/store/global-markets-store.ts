@@ -1,12 +1,20 @@
 import { create } from "zustand";
 import type { ReportCategory } from "@/types/global-markets";
 
-/** The five main-category tabs, plus one synthetic 6th tab that itself
- * contains 4 penny/micro-cap sub-tabs (`activePennySubTab` below) — a
- * two-level tablist, same "one active id per level" shape
- * `DecisionWorkspaceTab`/`activeTab` already establishes for the
- * Decision Center's single-level tablist. */
-export type GlobalMarketsTab = "INDIA_EQUITY" | "US_EQUITY" | "CHINA_EQUITY" | "FOREX" | "CRYPTO" | "PENNY_MICROCAP";
+/** A synthetic "Top Picks" digest tab, then the five main-category tabs,
+ * then one synthetic tab that itself contains 4 penny/micro-cap sub-tabs
+ * (`activePennySubTab` below) — a two-level tablist, same "one active id
+ * per level" shape `DecisionWorkspaceTab`/`activeTab` already establishes
+ * for the Decision Center's single-level tablist. `TOP_PICKS` and
+ * `PENNY_MICROCAP` are frontend groupings, not backend categories. */
+export type GlobalMarketsTab =
+  | "TOP_PICKS"
+  | "INDIA_EQUITY"
+  | "US_EQUITY"
+  | "CHINA_EQUITY"
+  | "FOREX"
+  | "CRYPTO"
+  | "PENNY_MICROCAP";
 
 interface GlobalMarketsUiState {
   activeTab: GlobalMarketsTab;
@@ -26,7 +34,7 @@ interface GlobalMarketsUiState {
  * (`decision-workspace-store.ts` etc.) — reopening the app to a stale
  * tab selection would be surprising, not helpful. */
 export const useGlobalMarketsStore = create<GlobalMarketsUiState>()((set) => ({
-  activeTab: "INDIA_EQUITY",
+  activeTab: "TOP_PICKS",
   activePennySubTab: "INDIA_PENNY_STOCK",
   selectedRunId: null,
 

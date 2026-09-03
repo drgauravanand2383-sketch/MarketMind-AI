@@ -7,6 +7,8 @@ import { CATEGORY_DISPLAY_NAMES } from "@/features/global-markets/category-label
 import { GlobalMarketsTabs } from "@/features/global-markets/global-markets-tabs";
 import { PennyMicrocapSubTabs } from "@/features/global-markets/penny-microcap-subtabs";
 import { RunPicker } from "@/features/global-markets/run-picker";
+import { formatRunTimestampIst } from "@/features/global-markets/run-timestamp";
+import { TopPicksPanel } from "@/features/global-markets/top-picks-panel";
 import { useLatestRun, useRun } from "@/hooks/use-global-markets";
 import { ApiError } from "@/services/api/errors";
 import { useGlobalMarketsStore } from "@/store/global-markets-store";
@@ -82,6 +84,7 @@ export function GlobalMarketsLandingPage(): ReactNode {
   const run = activeRunQuery.data;
   const failedCategories = run.category_outcomes.filter((outcome) => !outcome.succeeded);
   const tone = statusTone(run.status);
+  const completedAtIst = formatRunTimestampIst(run.completed_at);
   const activeCategory = activeTab === "PENNY_MICROCAP" ? activePennySubTab : activeTab;
   const activeOutcome = run.category_outcomes.find((outcome) => outcome.category === activeCategory);
 
@@ -96,6 +99,7 @@ export function GlobalMarketsLandingPage(): ReactNode {
           <RunPicker />
           <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASS[tone]}`}>{run.status}</span>
           <span className="text-slate-500 dark:text-slate-400">Run date {run.run_date}</span>
+          {completedAtIst && <span className="text-xs text-slate-500 dark:text-slate-400">as of {completedAtIst}</span>}
         </div>
       </div>
 
@@ -116,7 +120,9 @@ export function GlobalMarketsLandingPage(): ReactNode {
       <GlobalMarketsTabs />
 
       <div role="tabpanel" id={`global-markets-tabpanel-${activeTab}`} aria-labelledby={`global-markets-tab-${activeTab}`} className="pt-4">
-        {activeTab === "PENNY_MICROCAP" ? (
+        {activeTab === "TOP_PICKS" ? (
+          <TopPicksPanel run={run} />
+        ) : activeTab === "PENNY_MICROCAP" ? (
           <div className="flex flex-col gap-4">
             <PennyMicrocapSubTabs />
             <div

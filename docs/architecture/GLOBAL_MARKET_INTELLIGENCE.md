@@ -7,7 +7,9 @@ per-market penny-stock eligibility criteria — see §4) + Phase 6c
 (penny/micro-cap candidate discovery — see §14) + Phase 7 (extended
 trailing-return windows: 24H..5Y, up from 10D..1Y — persisted on each
 `RankedAsset` and surfaced in the API and frontend; see §3, §8, §12,
-§15) are implemented.** Daily,
+§15) + Phase 8 (daily-intelligence surfacing: dashboard card, "Top Picks"
+tab, permission grant, 15-ticker main universes + equity penny fallback
+universes — see §7, §16) are implemented.** Daily,
 multi-market intelligence covering nine reporting categories across five
 market regions (India, US, China, Forex, Crypto), published once daily
 via a scheduled workflow, readable over `/api/v1/global-markets`,
@@ -283,21 +285,35 @@ category failure, and never silently retried within the same execution.
 `UniverseRegistry` (`app/global_markets/universe/registry.py`) maps each
 `ReportCategory` to its candidate ticker set; `.get()` returning `()` is
 a normal, honest state, never an error. `DEFAULT_UNIVERSES`
-(`universe/defaults.py`) hardcodes a live-verified 10-ticker universe for
-each of the five main categories. **The four penny/micro-cap categories'
-`DEFAULT_UNIVERSES` entries stay deliberately empty** — fabricating
-specific penny-stock tickers from training-data recall would violate
-this codebase's "never fabricate financial facts" principle
-(training-data-recalled small-caps are disproportionately likely to be
-delisted, stale, or wrong).
+(`universe/defaults.py`) hardcodes a live-verified **15-ticker** universe
+for each of the five main categories — enough to cover a full
+`top_n == 15` selection. Every ticker was individually verified (real
+daily history fetched via the actual `YahooFinanceProvider`) before being
+added, per the "never fabricate financial facts" principle.
+
+**Penny/micro-cap categories:**
+
+- `INDIA_PENNY_STOCK` / `US_PENNY_STOCK` / `CHINA_PENNY_STOCK` carry a
+  small **FALLBACK-ONLY** static universe (each entry live-verified as
+  currently listed, actively trading, and — at verification time — under
+  its market's `max_price` gate). These lists are deliberately short:
+  only names that could be verified, never padded to reach `top_n`. The
+  downstream eligibility gate re-checks price and every other criterion
+  fresh each run.
+- `LOW_CAP_CRYPTO` stays **deliberately empty** — its eligibility gate
+  depends entirely on market-cap / daily-volume data the pipeline has no
+  source for, so `ConfigurableEligibilityProvider` structurally rejects
+  every candidate (`data_completeness_ratio` below the 0.5 minimum).
+  Adding tickers would only produce names that can never pass.
 
 As of Phase 6c, `GlobalMarketIntelligenceWorkflow._resolve_universe` can
-populate those four universes a different way: when a `screening_provider`
-is configured (`GLOBAL_MARKET_SCREENING_ENABLED=true`), each penny/
-micro-cap category's universe is freshly *live-discovered* on every run
-instead — see §14. `UniverseRegistry`'s static entry (still empty by
-default) remains the fallback whenever screening is unconfigured, returns
-nothing, or fails. The eligibility/scoring/risk-classification machinery
+populate the penny/micro-cap universes a different way: when a
+`screening_provider` is configured (`GLOBAL_MARKET_SCREENING_ENABLED=true`),
+each penny/micro-cap category's universe is freshly *live-discovered* on
+every run instead — see §14. The static `DEFAULT_UNIVERSES` entry remains
+**fallback only** — consulted solely when screening is unconfigured,
+returns nothing, or fails; a successful discovery is never overridden by
+it. The eligibility/scoring/risk-classification machinery
 those categories need is fully built, tested, and (Phase 6b) wired with
 real per-market `PennyStockEligibilityCriteria` (see §4); once screening
 is enabled, `PennyMicrocapIntelligenceAgent` finally has real ranked
@@ -385,13 +401,11 @@ one returns the existing run, never re-fetches.
   not a bug — see §14's own "Known limitation").
 - `GLOBAL_MARKET_SCREENING_ENABLED` defaults to `false` — an operator
   must deliberately opt in (see `docs/release/PRODUCTION_CONFIGURATION_GUIDE.md`).
-  Until then, every penny/micro-cap `DEFAULT_UNIVERSES` entry stays
-  empty exactly as it did before Phase 6c.
-- **Main-category universes hold 10 tickers each** (`DEFAULT_UNIVERSES`,
-  §7), so those categories currently rank a Top-10, not the Top-15 their
-  `REPORT_CATEGORY_DEFINITIONS.top_n` allows — `min(universe_size,
-  top_n)`, not a bug. Widening the static universes (or wiring main-category
-  screening) is the fix.
+  Until then, the three equity penny categories rank over their small
+  static fallback universe (§7), and `LOW_CAP_CRYPTO` produces nothing.
+- **Main-category universes now hold 15 tickers each** (`DEFAULT_UNIVERSES`,
+  §7), so those categories rank a full Top-15. Widening further, or wiring
+  main-category screening, would only matter for a larger candidate pool.
 - Yahoo's unofficial screener endpoint (§14) is prone to
   `429 Too Many Requests` on its crumb handshake under load; when it
   rate-limits, the three equity penny categories degrade to their empty
@@ -697,3 +711,32 @@ a `*` and an explanatory footnote — never shown as a full-window return,
 the same discipline `WindowedPerformance` enforces server-side (§3).
 `types/global-markets.ts` mirrors `PerformanceWindow` /
 `WindowedPerformance` / `RankedAsset.performance_windows` verbatim.
+
+## 16. Daily-intelligence surfacing (Phase 8)
+
+Phase 8 makes the daily run visible from where users actually start,
+without adding any new backend surface — every piece below is a pure
+projection of the already-persisted run:
+
+- **"Today's Global Markets" dashboard card**
+  (`features/dashboard/todays-global-markets-card.tsx`, registered in
+  `dashboard-card-registry.tsx` with `requiresPermission:
+  "global_markets:read"`). Shows the latest run's date, status, IST
+  completion time (`formatRunTimestampIst` — the workflow is IST-native,
+  scheduled 08:30 Asia/Kolkata), and a top-3 ticker preview per segment.
+  Handles loading / empty (no run yet) / stale (run date ≥ 2 days old) /
+  error states. "View full report →" links to `/global-markets`. The
+  dashboard layout store gained a `merge` so a returning user (persisted
+  `cardOrder` in `localStorage`) still sees the newly-registered card.
+- **"Top Picks" tab** (`features/global-markets/top-picks-panel.tsx`,
+  first tab on `/global-markets`, the store's default `activeTab`).
+  Aggregates rank 1–3 across all nine categories via
+  `useTopPicksAcrossCategories` — one cached query per category (the
+  all-categories endpoint is capped below 9×20 rows), sliced and grouped
+  in the browser, never re-ranked. Shows the run-level "as of
+  {completed_at} IST" timestamp (also added to the page header).
+- **Permissions.** `global_markets:read` is granted through a dedicated
+  additive role, `GLOBAL_MARKETS_READ` (id `role-global-markets-read`),
+  assigned by `scripts/grant_global_markets_access.py` — no existing role
+  is mutated and authorization is never weakened. See
+  `docs/release/ADMINISTRATOR_GUIDE.md`.

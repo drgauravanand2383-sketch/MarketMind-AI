@@ -200,6 +200,31 @@ describe("GlobalMarketsLandingPage", () => {
     expect(screen.getByText(/partial — the asset's available history does not fully cover/)).toBeInTheDocument();
   });
 
+  it("the Top Picks tab aggregates each category's top ranks and shows the run-level IST timestamp", async () => {
+    seedRun(
+      buildIntelligenceRun({ id: "run-1", run_date: "2026-02-01", status: "COMPLETED", completed_at: "2026-02-01T03:05:00Z" }),
+    );
+    seedRankedAssets("run-1", "INDIA_EQUITY", [
+      buildRankedAsset({ rank: 1, snapshot: buildNormalizedAssetSnapshot({ ticker: "RELIANCE" }) }),
+      buildRankedAsset({ rank: 2, snapshot: buildNormalizedAssetSnapshot({ ticker: "TCS" }) }),
+    ]);
+    seedRankedAssets("run-1", "US_EQUITY", [
+      buildRankedAsset({
+        rank: 1,
+        category: "US_EQUITY",
+        snapshot: buildNormalizedAssetSnapshot({ ticker: "AAPL", report_category: "US_EQUITY", currency: "USD" }),
+      }),
+    ]);
+
+    renderWithQueryClient(<GlobalMarketsLandingPage />);
+    await userEvent.click(await screen.findByRole("tab", { name: "Top Picks" }));
+
+    expect(await screen.findByText("RELIANCE")).toBeInTheDocument();
+    expect(screen.getByText("AAPL")).toBeInTheDocument();
+    // Run-level "as of ... IST" (IST = UTC+5:30, so 03:05Z -> 8:35 am).
+    expect(screen.getAllByText(/as of .*IST/i).length).toBeGreaterThan(0);
+  });
+
   it("the run picker lets the user switch to a past run, showing a clear 'not the latest' indicator", async () => {
     seedRun(buildIntelligenceRun({ id: "run-2", run_date: "2026-01-31", status: "COMPLETED" }));
     seedRun(buildIntelligenceRun({ id: "run-1", run_date: "2026-02-01", status: "COMPLETED" })); // seeded last -> latest

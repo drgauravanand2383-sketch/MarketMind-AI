@@ -5,6 +5,7 @@ import { HealthPanel } from "@/features/dashboard/health-panel";
 import { QuickNavCards } from "@/features/dashboard/quick-nav-cards";
 import { RealtimeSummaryCards } from "@/features/dashboard/realtime-summary-cards";
 import { RecentActivity } from "@/features/dashboard/recent-activity";
+import { TodaysGlobalMarketsCard } from "@/features/dashboard/todays-global-markets-card";
 import { UserCard } from "@/features/dashboard/user-card";
 import type { DashboardCardId } from "@/types/preferences";
 
@@ -18,6 +19,11 @@ export interface DashboardCardDefinition {
    * registered card supplies one (a Milestone 9 audit fix: `RecentActivity`
    * used to render its own internal `<h3>` with no `<h2>` in between). */
   panelTitle?: string;
+  /** When set, the card renders only for a user whose permission list
+   * includes this string (`DashboardPage` filters on it) — same permission
+   * strings the backend's own `RequirePermission` policies check. Omitted
+   * for cards every authenticated user may see. */
+  requiresPermission?: string;
   render: () => ReactNode;
 }
 
@@ -30,6 +36,13 @@ export const DASHBOARD_CARDS: DashboardCardDefinition[] = [
   { id: "user", label: "Account", panelTitle: "Account", render: () => <UserCard /> },
   { id: "connectivity", label: "Connectivity", panelTitle: "Connectivity", render: () => <ConnectivityPanel /> },
   { id: "quick-nav", label: "Quick access", panelTitle: "Quick access", render: () => <QuickNavCards /> },
+  {
+    id: "todays-global-markets",
+    label: "Today's Global Markets",
+    panelTitle: "Today's Global Markets",
+    requiresPermission: "global_markets:read",
+    render: () => <TodaysGlobalMarketsCard />,
+  },
   { id: "realtime-summary", label: "Session activity", panelTitle: "Session activity", render: () => <RealtimeSummaryCards /> },
   { id: "health-summary-chart", label: "Component health summary", panelTitle: "Component health summary", render: () => <HealthSummaryChart /> },
   { id: "service-availability-chart", label: "Service availability", panelTitle: "Service availability", render: () => <ServiceAvailabilityChart /> },
