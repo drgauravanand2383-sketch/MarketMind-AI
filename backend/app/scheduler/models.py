@@ -110,13 +110,16 @@ class SchedulerHealthStatus(BaseModel):
     """Health snapshot for the scheduling subsystem. No workflow is executed to produce this.
 
     The first four fields are Scheduler's own (Sprint 31): what's
-    registered, independent of any timer. The last four
-    (`scheduler_running`, `registered_jobs`, `last_execution`,
-    `next_execution`) describe the APScheduler integration (Sprint 35) —
-    they default to the "no timer wired up" values (False/0/None/None) so
-    `Scheduler.health_check()` continues to produce a valid status on its
-    own; `APSchedulerService.health_check()` (ap_scheduler.py) populates
-    them from the real AsyncIOScheduler.
+    registered, independent of any timer. `scheduler_running` /
+    `registered_jobs` / `last_execution` / `next_execution` describe the
+    APScheduler integration (Sprint 35). `dispatching` / `last_canary` /
+    `watchdog_recoveries` (added later) distinguish a scheduler that is
+    genuinely *ticking* from one that reports `scheduler_running=True` but
+    has silently stopped firing jobs — see `APSchedulerService`'s canary
+    and watchdog. Every APScheduler-derived field defaults to the "no
+    timer wired up" value so `Scheduler.health_check()` still produces a
+    valid status on its own; `APSchedulerService.health_check()`
+    (ap_scheduler.py) populates them from the real AsyncIOScheduler.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -129,3 +132,14 @@ class SchedulerHealthStatus(BaseModel):
     registered_jobs: int = 0
     last_execution: datetime | None = None
     next_execution: datetime | None = None
+    #: Whether the timer loop is confirmed alive — the internal canary job
+    #: fired within the staleness threshold (or startup grace still
+    #: applies). `False` while `scheduler_running` is `True` is exactly
+    #: the silent-failure mode the watchdog exists to catch.
+    dispatching: bool = True
+    #: When the internal canary job last ran (`None` before its first
+    #: tick, or when no APScheduler timer is wired up).
+    last_canary: datetime | None = None
+    #: How many times the watchdog has torn down and recreated the
+    #: AsyncIOScheduler after detecting it had stopped dispatching.
+    watchdog_recoveries: int = 0

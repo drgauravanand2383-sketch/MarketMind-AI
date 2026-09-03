@@ -22,6 +22,27 @@ def test_version_missing_settings_returns_503(bare_client: TestClient) -> None:
     assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
 
+# --- /system/scheduler -----------------------------------------------------------
+
+
+def test_scheduler_health_reports_a_running_dispatching_scheduler(client: TestClient) -> None:
+    data = client.get("/api/v1/system/scheduler").json()["data"]
+
+    assert data["scheduler_running"] is True
+    # Freshly bootstrapped: the timer is alive (canary grace applies even
+    # before its first tick) and the watchdog has never had to intervene.
+    assert data["dispatching"] is True
+    assert data["watchdog_recoveries"] == 0
+    assert isinstance(data["registered_jobs"], int)
+    assert "next_execution" in data and "last_canary" in data
+
+
+def test_scheduler_health_missing_service_returns_503(bare_client: TestClient) -> None:
+    response = bare_client.get("/api/v1/system/scheduler")
+
+    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
+
 # --- /configuration -----------------------------------------------------------
 
 

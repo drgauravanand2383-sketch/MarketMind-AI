@@ -84,6 +84,7 @@ def test_every_require_policy_protected_endpoint_advertises_bearer_auth(client: 
         "/api/v1/configuration",
         "/api/v1/capabilities",
         "/api/v1/services",
+        "/api/v1/system/scheduler",
         # Neither endpoint can require a token: login issues the first
         # one, and refresh exchanges a refresh token (not a Bearer
         # access token) for a new pair.

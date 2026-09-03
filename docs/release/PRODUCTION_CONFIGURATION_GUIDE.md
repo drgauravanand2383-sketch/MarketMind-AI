@@ -81,6 +81,14 @@ and portfolio intelligence. Every other endpoint works without it.
 background scheduling subsystem entirely (no `APSchedulerService`
 constructed, no timer running).
 
+**Monitoring**: `GET /api/v1/system/scheduler` reports the live scheduler
+state. Watch `dispatching` (must be `true` — `false` while
+`scheduler_running` is `true` means the timer has silently stalled) and
+`watchdog_recoveries` (should stay `0`; any non-zero value means the
+watchdog had to rebuild a stalled scheduler — investigate, and check for
+a `CRITICAL` `apscheduler_not_dispatching` log line). See
+`docs/decisions/0003-*`.
+
 ## Ingestion & embeddings — `INGESTION_*` / `EMBEDDING_*` (Milestone 11)
 
 | Variable | Default | Notes |
